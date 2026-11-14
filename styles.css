@@ -601,10 +601,33 @@ kbd {
 /* ---------- 모바일 터치 조작 ---------- */
 .touch-ui { display: none; }
 
-body.touch .touch-ui { display: block; }
-body.touch .skillbar { display: none; }
-body.touch .controls-panel { display: none; }
-body.touch .hint { display: none; }
+body.touch-mode .touch-ui { display: block; }
+body.touch-mode .skillbar { display: none; }
+body.touch-mode .controls-panel { display: none; }
+body.touch-mode .hint { display: none; }
+/* 터치 모드에서도 조작 안내는 보이도록 별도 배치 */
+body.touch-mode .touch-hint { display: block; }
+
+.mode-toggle {
+  pointer-events: auto;
+  touch-action: manipulation;
+  width: 100%;
+  margin-top: 2px;
+  font-family: var(--font);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--gold-soft);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(232, 194, 106, 0.35);
+  border-radius: 8px;
+  padding: 5px 8px;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.mode-toggle:active { transform: scale(0.98); }
+.touch-hint { display: none; }
 
 .joy {
   position: absolute;

@@ -318,20 +318,33 @@ export class Player {
     }
     this.addHeadgear(mk);
 
-    // 무기
+    // 무기 (손 위치에서 몸 바깥쪽으로 기울여 어깨 견갑에 가리지 않게)
     const w = buildWeapons(this.classId);
     this.weapons = w;
+    const WEAPON_POSE = {
+      warrior: { r: { p: [-0.4, -1.0, 0.55], r: [0.14, 0, 0.46] } },
+      archer: { l: { p: [0, -0.7, 0.35], r: [0, 0, 0] } },
+      rogue: {
+        r: { p: [-0.25, -0.8, 0.4], r: [0.12, 0, 0.26] },
+        l: { p: [0.25, -0.8, 0.4], r: [0.12, 0, -0.26] },
+      },
+      tanker: {
+        r: { p: [-0.3, -0.8, 0.35], r: [0.1, 0, 0.32] },
+        l: { p: [0.7, -0.5, 0.25], r: [0, -Math.PI / 2, 0.12] },
+      },
+      mage: { r: { p: [-0.2, -0.85, 0.45], r: [0.1, 0, 0.22] } },
+    };
+    const wp = WEAPON_POSE[this.classId] || {};
     if (w.right) {
-      w.right.position.set(0, -0.6, 0);
+      const cfg = wp.r || { p: [0, -0.7, 0.2], r: [0, 0, 0] };
+      w.right.position.set(cfg.p[0], cfg.p[1], cfg.p[2]);
+      w.right.rotation.set(cfg.r[0], cfg.r[1], cfg.r[2]);
       this.handR.add(w.right);
     }
     if (w.left) {
-      if (this.classId === 'tanker') {
-        w.left.rotation.y = -Math.PI / 2;
-        w.left.position.set(0.6, -0.4, 0);
-      } else {
-        w.left.position.set(0, -0.4, 0);
-      }
+      const cfg = wp.l || { p: [0, -0.5, 0.2], r: [0, 0, 0] };
+      w.left.position.set(cfg.p[0], cfg.p[1], cfg.p[2]);
+      w.left.rotation.set(cfg.r[0], cfg.r[1], cfg.r[2]);
       this.handL.add(w.left);
     }
 
@@ -618,8 +631,8 @@ export class Player {
     const breath = Math.sin(this.time * 2.0);
     t.bodyY = breath * 0.16;
     t.torsoPitch = 0.035 + breath * 0.015;
-    t.armLz = 0.15;
-    t.armRz = -0.15;
+    t.armLz = 0.17;
+    t.armRz = -0.22;
     t.armLx = breath * 0.05;
     t.armRx = -breath * 0.05;
     t.foreLx = -0.28;

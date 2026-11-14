@@ -220,11 +220,59 @@ class Game {
 
   /* -------------------------- 모바일 터치 조작 -------------------------- */
   bindTouch() {
-    const coarse = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || ('ontouchstart' in window);
+    // iPadOS Safari는 데스크톱 UA/넓은 화면으로 보고하므로 터치 지원 여부로 판단
+    const coarse = (navigator.maxTouchPoints > 0)
+      || ('ontouchstart' in window)
+      || !!(window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
     this.isTouch = coarse;
-    if (coarse) document.body.classList.add('touch');
+    const setTouchMode = (on) => {
+      document.body.classList.toggle('touch-mode', on);
+      const btn = document.getElementById('mode-toggle');
+      if (btn) btn.textContent = on ? '🖥 키보드/마우스 모드' : '📱 터치 모드';
+      this.touchMode = on;
+    };
+    setTouchMode(coarse);
+    const toggle = document.getElementById('mode-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        setTouchMode(!document.body.classList.contains('touch-mode'));
+      });
+      toggle.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        setTouchMode(!document.body.classList.contains('touch-mode'));
+      }, { passive: false });
+    }
 
     document.addEventListener('touchstart', () => { this.lastTouchAt = Date.now(); }, { passive: true });
+
+    // 캔버스 터치 드래그로 시점 회전 + 짧은 탭으로 공격
+    const canvas = this.renderer.domElement;
+    let look = null;
+    canvas.addEventListener('touchstart', (e) => {
+      this.lastTouchAt = Date.now();
+      if (e.touches.length !== 1) { look = null; return; }
+      const t = e.touches[0];
+      look = { x: t.clientX, y: t.clientY, moved: 0, at: Date.now() };
+    }, { passive: true });
+    canvas.addEventListener('touchmove', (e) => {
+      if (!look || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const dx = t.clientX - look.x;
+      const dy = t.clientY - look.y;
+      look.x = t.clientX;
+      look.y = t.clientY;
+      look.moved += Math.abs(dx) + Math.abs(dy);
+      this.camYaw -= dx * 0.005;
+      this.camPitch = clamp(this.camPitch + dy * 0.004, -0.32, 0.95);
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+    canvas.addEventListener('touchend', () => {
+      if (look && look.moved < 14 && Date.now() - look.at < 320) {
+        if (this.state === 'playing' && this.player) this.player.attack();
+      }
+      look = null;
+    }, { passive: true });
 
     const joy = document.getElementById('joy');
     const knob = document.getElementById('joy-knob');
