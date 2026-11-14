@@ -77,7 +77,16 @@ class Game {
     this.sfx = new Sfx();
 
     this.bindInput();
+    this.bindTouch();
     this.resize();
+
+    // 디버그용: ?class=warrior&biome=temple 로 바로 시작
+    const qp = new URLSearchParams(window.location.search);
+    this.startBiome = qp.get('biome');
+    this.autoClass = qp.get('class');
+    if (this.autoClass && CLASSES[this.autoClass]) {
+      setTimeout(() => this.startClass(this.autoClass), 350);
+    }
 
     this.clock = new THREE.Clock();
     this.last = 0;
@@ -138,6 +147,7 @@ class Game {
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
     canvas.addEventListener('mousedown', (e) => {
+      if (Date.now() - (this.lastTouchAt || 0) < 700) return; // 터치 뒤 합성 이벤트 무시
       if (this.state !== 'playing') return;
       if (document.pointerLockElement === canvas) {
         if (e.button === 0 && this.player) this.player.attack();
@@ -184,6 +194,127 @@ class Game {
     }, { passive: false });
 
     window.addEventListener('resize', () => this.resize());
+
+    // ---- 모바일 확대(더블탭 · 핀치) 차단 ----
+    const stopMulti = (e) => {
+      if (e.touches && e.touches.length > 1 && e.cancelable) e.preventDefault();
+    };
+    document.addEventListener('touchstart', stopMulti, { passive: false });
+    document.addEventListener('touchmove', stopMulti, { passive: false });
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach((name) => {
+      document.addEventListener(name, (e) => e.preventDefault(), { passive: false });
+    });
+    // 더블탭(300ms 이내 두 번째 탭) 확대 방지
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd < 320 && e.cancelable) e.preventDefault();
+      lastTouchEnd = now;
+    }, { passive: false });
+    document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+    // iOS Safari 핀치 줌 (일부 버전)
+    document.addEventListener('wheel', (e) => {
+      if (e.ctrlKey && e.cancelable) e.preventDefault();
+    }, { passive: false });
+  }
+
+  /* -------------------------- 모바일 터치 조작 -------------------------- */
+  bindTouch() {
+    const coarse = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || ('ontouchstart' in window);
+    this.isTouch = coarse;
+    if (coarse) document.body.classList.add('touch');
+
+    document.addEventListener('touchstart', () => { this.lastTouchAt = Date.now(); }, { passive: true });
+
+    const joy = document.getElementById('joy');
+    const knob = document.getElementById('joy-knob');
+    if (joy && knob) {
+      let active = false;
+      let cx = 0, cy = 0;
+      const maxR = 52;
+      const setKnob = (dx, dy) => {
+        knob.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)';
+      };
+      const apply = (dx, dy) => {
+        const len = Math.hypot(dx, dy);
+        const limit = Math.min(1, len / maxR);
+        if (len < 10) {
+          this.input.forward = false; this.input.back = false;
+          this.input.left = false; this.input.right = false;
+          this.input.sprint = false;
+          return;
+        }
+        const nx = dx / (len || 1);
+        const ny = dy / (len || 1);
+        this.input.left = nx < -0.38;
+        this.input.right = nx > 0.38;
+        this.input.forward = ny < -0.3;
+        this.input.back = ny > 0.45;
+        this.input.sprint = limit > 0.85;
+      };
+      const start = (e) => {
+        const t = e.changedTouches ? e.changedTouches[0] : e;
+        const r = joy.getBoundingClientRect();
+        cx = r.left + r.width / 2;
+        cy = r.top + r.height / 2;
+        active = true;
+        e.preventDefault();
+        move({ clientX: t.clientX, clientY: t.clientY, preventDefault: () => {} });
+      };
+      const move = (e) => {
+        if (!active) return;
+        const t = e.changedTouches ? e.changedTouches[0] : e;
+        let dx = t.clientX - cx;
+        let dy = t.clientY - cy;
+        const len = Math.hypot(dx, dy);
+        if (len > maxR) { dx = dx / len * maxR; dy = dy / len * maxR; }
+        setKnob(dx, dy);
+        apply(dx, dy);
+        if (e.cancelable) e.preventDefault();
+      };
+      const end = (e) => {
+        active = false;
+        setKnob(0, 0);
+        this.input.forward = false; this.input.back = false;
+        this.input.left = false; this.input.right = false;
+        this.input.sprint = false;
+        if (e && e.cancelable) e.preventDefault();
+      };
+      joy.addEventListener('touchstart', start, { passive: false });
+      joy.addEventListener('touchmove', move, { passive: false });
+      joy.addEventListener('touchend', end, { passive: false });
+      joy.addEventListener('touchcancel', end, { passive: false });
+      // 마우스로도 조이스틱 테스트 가능
+      joy.addEventListener('mousedown', (e) => {
+        const r = joy.getBoundingClientRect();
+        cx = r.left + r.width / 2;
+        cy = r.top + r.height / 2;
+        active = true;
+        move(e);
+        e.preventDefault();
+      });
+      window.addEventListener('mousemove', (e) => { if (active) move(e); });
+      window.addEventListener('mouseup', (e) => { if (active) end(e); });
+    }
+
+    const bindBtn = (id, fn, labelId) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const fire = (e) => {
+        if (e.cancelable) e.preventDefault();
+        if (this.state === 'playing' && this.player && fn) fn();
+      };
+      el.addEventListener('touchstart', fire, { passive: false });
+      el.addEventListener('mousedown', (e) => {
+        if (Date.now() - (this.lastTouchAt || 0) < 700) return;
+        if (e.button === 0) fire(e);
+      });
+      if (labelId) this[labelId] = el;
+    };
+    bindBtn('tbtn-attack', () => this.player.attack());
+    bindBtn('tbtn-q', () => this.player.useSkill('q'));
+    bindBtn('tbtn-e', () => this.player.useSkill('e'));
+    bindBtn('tbtn-jump', () => { this.input.jump = true; });
   }
 
   resize() {
@@ -204,9 +335,19 @@ class Game {
       this.effects.clear();
     }
     this.player = new Player(this, classId);
-    const spawn = BIOMES.forest.spawn;
+    const biomeId = (this.startBiome && BIOMES[this.startBiome]) ? this.startBiome : 'forest';
+    let spawn;
+    let yaw = -Math.PI / 2 + 0.25;
+    if (biomeId === 'temple') {
+      spawn = { x: 0, z: 300 };
+      yaw = 0;
+    } else if (BIOMES[biomeId].spawn) {
+      spawn = BIOMES[biomeId].spawn;
+    } else {
+      spawn = BIOMES[biomeId].center;
+    }
     this.player.spawnAt(spawn.x, spawn.z);
-    this.camYaw = -Math.PI / 2 + 0.25;
+    this.camYaw = yaw;
     this.camPitch = 0.22;
     this.camDist = 56;
     this.focused = true;

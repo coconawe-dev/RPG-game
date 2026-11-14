@@ -63,6 +63,13 @@ export class HUD {
     this.lastHp = -1;
     this.skillSlots = {};
 
+    this.touch = {
+      q: document.getElementById('tcd-q'),
+      e: document.getElementById('tcd-e'),
+      qBtn: document.getElementById('tbtn-q'),
+      eBtn: document.getElementById('tbtn-e'),
+    };
+
     this.buildCompass();
     this.buildClassCards();
     this.buildSkillBar(null);
@@ -258,6 +265,16 @@ export class HUD {
       const cooling = cd > 0.05;
       slot.el.classList.toggle('cooling', cooling);
       if (cooling) slot.cd.textContent = cd >= 1 ? Math.ceil(cd) : cd.toFixed(1);
+    }
+
+    // 모바일 터치 버튼 쿨다운
+    if (this.touch.q) {
+      const cq = p.cooldowns.q;
+      const ce = p.cooldowns.e;
+      this.touch.q.textContent = cq > 0.05 ? (cq >= 1 ? Math.ceil(cq) : cq.toFixed(1)) : '';
+      this.touch.e.textContent = ce > 0.05 ? (ce >= 1 ? Math.ceil(ce) : ce.toFixed(1)) : '';
+      this.touch.qBtn.classList.toggle('cooling', cq > 0.05);
+      this.touch.eBtn.classList.toggle('cooling', ce > 0.05);
     }
 
     // 미니맵 · 나침반

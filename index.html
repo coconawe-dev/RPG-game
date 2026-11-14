@@ -2,8 +2,11 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>정글 사원의 고대 골렘 · 웹 3D RPG</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="format-detection" content="telephone=no" />
 <meta name="description" content="Three.js로 만든 웹 3D RPG. 5개 지역, 5개 직업, 각 직업의 고유 무기와 Q/E 스킬, 정글 사원의 고대 골렘 보스전." />
 <link rel="icon" href="data:," />
 <link rel="stylesheet" href="./styles.css" />
@@ -78,6 +81,22 @@
       </section>
 
       <div class="skillbar" id="skillbar"></div>
+    </div>
+
+    <div class="touch-ui" id="touch-ui">
+      <div class="joy" id="joy">
+        <div class="joy-ring"></div>
+        <div class="joy-knob" id="joy-knob"></div>
+        <span class="joy-label">이동</span>
+      </div>
+      <div class="touch-actions">
+        <div class="trow">
+          <button class="tbtn small" id="tbtn-jump" type="button">점프</button>
+          <button class="tbtn" id="tbtn-q" type="button"><b>Q</b><span id="tcd-q"></span></button>
+          <button class="tbtn" id="tbtn-e" type="button"><b>E</b><span id="tcd-e"></span></button>
+        </div>
+        <button class="tbtn attack" id="tbtn-attack" type="button">공격</button>
+      </div>
     </div>
 
     <div class="crosshair" id="crosshair"></div>
