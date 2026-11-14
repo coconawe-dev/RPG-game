@@ -79,7 +79,7 @@ export class Combat {
     this.game.effects.slash(
       new THREE.Vector3(origin.x, origin.y, origin.z), yaw, range,
       o.arcVisual || Math.max(arc, 0.9), color,
-      { duration: 0.3, yOffset: player.classId === 'rogue' ? 9 : 11, sweep: o.swingFrom ? 0.6 : -0.6 }
+      { duration: 0.28, yOffset: player.classId === 'rogue' ? 9 : 11, sweep: o.swingFrom ? 0.6 : -0.6, opacity: 0.5 }
     );
     if (player.classId === 'tanker') {
       this.game.effects.burst(new THREE.Vector3(origin.x + dir.x * range * 0.6, origin.y + 8, origin.z + dir.z * range * 0.6), 0xbfe4ff, 8, { power: 14, size: 0.5 });

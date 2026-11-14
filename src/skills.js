@@ -35,15 +35,15 @@ const IMPLS = {
     q(game, p) {
       p.playAnim('whirlwind', 0.9);
       p.aimLock = 0.9;
-      const ticks = [0.12, 0.3, 0.5, 0.68];
-      game.effects.ring(at(p, 2), 0xffd27a, 68, { duration: 0.5 });
+      const ticks = [0.1, 0.32, 0.54, 0.76];
+      game.effects.ring(at(p, 2), 0xffd27a, 62, { duration: 0.45 });
       ticks.forEach((t, i) => {
         game.after(t, () => {
           if (!p.alive) return;
           const yaw = p.facing + (i * Math.PI) / 2;
           const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-          game.effects.slash(at(p, 10), yaw, 62, Math.PI * 1.4, 0xffe1a3, { duration: 0.32, sweep: 1.2, grow: 0.3 });
-          game.combat.melee(p, dir, 62, Math.PI * 2, p.damage * 0.58, { swingFrom: i % 2 === 0, arcVisual: Math.PI * 1.5 });
+          game.effects.slash(at(p, 9), yaw, 50, Math.PI * 1.0, 0xffe1a3, { duration: 0.26, sweep: 0.9, grow: 0.2, opacity: 0.3 });
+          game.combat.melee(p, dir, 56, Math.PI * 2, p.damage * 0.58, { swingFrom: i % 2 === 0, arcVisual: 0.001 });
           game.sfx.swing();
         });
       });

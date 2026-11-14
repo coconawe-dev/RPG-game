@@ -16,10 +16,10 @@ export class Effects {
   /* 베기 궤적 (지면과 수평인 부채꼴) */
   slash(pos, yaw, radius, arc, color, opts) {
     const o = opts || {};
-    const geo = new THREE.RingGeometry(radius * 0.28, radius, 26, 1, FRONT_ARC(arc), arc);
+    const geo = new THREE.RingGeometry(radius * 0.46, radius, 26, 1, FRONT_ARC(arc), arc);
     geo.rotateX(-Math.PI / 2);
     const mat = new THREE.MeshBasicMaterial({
-      color, transparent: true, opacity: o.opacity === undefined ? 0.85 : o.opacity,
+      color, transparent: true, opacity: o.opacity === undefined ? 0.5 : o.opacity,
       side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
     });
     const mesh = new THREE.Mesh(geo, mat);
@@ -34,7 +34,7 @@ export class Effects {
         this._tick(item, dt);
         const p = item.t / dur;
         mesh.scale.setScalar(1 + p * (o.grow === undefined ? 0.16 : o.grow));
-        mat.opacity = (o.opacity === undefined ? 0.85 : o.opacity) * (1 - p * p);
+        mat.opacity = (o.opacity === undefined ? 0.5 : o.opacity) * (1 - p * p);
         mesh.rotation.y = yaw - p * (o.sweep === undefined ? 0 : o.sweep);
       },
       dispose: () => { this.scene.remove(mesh); geo.dispose(); mat.dispose(); },

@@ -387,7 +387,7 @@ class Game {
     let spawn;
     let yaw = -Math.PI / 2 + 0.25;
     if (biomeId === 'temple') {
-      spawn = { x: 0, z: 300 };
+      spawn = { x: 0, z: 372 };
       yaw = 0;
     } else if (BIOMES[biomeId].spawn) {
       spawn = BIOMES[biomeId].spawn;
@@ -406,7 +406,7 @@ class Game {
     this.hud.onStart(this.player);
     this.hud.hideEnd();
     this.sfx.init();
-    this.hud.banner(CLASSES[classId].name + ' · ' + BIOMES.forest.name, 2400);
+    this.hud.banner(CLASSES[classId].name + ' · ' + BIOMES[biomeId].name, 2400);
     this.placeCamera(true);
     const canvas = this.renderer.domElement;
     if (canvas.requestPointerLock && !this.pointerLockBroken) {

@@ -457,7 +457,7 @@ function buildTemple(scene) {
   const pillars = [];
   const rnd = mulberry32(501);
   for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2;
+    const a = (i / 16) * Math.PI * 2 + Math.PI / 16;
     const r = 260;
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
