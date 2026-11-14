@@ -189,11 +189,11 @@ function buildGolem() {
   const body = new THREE.Group();
   root.add(body);
   const mats = [];
-  const stoneMat = stdMat(0x6f7066, { roughness: 1, metalness: 0.08 });
-  const darkStone = stdMat(0x4d4e46, { roughness: 1 });
+  const stoneMat = stdMat(0x8f9084, { roughness: 0.95, metalness: 0.08 });
+  const darkStone = stdMat(0x65665c, { roughness: 1 });
   const mossMat = stdMat(0x4a7a44, { roughness: 1 });
   const coreMat = new THREE.MeshStandardMaterial({
-    color: 0x8ff0ff, emissive: 0x3fd0ff, emissiveIntensity: 2.4, roughness: 0.3,
+    color: 0x9ff4ff, emissive: 0x4fd8ff, emissiveIntensity: 3.2, roughness: 0.3,
   });
   mats.push(stoneMat, darkStone, mossMat);
 

@@ -43,21 +43,21 @@ export function buildBow() {
     new THREE.Vector3(0, 2.4, 1.25),
     new THREE.Vector3(0, 4.6, 0.1),
   ]);
-  const limbGeo = new THREE.TubeGeometry(curve, 24, 0.26, 7, false);
+  const limbGeo = new THREE.TubeGeometry(curve, 24, 0.42, 8, false);
   const limb = new THREE.Mesh(limbGeo, wood());
   limb.castShadow = true;
   g.add(limb);
 
   for (const y of [-4.6, 4.6]) {
-    const tipDeco = mesh(new THREE.SphereGeometry(0.36, 8, 6), gold(), 0, y, 0.1);
+    const tipDeco = mesh(new THREE.SphereGeometry(0.48, 8, 6), gold(), 0, y, 0.1);
     g.add(tipDeco);
   }
   g.add(mesh(new THREE.CylinderGeometry(0.44, 0.44, 2.4, 8), leather(), 0, 0, 1.15));
 
   const stringMat = new THREE.MeshBasicMaterial({ color: 0xe8e2cf });
   const stringGroup = new THREE.Group();
-  const upper = mesh(new THREE.CylinderGeometry(0.06, 0.06, 4.6, 4), stringMat, 0, 2.3, 0.1);
-  const lower = mesh(new THREE.CylinderGeometry(0.06, 0.06, 4.6, 4), stringMat, 0, -2.3, 0.1);
+  const upper = mesh(new THREE.CylinderGeometry(0.1, 0.1, 4.6, 4), stringMat, 0, 2.3, 0.1);
+  const lower = mesh(new THREE.CylinderGeometry(0.1, 0.1, 4.6, 4), stringMat, 0, -2.3, 0.1);
   stringGroup.add(upper, lower);
   g.add(stringGroup);
 
@@ -73,6 +73,7 @@ export function buildBow() {
   arrow.visible = false;
   g.add(arrow);
 
+  g.rotation.y = 0.72; // 3인칭 뒤 시점에서 활의 실루엣이 보이도록 살짝 돌림
   g.userData.tip = new THREE.Vector3(0, 0, 1.6);
   g.userData.string = stringGroup;
   g.userData.arrow = arrow;
