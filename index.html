@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>정글 사원의 고대 골렘 · 웹 3D RPG</title>
+<meta name="description" content="Three.js로 만든 웹 3D RPG. 5개 지역, 5개 직업, 각 직업의 고유 무기와 Q/E 스킬, 정글 사원의 고대 골렘 보스전." />
+<link rel="icon" href="data:," />
+<link rel="stylesheet" href="./styles.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="game-root">
+  <canvas id="scene"></canvas>
+
+  <div id="hud" class="hud" aria-hidden="false">
+    <div class="hud-top">
+      <section class="panel char-panel">
+        <div class="char-head">
+          <span class="class-badge" id="class-badge">검사</span>
+          <span class="weapon-tag" id="weapon-tag">검</span>
+          <span class="level-text" id="level-text">Lv.1</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">HP</span>
+          <div class="bar"><i class="bar-fill hp-fill" id="hp-fill"></i><b class="bar-text" id="hp-text">170 / 170</b></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">XP</span>
+          <div class="bar xp"><i class="bar-fill xp-fill" id="xp-fill"></i><b class="bar-text" id="xp-text">0 / 60</b></div>
+        </div>
+        <div class="stat-row" id="stat-row">공격력 22 · 이동속도 58</div>
+        <div class="buff-row" id="buff-row"></div>
+      </section>
+
+      <section class="region-panel">
+        <div class="region-name" id="region-name">쾌적한 숲</div>
+        <div class="region-en" id="region-en">Pleasant Forest</div>
+        <div class="boss-wrap" id="boss-wrap">
+          <div class="boss-label"><span id="boss-name">고대 골렘</span><span id="boss-hp-text">1400 / 1400</span></div>
+          <div class="boss-bar"><i class="bar-fill" id="boss-fill"></i></div>
+        </div>
+        <div class="target-wrap" id="target-wrap">
+          <div class="target-label"><span id="target-name">슬라임</span><span id="target-hp-text"></span></div>
+          <div class="target-bar"><i class="bar-fill" id="target-fill"></i></div>
+        </div>
+      </section>
+
+      <section class="panel map-panel">
+        <canvas id="minimap" width="208" height="208"></canvas>
+        <div class="compass" id="compass"></div>
+      </section>
+    </div>
+
+    <div class="banner" id="banner"></div>
+    <div class="floaters" id="floaters"></div>
+    <div class="nameplates" id="nameplates"></div>
+
+    <div class="hud-bottom">
+      <section class="panel controls-panel" id="controls-panel">
+        <h3>조작법 <button class="mini" id="controls-toggle" type="button">접기</button></h3>
+        <ul id="controls-list">
+          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <span>이동 (방향키도 가능)</span></li>
+          <li><kbd>Shift</kbd> <span>달리기</span></li>
+          <li><kbd>Space</kbd> <span>점프</span></li>
+          <li><kbd>마우스</kbd> <span>시점 회전 (클릭하면 고정)</span></li>
+          <li><kbd>좌클릭</kbd> / <kbd>J</kbd> <span>기본 공격</span></li>
+          <li><kbd>Q</kbd> <span id="ctrl-q">스킬 1</span></li>
+          <li><kbd>E</kbd> <span id="ctrl-e">스킬 2</span></li>
+          <li><kbd>Esc</kbd> <span>마우스 고정 해제</span></li>
+        </ul>
+      </section>
+
+      <div class="skillbar" id="skillbar"></div>
+    </div>
+
+    <div class="crosshair" id="crosshair"></div>
+    <div class="hint" id="hint">화면을 클릭하면 마우스 시점이 고정됩니다 · Esc로 해제</div>
+  </div>
+
+  <div class="overlay" id="start-overlay">
+    <div class="start-inner">
+      <p class="eyebrow">WEB 3D RPG · THREE.JS</p>
+      <h1>정글 사원의 <span>고대 골렘</span></h1>
+      <p class="lead">다섯 개의 지역을 끊김 없이 달려, 정글 사원 깊은 곳에 잠든 고대 골렘을 쓰러뜨리세요.</p>
+      <div class="class-grid" id="class-grid"></div>
+      <p class="tip">직업을 선택하면 바로 시작됩니다 · 직업마다 무기·공격 모션·<b>Q / E 스킬</b>이 모두 다릅니다.</p>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="end-overlay">
+    <div class="end-inner">
+      <p class="eyebrow" id="end-eyebrow">VICTORY</p>
+      <h1 id="end-title">고대 골렘을 쓰러뜨렸습니다!</h1>
+      <p class="lead" id="end-lead"></p>
+      <div class="end-stats" id="end-stats"></div>
+      <div class="end-actions">
+        <button class="btn primary" id="end-primary" type="button">계속 탐험하기</button>
+        <button class="btn" id="end-restart" type="button">직업 다시 선택</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="loader" id="loader"><span></span><p>월드를 생성하는 중…</p></div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Node (빌드 도구를 쓰지 않지만, 로컬 도구 흔적 제외)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-lock.yaml
+package-lock.json
+
+# 빌드 산출물
+dist/
+build/
+
+# 임시 파일
+*.log
+*.tmp
+.cache/
+
+# 로컬 테스트
+.tools/
