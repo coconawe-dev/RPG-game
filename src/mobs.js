@@ -135,7 +135,7 @@ function buildHyena() {
     s.scale.set(1, 0.4, 1);
     body.add(s);
   }
-  return { root, body, head, legs, height: 12 };
+  return { root, body, head, legs, mats, height: 12 };
 }
 
 function buildGorilla() {
@@ -297,7 +297,7 @@ export class Mob {
     this.model = built;
     this.root = built.root;
     this.body = built.body;
-    this.mats = built.mats;
+    this.mats = built.mats || [];
     this.baseEmissive = this.mats.map((m) => (m.emissive ? m.emissive.clone() : null));
     for (const m of this.mats) {
       if (m.emissiveIntensity !== undefined && m.userData.baseEI === undefined) m.userData.baseEI = m.emissiveIntensity;
