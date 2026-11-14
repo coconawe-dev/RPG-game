@@ -86,7 +86,7 @@ export class HUD {
       card.innerHTML =
         '<div class="cc-top"><span class="cc-glyph">' + c.glyph + '</span>' +
         '<div><div class="cc-name">' + c.name + '</div><div class="cc-role">' + c.role + '</div></div></div>' +
-        '<p class="cc-weapon">🗡 ' + c.weaponName + '</p>' +
+        '<p class="cc-weapon">' + c.glyph + ' ' + c.weaponName + '</p>' +
         '<p class="cc-desc">' + c.desc + '</p>' +
         this.statBar('체력', c.stats.hp) +
         this.statBar('공격', c.stats.dmg) +
@@ -171,6 +171,8 @@ export class HUD {
     this.buildSkillBar(player);
     this.refreshBars();
     this.dom.startOverlay.classList.add('hidden');
+    const hudRoot = document.getElementById('hud');
+    if (hudRoot) hudRoot.classList.add('on');
     this.dom.hint.classList.remove('fade');
     this.dom.hint.style.opacity = '';
     setTimeout(() => { this.dom.hint.classList.add('fade'); }, 4200);
