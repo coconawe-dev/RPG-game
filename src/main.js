@@ -224,14 +224,17 @@ class Game {
     const coarse = (navigator.maxTouchPoints > 0)
       || ('ontouchstart' in window)
       || !!(window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
-    this.isTouch = coarse;
+    const qp = new URLSearchParams(window.location.search);
+    const forceTouch = qp.get('touch');
+    const initialTouch = forceTouch === '1' ? true : (forceTouch === '0' ? false : coarse);
+    this.isTouch = initialTouch;
     const setTouchMode = (on) => {
       document.body.classList.toggle('touch-mode', on);
       const btn = document.getElementById('mode-toggle');
       if (btn) btn.textContent = on ? '🖥 키보드/마우스 모드' : '📱 터치 모드';
       this.touchMode = on;
     };
-    setTouchMode(coarse);
+    setTouchMode(initialTouch);
     const toggle = document.getElementById('mode-toggle');
     if (toggle) {
       toggle.addEventListener('click', (e) => {
