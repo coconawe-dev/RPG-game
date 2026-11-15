@@ -152,7 +152,8 @@
       { draggingOn, delta: +(yawM1 - yawM0).toFixed(3), draggingOff: g.mouseDragging, diag: mdiag });
 
     // ---- 8) 짧은 클릭 = 공격 (포인터 락 없음) ----
-    await sleep(1200);
+    // iframe 안에서는 rAF가 느려 쿨다운이 천천히 줄어드므로 0이 될 때까지 기다린다
+    for (let i = 0; i < 150 && (g.player.attackCooldown || 0) > 0.02; i++) await sleep(100);
     const cdBefore = g.player.attackCooldown || 0;
     fireMouse(canvas, 'mousedown', ax, ay);
     fireMouse(W, 'mouseup', ax, ay, { buttons: 0 });
