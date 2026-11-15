@@ -71,7 +71,7 @@ MiniMqtt.prototype.connect = function (clientId, timeoutMs) {
       all.set(self.buf); all.set(chunk, self.buf.length);
       self.buf = all;
       self.parse(function (type, payload) {
-        if (type === 0x20) {
+        if (type === 2) {
           if (!done) { done = true; clearTimeout(timer); res(true); }
         }
       });
