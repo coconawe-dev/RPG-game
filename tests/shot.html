@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>화면 캐처</title>
+<style>
+  html, body { margin: 0; background: #000; }
+  iframe { display: block; border: 0; background: #000; }
+</style>
+</head>
+<body>
+<!--
+  화면 캐처용 한 칸 페이지 — 게임을 지정한 크기로 하나만 띄운다 (바깥 UI 없음, 왼쪽 위 0,0 에 붙는다).
+
+    tests/shot.html?w=390&h=844&dpr=3&touch=1                 휴대폰 · 고화질(Retina 2배 렌더)
+    tests/shot.html?w=390&h=844&dpr=3&touch=1&quality=low     휴대폰 · 성능 우선
+    tests/shot.html?w=1280&h=800&dpr=3                        데스크톱 · 고화질
+
+  ?dpr=3 은 기기 배율 3배(아이폰 · 아이패드)를 흉내낸다. 나머지 파라미터는 index.html 로 그대로 넘긴다.
+-->
+<iframe id="game" title="게임 화면"></iframe>
+<script>
+(() => {
+  const qp = new URLSearchParams(location.search);
+  const w = Math.max(200, Math.min(2560, Number(qp.get('w')) || 390));
+  const h = Math.max(300, Math.min(2000, Number(qp.get('h')) || 844));
+  const frame = document.getElementById('game');
+  frame.style.width = w + 'px';
+  frame.style.height = h + 'px';
+  const params = new URLSearchParams();
+  for (const key of ['class', 'biome', 'quality', 'touch', 'dpr', 'x', 'z', 'nick']) {
+    const v = qp.get(key);
+    if (v !== null && v !== '') params.set(key, v);
+  }
+  if (!params.has('class')) params.set('class', 'warrior');
+  if (!params.has('biome')) params.set('biome', 'forest');
+  params.set('v', String(Date.now()));
+  frame.src = (qp.get('src') || '../index.html') + '?' + params.toString();
+})();
+</script>
+</body>
+</html>
