@@ -134,13 +134,17 @@
       bubbles: true, cancelable: true, view: W, button: 0, buttons: 1, clientX: x, clientY: y,
     }, extra || {})));
     const yawM0 = g.camYaw;
+    const mdiag = { state: g.state, lastTouchAge: Date.now() - (g.lastTouchAt || 0), lockEl: !!W.document.pointerLockElement, pointerLockBroken: g.pointerLockBroken };
+    let mdownSeen = 0;
+    canvas.addEventListener('mousedown', () => { mdownSeen++; });
     fireMouse(canvas, 'mousedown', ax, ay);
     const draggingOn = g.mouseDragging;
+    mdiag.after = { mouseDragging: g.mouseDragging, dragging: g.dragging, mdownSeen, lockEl: !!W.document.pointerLockElement, button: 0 };
     fireMouse(W, 'mousemove', ax + 60, ay + 10);
     const yawM1 = g.camYaw;
     fireMouse(W, 'mouseup', ax + 60, ay + 10, { buttons: 0 });
     record('mouse_drag_without_lock', draggingOn && Math.abs(yawM1 - yawM0) > 0.1 && g.mouseDragging === false,
-      { draggingOn, delta: +(yawM1 - yawM0).toFixed(3), draggingOff: g.mouseDragging });
+      { draggingOn, delta: +(yawM1 - yawM0).toFixed(3), draggingOff: g.mouseDragging, diag: mdiag });
 
     // ---- 8) 짧은 클릭 = 공격 (포인터 락 없음) ----
     await sleep(400);
