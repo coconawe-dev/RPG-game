@@ -17,160 +17,170 @@
 </head>
 <body>
 <h1>멀티플레이 연결 점검</h1>
-<p class="lead">이 페이지는 게임 멀티플레이가 쓰는 신호 서버·STUN·중계 서버에 브라우저가 실제로 닿는지 확인합니다. 결과는 아래에 순서대로 표시됩니다.</p>
+<p class="lead">게임 멀티플레이가 쓰는 WSS 중계 서버에 브라우저가 실제로 닿는지, 방을 열고 메시지가 오가는지 확인합니다. 결과는 아래에 순서대로 표시됩니다.</p>
 <button id="run" type="button">다시 점검</button>
 <div id="out"></div>
 <script>
+/* 아주 작은 MQTT 3.1.1 클라이언트 (WebSocket 전용, QoS 0) */
+function encStr(s) {
+  var out = [s.length >> 8, s.length & 255];
+  for (var i = 0; i < s.length; i++) out.push(s.charCodeAt(i) & 255);
+  return out;
+}
+function encLen(n) {
+  var out = [];
+  do {
+    var d = n % 128;
+    n = Math.floor(n / 128);
+    if (n > 0) d |= 0x80;
+    out.push(d);
+  } while (n > 0);
+  return out;
+}
+function bytes(arr) { return new Uint8Array(arr); }
+
+window.MiniMqtt = function (url) {
+  this.url = url;
+  this.ws = null;
+  this.buf = new Uint8Array(0);
+  this.pid = 1;
+  this.onmessage = null;
+};
+
+MiniMqtt.prototype.connect = function (clientId, timeoutMs) {
+  var self = this;
+  return new Promise(function (res, rej) {
+    var done = false;
+    var timer = setTimeout(function () { if (!done) { done = true; rej(new Error('timeout connect')); } }, timeoutMs || 8000);
+    var ws = new WebSocket(self.url, ['mqtt']);
+    self.ws = ws;
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = function () {
+      var body = [0x00, 0x04].concat(encStr('MQTT')).concat([0x04, 0x02, 0x00, 0x3c]).concat(encStr(clientId));
+      ws.send(bytes([0x10].concat(encLen(body.length)).concat(body)));
+    };
+    ws.onerror = function (e) {
+      if (!done) { done = true; clearTimeout(timer); rej(new Error('ws error')); }
+    };
+    ws.onclose = function () {
+      if (!done) { done = true; clearTimeout(timer); rej(new Error('ws closed')); }
+    };
+    ws.onmessage = function (ev) {
+      var chunk = new Uint8Array(ev.data);
+      var all = new Uint8Array(self.buf.length + chunk.length);
+      all.set(self.buf); all.set(chunk, self.buf.length);
+      self.buf = all;
+      self.parse(function (type, payload) {
+        if (type === 0x20) {
+          if (!done) { done = true; clearTimeout(timer); res(true); }
+        }
+      });
+    };
+  });
+};
+
+MiniMqtt.prototype.parse = function (onPacket) {
+  var b = this.buf;
+  var i = 0;
+  while (i < b.length) {
+    var start = i;
+    var type = b[i] >> 4;
+    i++;
+    var mult = 1, len = 0, d;
+    do {
+      if (i >= b.length) { this.buf = b.slice(start); return; }
+      d = b[i++];
+      len += (d & 127) * mult;
+      mult *= 128;
+    } while (d & 128);
+    if (i + len > b.length) { this.buf = b.slice(start); return; }
+    var payload = b.slice(i, i + len);
+    i += len;
+    onPacket(type, payload);
+    if (this.onmessage) this.onmessage(type, payload);
+  }
+  this.buf = b.slice(i);
+};
+
+MiniMqtt.prototype.subscribe = function (topic) {
+  var id = this.pid++;
+  var body = [id >> 8, id & 255].concat(encStr(topic)).concat([0x00]);
+  this.ws.send(bytes([0x82].concat(encLen(body.length)).concat(body)));
+  return id;
+};
+
+MiniMqtt.prototype.publish = function (topic, text) {
+  var bytesArr = [];
+  for (var i = 0; i < text.length; i++) bytesArr.push(text.charCodeAt(i) & 255);
+  var body = encStr(topic).concat(bytesArr);
+  this.ws.send(bytes([0x30].concat(encLen(body.length)).concat(body)));
+};
+
+MiniMqtt.prototype.ping = function () { if (this.ws) this.ws.send(bytes([0xc0, 0x00])); };
+MiniMqtt.prototype.close = function () { if (this.ws) this.ws.close(); };
+
+MiniMqtt.prototype.decodePublish = function (payload) {
+  var tl = (payload[0] << 8) | payload[1];
+  var topic = '';
+  for (var i = 0; i < tl; i++) topic += String.fromCharCode(payload[2 + i]);
+  var body = '';
+  for (var j = 2 + tl; j < payload.length; j++) body += String.fromCharCode(payload[j]);
+  return { topic: topic, body: body };
+};
+
 (function () {
+  var BROKERS = [
+    { name: 'EMQX', url: 'wss://broker.emqx.io:8084/mqtt' },
+    { name: 'HiveMQ', url: 'wss://broker.hivemq.com:8884/mqtt' },
+    { name: 'Eclipse', url: 'wss://mqtt.eclipseprojects.io:443/mqtt' },
+  ];
   var out = document.getElementById('out');
   var lines = [];
-  function log(text, cls) {
+  function log(text) {
     lines.push(text);
     out.innerHTML = lines.map(function (l) {
-      var m = l.match(/^\[([A-Z]+)\]/);
-      var c = m && m[1] === 'OK' ? 'ok' : m && m[1] === 'FAIL' ? 'bad' : m && m[1] === 'WAIT' ? 'wait' : '';
+      var c = /^\[OK\]/.test(l) ? 'ok' : /^\[FAIL\]/.test(l) ? 'bad' : /^\[WAIT\]/.test(l) ? 'wait' : '';
       return '<span class="' + c + '">' + l.replace(/[<>&]/g, function (s) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[s]; }) + '</span>';
     }).join('\n');
     document.title = 'net-check ' + lines.length;
   }
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-  function withTimeout(promise, ms, label) {
-    return Promise.race([
-      promise,
-      new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout ' + ms + 'ms ' + (label || ''))); }, ms); }),
-    ]);
-  }
-  function loadScript(src) {
-    return new Promise(function (res, rej) {
-      var s = document.createElement('script');
-      s.src = src;
-      s.onload = function () { res(true); };
-      s.onerror = function () { rej(new Error('load failed ' + src)); };
-      document.head.appendChild(s);
-    });
-  }
 
-  async function checkFetch(url) {
+  async function checkBroker(b) {
     var t0 = performance.now();
+    var cid = 'rpgchk' + Math.random().toString(36).slice(2, 9);
+    var client = new window.MiniMqtt(b.url);
+    var got = null;
+    var topic = 'rpgprobe/' + Math.random().toString(36).slice(2, 8);
     try {
-      var r = await withTimeout(fetch(url, { cache: 'no-store' }), 12000, url);
-      log('[OK] fetch ' + url + ' → ' + r.status + ' (' + Math.round(performance.now() - t0) + 'ms)');
-      return true;
+      await client.connect(cid, 9000);
+      log('[OK] ' + b.name + ' 접속 (' + Math.round(performance.now() - t0) + 'ms)');
     } catch (e) {
-      log('[FAIL] fetch ' + url + ' → ' + e.message);
+      log('[FAIL] ' + b.name + ' 접속: ' + e.message);
+      client.close();
       return false;
     }
-  }
-
-  async function checkStun() {
-    if (!window.RTCPeerConnection) { log('[FAIL] RTCPeerConnection 없음'); return; }
-    try {
-      var pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ],
-      });
-      pc.createDataChannel('probe');
-      var types = {};
-      var done = new Promise(function (res) {
-        pc.onicecandidate = function (e) {
-          if (!e.candidate) { res(); return; }
-          var m = / typ (\w+)/.exec(e.candidate.candidate);
-          var t = m ? m[1] : 'unknown';
-          types[t] = (types[t] || 0) + 1;
-        };
-      });
-      pc.createOffer().then(function (o) { return pc.setLocalDescription(o); });
-      await withTimeout(done, 9000, 'ice').catch(function () {});
-      pc.close();
-      var keys = Object.keys(types);
-      if (keys.length) log('[OK] ICE 후보: ' + keys.map(function (k) { return k + '=' + types[k]; }).join(', '));
-      else log('[FAIL] ICE 후보 없음 (STUN 미도달 가능)');
-      if (types.srflx) log('[OK] STUN 반사 후보 확보 (외부망 P2P 가능성 높음)');
-      else log('[WAIT] STUN 반사 후보 없음 — 같은 공유기 안에서만 P2P가 될 수 있음');
-    } catch (e) {
-      log('[FAIL] STUN 점검: ' + e.message);
-    }
-  }
-
-  async function checkPeerJS() {
-    try {
-      await checkFetch('https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js');
-      await loadScript('https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js');
-      if (!window.Peer) { log('[FAIL] PeerJS 스크립트는 받았지만 window.Peer 없음'); return; }
-      log('[OK] PeerJS 라이브러리 로드');
-
-      var idA = 'rpgcheck-a-' + Math.random().toString(36).slice(2, 8);
-      var idB = 'rpgcheck-b-' + Math.random().toString(36).slice(2, 8);
-      var t0 = performance.now();
-      var a = new Peer(idA, { debug: 0 });
-      await withTimeout(new Promise(function (res, rej) {
-        a.on('open', res); a.on('error', rej);
-      }), 12000, 'peer A open');
-      log('[OK] 신호 서버 접속 · 호스트 id 개설 (' + Math.round(performance.now() - t0) + 'ms)');
-
-      var b = new Peer(idB, { debug: 0 });
-      await withTimeout(new Promise(function (res, rej) {
-        b.on('open', res); b.on('error', rej);
-      }), 12000, 'peer B open');
-
-      var got = '';
-      a.on('connection', function (conn) {
-        conn.on('data', function (d) { got = String(d); });
-      });
-      var conn = b.connect(idA, { reliable: true });
-      await withTimeout(new Promise(function (res, rej) {
-        conn.on('open', res); conn.on('error', rej);
-      }), 15000, 'data channel open');
-      log('[OK] WebRTC 데이터 채널 연결');
-      conn.send('ping-' + Date.now());
-      var t1 = performance.now();
-      for (var i = 0; i < 60; i++) { if (got) break; await wait(100); }
-      if (got) log('[OK] 메시지 수신: ' + got + ' (' + Math.round(performance.now() - t1) + 'ms)');
-      else log('[FAIL] 메시지 수신 실패');
-      try { conn.close(); } catch (e) {}
-      try { a.destroy(); } catch (e) {}
-      try { b.destroy(); } catch (e) {}
-    } catch (e) {
-      log('[FAIL] PeerJS 점검: ' + e.message);
-    }
-  }
-
-  async function checkMqtt() {
-    try {
-      var ws = new WebSocket('wss://broker.emqx.io:8084/mqtt', ['mqtt']);
-      var opened = await withTimeout(new Promise(function (res, rej) {
-        ws.onopen = res; ws.onerror = function () { rej(new Error('ws error')); }; ws.onclose = function () { rej(new Error('ws close')); };
-      }), 10000, 'mqtt ws');
-      log('[OK] WSS 중계(broker.emqx.io) 접속');
-      // MQTT 3.1.1 CONNECT
-      var cid = 'rpgcheck' + Math.random().toString(36).slice(2, 8);
-      var body = [0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0x02, 0x00, 0x3c];
-      body.push(0x00, cid.length);
-      for (var i = 0; i < cid.length; i++) body.push(cid.charCodeAt(i));
-      ws.send(new Uint8Array([0x10, body.length].concat(body)));
-      var ok = await withTimeout(new Promise(function (res) {
-        ws.onmessage = function (ev) {
-          var b = new Uint8Array(ev.data);
-          res(b[0] === 0x20 && b[3] === 0x00);
-        };
-      }), 8000, 'mqtt connack').catch(function () { return false; });
-      log(ok ? '[OK] MQTT CONNACK 수락' : '[FAIL] MQTT CONNACK 없음');
-      ws.close();
-      void opened;
-    } catch (e) {
-      log('[FAIL] WSS 중계 점검: ' + e.message);
-    }
+    client.onmessage = function (type, payload) {
+      if (type === 3) {
+        var m = client.decodePublish(payload);
+        if (m.topic === topic) got = m.body;
+      }
+    };
+    client.subscribe(topic);
+    await wait(600);
+    client.publish(topic, 'hello-' + Date.now());
+    for (var i = 0; i < 40; i++) { if (got) break; await wait(100); }
+    if (got) log('[OK] ' + b.name + ' 메시지 왕복: ' + got);
+    else log('[FAIL] ' + b.name + ' 메시지 왕복 실패 (구독/발행)');
+    client.close();
+    return !!got;
   }
 
   async function run() {
     lines = [];
     out.innerHTML = '';
     log('[WAIT] 점검 시작 ' + new Date().toISOString());
-    await checkStun();
-    await checkPeerJS();
-    await checkMqtt();
+    for (var i = 0; i < BROKERS.length; i++) await checkBroker(BROKERS[i]);
     log('[WAIT] 점검 끝');
   }
   document.getElementById('run').addEventListener('click', run);
