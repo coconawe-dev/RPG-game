@@ -18,7 +18,7 @@
   게임 페이지 안에서 직접 만들어 던지고, 카메라(yaw/pitch)와 입력 상태가 기대대로 바뀌는지 확인한다.
   결과는 아래 <pre id="result">에 JSON으로 찍힌다.
 -->
-<iframe id="game" src="../index.html?class=warrior&touch=1"></iframe>
+<iframe id="game"></iframe>
 <pre id="result">running…</pre>
 <script>
 (() => {
@@ -33,6 +33,11 @@
 
   window.addEventListener('load', async () => {
     const f = document.getElementById('game');
+    // 기본값: 같은 커밋의 게임 페이지. ?src= 로 다른 빌드(예: 예전 커밋)를 지정해 회귀 확인용으로 쓸 수 있다.
+    const srcParam = new URLSearchParams(location.search).get('src');
+    const loaded = new Promise((r) => f.addEventListener('load', r, { once: true }));
+    f.src = srcParam || '../index.html?class=warrior&touch=1';
+    await loaded;
     const W = f.contentWindow;
     const D = f.contentDocument;
     const errors = [];
