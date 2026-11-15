@@ -151,15 +151,22 @@
     record('mouse_drag_without_lock', draggingOn && Math.abs(yawM1 - yawM0) > 0.1 && g.mouseDragging === false,
       { draggingOn, delta: +(yawM1 - yawM0).toFixed(3), draggingOff: g.mouseDragging, diag: mdiag });
 
-    // ---- 8) 짧은 클릭 = 공격 (포인터 락 없음) ----
-    // iframe 안에서는 rAF가 느려 쿨다운이 천천히 줄어드므로 0이 될 때까지 기다린다
-    for (let i = 0; i < 150 && (g.player.attackCooldown || 0) > 0.02; i++) await sleep(100);
-    const cdBefore = g.player.attackCooldown || 0;
+    // ---- 8) 짧은 클릭 = 공격, 드래그 = 공격 아님 (포인터 락 없음) ----
+    let attackCalls = 0;
+    const origAttack = g.player.attack.bind(g.player);
+    g.player.attack = (...a) => { attackCalls++; return origAttack(...a); };
     fireMouse(canvas, 'mousedown', ax, ay);
     fireMouse(W, 'mouseup', ax, ay, { buttons: 0 });
-    await sleep(60);
-    record('click_attacks_without_lock', (g.player.attackCooldown || 0) > 0.3 && cdBefore < 0.2,
-      { cdBefore: +cdBefore.toFixed(2), cdAfter: +(g.player.attackCooldown || 0).toFixed(2), anim: g.player.anim.name });
+    await sleep(80);
+    record('click_attacks_without_lock', attackCalls === 1, { attackCalls, mouseDragging: g.mouseDragging });
+
+    attackCalls = 0;
+    fireMouse(canvas, 'mousedown', ax, ay);
+    fireMouse(W, 'mousemove', ax + 40, ay, { buttons: 1 });
+    fireMouse(W, 'mouseup', ax + 40, ay, { buttons: 0 });
+    await sleep(80);
+    record('drag_does_not_attack', attackCalls === 0, { attackCalls });
+    g.player.attack = origAttack;
 
     // ---- 9) 콘솔 에러 없음 + 렌더 지속 ----
     await sleep(300);
