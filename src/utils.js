@@ -95,6 +95,7 @@ export const WORLD = {
    - 안쪽 좌표는 local (z = 0 이 암흑지역 중심) 로 계산한다.
      · 중앙: 암흑지역(z 0)        · 북: 불길한 동굴(z -1000)
      · 남: 고블린 숲(z +1000)     · 서: 안개낀 평지(x -1000) · 동: 사쿠라(x +1000)
+     · 남쪽 끝: 2세계 태초마을(z +2000) — 고블린 숲 남문 너머의 안전 지대
 ------------------------------------------------------------------ */
 export const WORLD2 = {
   id: 2,
@@ -106,7 +107,9 @@ export const WORLD2 = {
   xMin: -1470,
   xMax: 1470,
   zMin: 8000 - 1470,
-  zMax: 8000 + 1470,
+  // 남쪽은 2세계 태초마을(z +2000 ~ +2500)의 끝까지 — 1번째 세계는 동 · 서로 길고, 이쪽은 남쪽으로 길다
+  zMax: 8000 + 2470,
+  southCell: 2000,     // 2세계 태초마을 중심의 local z
 };
 
 // 어느 세계의 좌표인지 (1 | 2)
@@ -155,12 +158,18 @@ function terrainHeight2Local(x, z) {
   const dArena = Math.hypot(x, z);
   h *= 1 - smoothstep(560, 320, dArena) * 0.96;
 
-  // 고블린 숲의 도착 광장(남쪽 끝)도 평평하게 — 도착하자마자 안전하게
+  // 고블린 숲의 남쪽 초소와 2세계 태초마을로 올라서는 길은 평평하게
   const dArrive = Math.hypot(x, z - 1400);
   h *= 1 - smoothstep(320, 170, dArrive) * 0.96;
 
-  // 세계 외곽은 완만하게 낮춤
-  const border = Math.min(x + 1500, 1500 - x, z + 1500, 1500 - z);
+  // 2세계 태초마을 · 상점 터도 평평하게 (건물을 올리기 위해)
+  const dVillage2 = Math.hypot(x, z - 2000);
+  h *= 1 - smoothstep(540, 320, dVillage2) * 0.94;
+
+  // 세계 외곽(가장자리)은 완만하게 낮춤.
+  // 2세계 태초마을은 남쪽으로 한 칸 더 길어서, 남쪽 외곽은 길(폭 760)에서만 멀어진다.
+  const southWall = 1500 + 1000 * smoothstep(620, 380, Math.abs(x));
+  const border = Math.min(x + 1500, 1500 - x, z + 1500, southWall - z);
   h *= smoothstep(0, 90, border);
   return h;
 }
@@ -175,6 +184,8 @@ export function regionAt(x, z) {
     const lz = z - WORLD2.originZ;
     if (Math.abs(x) <= WORLD2.halfCell && Math.abs(lz) <= WORLD2.halfCell) return 'dark_realm';
     if (lz < -WORLD2.halfCell) return 'ominous_cave';
+    // 남쪽 끝의 2세계 태초마을 (고블린 숲보다 먼저 확인해야 한다)
+    if (lz > WORLD2.halfCell * 3) return 'village_w2';
     if (lz > WORLD2.halfCell) return 'goblin_forest';
     if (x > WORLD2.halfCell) return 'sakura';
     return 'misty_plains';
@@ -219,6 +230,7 @@ export function clampToWorld(p, worldId) {
 export function isInsideWorld(x, z, worldId) {
   if (worldId === 2) {
     if (x < WORLD2.xMin || x > WORLD2.xMax || z < WORLD2.zMin || z > WORLD2.zMax) return false;
+    // 십자 통로(수직 · 수평) + 남쪽 2세계 태초마을 길
     return Math.abs(x) <= WORLD2.halfCell || Math.abs(z - WORLD2.originZ) <= WORLD2.halfCell;
   }
   if (x < WORLD.xMin || x > WORLD.xMax || z < WORLD.zMin || z > WORLD.zMax) return false;

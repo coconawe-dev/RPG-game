@@ -1,28 +1,47 @@
 // 직업별 3D 무기 메시 (검 / 활 / 단검 / 방패 / 지팡이)
-// tier: 0 = 기본 장비, 1 = 상점 Tier 2, 2 = 상점 Tier 3 (재질·광택·크기가 단계별로 좋아진다)
+// tier: 0 = 기본 장비, 1 = 1세계 상점 Tier 2, 2 = 1세계 Tier 3,
+//       3 = 2세계 상점 Tier 4 (심연), 4 = 2세계 Tier 5 (불멸) — 단계별로 재질 · 광택 · 크기가 좋아진다
 import * as THREE from 'three';
 
 const TIERS = [
   {
     blade: 0xd7dde2, metalness: 0.85, roughness: 0.28,
     trim: 0xd8b25e, trimMetal: 0.8, trimRough: 0.35,
-    glow: 0, glowColor: 0xffd27a, scale: 1.0,
+    glow: 0, glowColor: 0xffd27a, scale: 1.0, wood: 0x6a4a2c,
+    shield: 0x8a96a3, orb: 0xc79bff, orbEmissive: 0x9a5cff,
   },
   {
     blade: 0xeaf2fb, metalness: 0.96, roughness: 0.16,
     trim: 0xf0d98e, trimMetal: 0.92, trimRough: 0.22,
-    glow: 0.45, glowColor: 0x9fd8ff, scale: 1.06,
+    glow: 0.45, glowColor: 0x9fd8ff, scale: 1.06, wood: 0x6a4a2c,
+    shield: 0x9fb0bf, orb: 0x9fd8ff, orbEmissive: 0x3fa0e0,
   },
   {
     blade: 0xfff2c8, metalness: 0.98, roughness: 0.1,
     trim: 0xffd24a, trimMetal: 0.96, trimRough: 0.14,
-    glow: 1.0, glowColor: 0xffb347, scale: 1.12,
+    glow: 1.0, glowColor: 0xffb347, scale: 1.12, wood: 0x6f3f1e,
+    shield: 0xa8b4c4, orb: 0xffd27a, orbEmissive: 0xffa020,
+  },
+  // 2세계 Tier 4 — 심연 · 별빛 흑요석
+  {
+    blade: 0xd7c8ff, metalness: 0.62, roughness: 0.13,
+    trim: 0x9a6cff, trimMetal: 0.94, trimRough: 0.16,
+    glow: 1.4, glowColor: 0x9f6cff, scale: 1.18, wood: 0x2a1f3a,
+    shield: 0x8f7fcf, orb: 0xb98cff, orbEmissive: 0x7a2fd0,
+  },
+  // 2세계 Tier 5 — 불멸 · 태초의 빛
+  {
+    blade: 0xfff8dc, metalness: 0.98, roughness: 0.07,
+    trim: 0xffcf6a, trimMetal: 0.97, trimRough: 0.12,
+    glow: 2.0, glowColor: 0xff8a3c, scale: 1.26, wood: 0x3a2a18,
+    shield: 0xd8b56a, orb: 0xffe6b0, orbEmissive: 0xff8a20,
   },
 ];
 
 function tierIndex(tier) {
   const t = tier === undefined || tier === null ? 0 : tier;
-  return t < 0 ? 0 : (t > 2 ? 2 : Math.round(t));
+  const last = TIERS.length - 1;
+  return t < 0 ? 0 : (t > last ? last : Math.round(t));
 }
 
 function styleFor(tier) {
@@ -40,7 +59,7 @@ function styleFor(tier) {
       emissive: t.glow ? t.glowColor : 0x000000, emissiveIntensity: t.glow * 0.12,
     }),
     wood: () => new THREE.MeshStandardMaterial({
-      color: t.idx === 2 ? 0x6f3f1e : 0x6a4a2c, roughness: 0.85,
+      color: t.wood, roughness: 0.85,
     }),
     leather: () => new THREE.MeshStandardMaterial({ color: 0x3d2a1b, roughness: 0.95 }),
     gold: () => new THREE.MeshStandardMaterial({
@@ -77,7 +96,8 @@ function addAura(g, st, radius, height, y, color) {
   const m = new THREE.Mesh(
     new THREE.CylinderGeometry(radius, radius * 0.68, height, 10, 1, true),
     new THREE.MeshBasicMaterial({
-      color: color || st.t.glowColor, transparent: true, opacity: st.idx >= 2 ? 0.15 : 0.075,
+      color: color || st.t.glowColor, transparent: true,
+      opacity: st.idx >= 3 ? 0.22 : (st.idx >= 2 ? 0.15 : 0.075),
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
     })
   );
@@ -191,7 +211,7 @@ export function buildShield(tier) {
   const st = styleFor(tier);
   const g = new THREE.Group();
   g.add(mesh(new THREE.BoxGeometry(0.9, 8.4, 6.6), new THREE.MeshStandardMaterial({
-    color: st.idx === 2 ? 0xa8b4c4 : 0x8a96a3, roughness: st.t.roughness * 0.9, metalness: 0.72,
+    color: st.t.shield, roughness: st.t.roughness * 0.9, metalness: 0.72,
     emissive: st.t.glow ? st.t.glowColor : 0x000000, emissiveIntensity: st.t.glow * 0.2,
   }), 0, 0, 0));
   g.add(mesh(new THREE.BoxGeometry(1.05, 9.0, 7.2), st.gold(), 0, 0, 0));
@@ -251,9 +271,9 @@ export function buildStaff(tier) {
   const claw = mesh(new THREE.TorusGeometry(1.5, 0.26, 6, 12), st.gold(), 0, 11.4, 0);
   claw.rotation.x = Math.PI / 2;
   g.add(claw);
-  const orbColor = st.idx === 2 ? 0xffd27a : (st.idx === 1 ? 0x9fd8ff : 0xc79bff);
+  const orbColor = st.t.orb;
   const orbMat = new THREE.MeshStandardMaterial({
-    color: orbColor, emissive: st.idx === 2 ? 0xffa020 : (st.idx === 1 ? 0x3fa0e0 : 0x9a5cff),
+    color: orbColor, emissive: st.t.orbEmissive,
     emissiveIntensity: 2.2, roughness: 0.2, transparent: true, opacity: 0.95,
   });
   g.add(mesh(new THREE.SphereGeometry(1.25, 14, 10), orbMat, 0, 11.6, 0));

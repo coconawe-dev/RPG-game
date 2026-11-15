@@ -1,14 +1,30 @@
-// 태초마을 무기 · 포션 상점: 구매 로직 + 상점 모달 UI
-import { SHOP, shopWeaponsFor } from './config.js';
+// 마을 상점(1세계 태초마을 · 2세계 태초마을 대장간): 구매 로직 + 상점 모달 UI
+import {
+  SHOP, SHOPS, shopById, shopForBiome, shopWeaponsFor, allArmors, allPotions,
+} from './config.js';
 
 /* ------------------------------ 구매 로직 ------------------------------ */
 // 순수 로직: DOM 없이도 검증 가능 (tests/smoke.mjs)
 export function findWeapon(classId, itemId) {
-  return shopWeaponsFor(classId).find((w) => w.id === itemId) || null;
+  return shopWeaponsFor(classId, 'shop_w1').concat(shopWeaponsFor(classId, 'shop_w2'))
+    .find((w) => w.id === itemId) || null;
 }
 
 export function findArmor(itemId) {
-  return SHOP.armors.find((a) => a.id === itemId) || null;
+  return allArmors().find((a) => a.id === itemId) || null;
+}
+
+// 상품이 어느 상점의 것인지 (표시 · 안내용)
+export function shopOfItem(itemId) {
+  for (const id in SHOPS) {
+    const s = SHOPS[id];
+    for (const cls in (s.weapons || {})) {
+      if (s.weapons[cls].some((w) => w.id === itemId)) return s;
+    }
+    if ((s.armors || []).some((a) => a.id === itemId)) return s;
+    if ((s.potions || []).some((p) => p.id === itemId)) return s;
+  }
+  return null;
 }
 
 export function buyItem(game, itemId) {
@@ -18,7 +34,7 @@ export function buyItem(game, itemId) {
 
   const weapon = findWeapon(player.classId, itemId);
   if (weapon) {
-    // 표시는 Tier 2 · Tier 3, 내부 인덱스는 1 · 2
+    // 표시는 Tier 2 ~ 5, 내부 인덱스는 1 ~ 4
     const idx = weapon.tier - 1;
     if (player.weaponTier >= idx) {
       return { ok: false, msg: '이미 보유한 무기입니다' };
@@ -56,7 +72,7 @@ export function buyItem(game, itemId) {
     };
   }
 
-  const potion = SHOP.potions.find((p) => p.id === itemId);
+  const potion = allPotions().find((p) => p.id === itemId);
   if (potion) {
     if (gold < potion.price) {
       return { ok: false, msg: '골드가 ' + (potion.price - gold) + 'G 부족합니다' };
@@ -73,6 +89,8 @@ export function buyItem(game, itemId) {
 /* -------------------------------- 모달 UI -------------------------------- */
 const $ = (id) => document.getElementById(id);
 
+const ARMOR_ICONS = { 1: '🦺', 2: '🛡', 3: '👑', 4: '💠', 5: '🔥' };
+
 export class Shop {
   constructor(game) {
     this.game = game;
@@ -84,13 +102,13 @@ export class Shop {
     this.toastEl = $('shop-toast');
     this.closeBtn = $('shop-close');
     this.keeperEl = $('shop-keeper');
+    this.eyebrowEl = $('shop-eyebrow');
+    this.titleEl = $('shop-title');
     this.isOpen = false;
     this.toastTimer = 0;
-
-    if (this.keeperEl) {
-      this.keeperEl.innerHTML = '<b>' + SHOP.keeper.name + '</b> · ' + SHOP.keeper.role
-        + ' — "' + SHOP.keeper.line + '"';
-    }
+    // 지금 열려 있는 상점 (기본: 1세계 태초마을)
+    this.shopId = SHOP.id;
+    this.applyShop(SHOP.id);
 
     const buy = (e) => {
       const btn = e.target && e.target.closest ? e.target.closest('[data-buy]') : null;
@@ -125,8 +143,28 @@ export class Shop {
     }
   }
 
-  open() {
+  // 어느 마을의 상점인지 (village = 1세계 · village_w2 = 2세계 대장간)
+  applyShop(shopId) {
+    const shop = shopById(shopId);
+    this.shopId = shop.id;
+    this.shop = shop;
+    if (this.eyebrowEl) this.eyebrowEl.textContent = shop.eyebrow || '태초마을 · 상점';
+    if (this.titleEl) this.titleEl.textContent = shop.title || '무기 · 갑옷 · 포션 상점';
+    if (this.keeperEl) {
+      this.keeperEl.innerHTML = '<b>' + shop.keeper.name + '</b> · ' + shop.keeper.role
+        + ' — "' + shop.keeper.line + '"';
+    }
+    this._lastBuy = null;
+  }
+
+  shopIdForBiome(biomeId) {
+    const s = shopForBiome(biomeId);
+    return s ? s.id : SHOP.id;
+  }
+
+  open(shopId) {
     if (!this.root) return;
+    this.applyShop(shopId || this.shopId);
     this.root.classList.remove('hidden');
     this.isOpen = true;
     document.body.classList.add('shop-open');
@@ -145,11 +183,12 @@ export class Shop {
     const game = this.game;
     const p = game.player;
     if (!p || !this.weaponEl) return;
+    const shop = this.shop || shopById(this.shopId);
     this._lastBuy = null;
     if (this.goldEl) this.goldEl.textContent = (Number(game.gold) || 0) + ' G';
 
     const gold = Number(game.gold) || 0;
-    const weapons = shopWeaponsFor(p.classId);
+    const weapons = shopWeaponsFor(p.classId, shop.id);
     this.weaponEl.innerHTML = weapons.map((w) => {
       const idx = w.tier - 1;
       const active = p.weaponTier === idx;
@@ -169,13 +208,13 @@ export class Shop {
 
     if (this.armorEl) {
       const armorNow = p.armorTier || 0;
-      this.armorEl.innerHTML = SHOP.armors.map((a) => {
+      this.armorEl.innerHTML = (shop.armors || []).map((a) => {
         const active = armorNow === a.tier;
         const owned = armorNow >= a.tier;
         const poor = !owned && gold < a.price;
         const label = active ? '장착 중' : (owned ? '보유' : a.price + ' G');
         return '<article class="shop-item' + (active ? ' equipped' : '') + '">'
-          + '<span class="si-ico">' + (a.tier === 1 ? '🦺' : a.tier === 2 ? '🛡' : '👑') + '</span>'
+          + '<span class="si-ico">' + (ARMOR_ICONS[a.tier] || '🛡') + '</span>'
           + '<div class="si-main">'
           + '<div class="si-name">' + a.name + '<span class="si-tier">Tier ' + a.tier + '</span></div>'
           + '<p class="si-desc">' + a.desc + '</p>'
@@ -186,7 +225,7 @@ export class Shop {
       }).join('');
     }
 
-    this.potionEl.innerHTML = SHOP.potions.map((pt) => {
+    this.potionEl.innerHTML = (shop.potions || []).map((pt) => {
       const have = p.potionCount(pt.id);
       const poor = gold < pt.price;
       return '<article class="shop-item">'

@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { Player } from './player.js';
 import { Mob } from './mobs.js';
-import { MOB_TYPES, CLASSES } from './config.js';
+import { MOB_TYPES, CLASSES, MAX_WEAPON_TIER, MAX_ARMOR_TIER } from './config.js';
 import { clamp, damp, dampAngle, rand, terrainHeight } from './utils.js';
 
 /* ------------------------------ 설정값 ------------------------------ */
@@ -613,7 +613,7 @@ export class Net {
       nick: (p.nick || '친구').slice(0, 10),
       classId,
       weaponTier: 0,
-      armorTier: clamp(Math.round(p.at || 0), 0, 3),
+      armorTier: clamp(Math.round(p.at || 0), 0, MAX_ARMOR_TIER),
       level: 1,
       hp: rig.maxHp,
       maxHp: rig.maxHp,
@@ -664,8 +664,8 @@ export class Net {
     const rig = new Player(this.game, classId);
     rig.isRemote = true;
     rig.weaponBonus = 0;
-    if (weaponTier) rig.equipWeaponTier(Math.min(2, Math.max(0, weaponTier)));
-    if (armorTier) rig.equipArmorTier(Math.min(3, Math.max(0, armorTier)));
+    if (weaponTier) rig.equipWeaponTier(Math.min(MAX_WEAPON_TIER, Math.max(0, weaponTier)));
+    if (armorTier) rig.equipArmorTier(Math.min(MAX_ARMOR_TIER, Math.max(0, armorTier)));
     rig.spawnAt(spawn.x, spawn.z);
     rig.facing = spawn.yaw;
     rig.root.rotation.y = spawn.yaw;
@@ -691,9 +691,9 @@ export class Net {
     const wt = Number(p.wt) || 0;
     if (wt !== rec.weaponTier) {
       rec.weaponTier = wt;
-      if (rec.rig) rec.rig.equipWeaponTier(Math.min(2, Math.max(0, wt)));
+      if (rec.rig) rec.rig.equipWeaponTier(Math.min(MAX_WEAPON_TIER, Math.max(0, wt)));
     }
-    const at = clamp(Math.round(Number(p.at) || 0), 0, 3);
+    const at = clamp(Math.round(Number(p.at) || 0), 0, MAX_ARMOR_TIER);
     if (at !== rec.armorTier) {
       rec.armorTier = at;
       if (rec.rig) rec.rig.equipArmorTier(at);
@@ -755,10 +755,10 @@ export class Net {
       rec.nick = st.nick || rec.nick;
       if (st.weaponTier !== rec.weaponTier) {
         rec.weaponTier = st.weaponTier;
-        if (rec.rig) rec.rig.equipWeaponTier(Math.min(2, Math.max(0, rec.weaponTier)));
+        if (rec.rig) rec.rig.equipWeaponTier(Math.min(MAX_WEAPON_TIER, Math.max(0, rec.weaponTier)));
       }
       if ((st.armorTier || 0) !== rec.armorTier) {
-        rec.armorTier = clamp(Math.round(st.armorTier || 0), 0, 3);
+        rec.armorTier = clamp(Math.round(st.armorTier || 0), 0, MAX_ARMOR_TIER);
         if (rec.rig) rec.rig.equipArmorTier(rec.armorTier);
       }
       rec.target.set(st.x, 0, st.z);

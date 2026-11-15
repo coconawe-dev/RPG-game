@@ -1017,6 +1017,9 @@ body.touch-mode .touch-hint.fade { opacity: 0; }
 }
 .potion-slot.empty { opacity: 0.45; }
 .potion-slot:active { transform: scale(0.96); }
+/* 2세계 포션 칸 — 보랏빛 테로 구분한다 */
+.potion-slot.w2 { border-color: rgba(170, 130, 255, 0.55); }
+.potion-slot.w2 .slot-key { color: #c9a8ff; }
 
 .floater.gold { color: #ffd75e; text-shadow: 0 2px 10px rgba(120, 80, 0, 0.9); font-size: 17px; }
 .buff.attack { color: #ffbd6a; border-color: rgba(255, 189, 106, 0.5); }
@@ -1258,6 +1261,10 @@ body.touch-mode .hud-center { display: none; }
 .tbtn.potion { font-size: 15px; color: #ffd7a0; }
 .tbtn.potion b { font-size: 11px; position: absolute; right: 2px; top: 0; color: #ffe08a; }
 .tbtn.potion.empty { opacity: 0.5; }
+.tbtn.potion.w2 { color: #d8c4ff; border-color: rgba(170, 130, 255, 0.5); }
+/* 2세계 포션 줄 — 하나라도 가지기 전에는 휴대폰 화면에서 숨긴다 */
+.trow-potion-w2 { display: none; }
+.trow-potion-w2.on { display: flex; }
 
 @media (max-width: 720px) {
   .shop-modal { width: 98vw; max-height: 92svh; border-radius: 14px; }

@@ -180,6 +180,7 @@ export class Portals {
 
   build() {
     // 1) 고대 골렘을 쓰러뜨리면 열리는 2번째 세계 포털 (정글 사원 제단 앞)
+    //    도착지는 2세계 태초마을 광장 — 몬스터가 없는 안전 지대다
     this.world2Portal = new Portal(this.game, {
       id: 'world2',
       label: '2번째 세계 포털',
@@ -192,12 +193,12 @@ export class Portals {
         world: 2,
         x: WORLD2_ARRIVAL.x,
         z: WORLD2_ARRIVAL.z,
-        yaw: Math.PI,        // 암흑지역(북쪽)을 바라본다
+        yaw: 0,               // 광장 남쪽(2세계 대장간)을 바라본다
       },
     });
     this.list.push(this.world2Portal);
 
-    // 2) 2번째 세계 도착 광장의 귀환 포털
+    // 2) 2세계 태초마을 광장의 귀환 포털
     this.returnPortal = new Portal(this.game, {
       id: 'return',
       label: '1번째 세계 귀환 포털',

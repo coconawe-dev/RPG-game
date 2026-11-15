@@ -192,11 +192,49 @@ export const BIOMES = {
 /* ------------------------------------------------------------------
    2번째 세계 — 고대 골렘을 쓰러뜨리면 열리는 땅
    중앙 암흑지역(보스) + 네 방향(북 불길한 동굴 · 남 고블린 숲 · 서 안개낀 평지 · 동 사쿠라)
+   + 그 남쪽 끝의 2세계 태초마을(안전 지대 · 상점)
    좌표는 1번째 세계와 겹치지 않게 WORLD2.originZ 만큼 밀어 둔 절대 좌표다.
 ------------------------------------------------------------------ */
 const W2 = WORLD2.originZ;
 
 export const BIOMES_W2 = {
+  // 2세계 태초마을 — 2번째 세계에 들어온 사람이 처음 발을 딛는 안전 지대.
+  // 고블린 숲 바로 남쪽(마을 z W2+1500 ~ W2+2500)에 1000x1000 으로 놓는다.
+  // 북쪽 문을 나서면 곧바로 고블린 숲 → 암흑지역으로 이어진다.
+  village_w2: {
+    id: 'village_w2',
+    world: 2,
+    name: '태초마을',
+    en: 'Starter Village II',
+    short: '2세계 마을',
+    center: { x: 0, z: W2 + 2000 },
+    bounds: { x0: -500, x1: 500, z0: W2 + 1500, z1: W2 + 2500 },
+    ground: 0x3d5a4c,
+    ground2: 0x2d443a,
+    edge: 0x223630,
+    minimap: '#5f9c86',
+    sky: 0x33496e,
+    fog: 0x415f80,
+    fogNear: 300,
+    fogFar: 1350,
+    sun: 0xffe3b8,
+    sunIntensity: 1.75,
+    hemiSky: 0xa9c6e8,
+    hemiGround: 0x1d2b26,
+    hemiIntensity: 0.86,
+    mob: null,
+    mobCount: 0,
+    peaceful: true,
+    landmark: '별빛 광장',
+    landmarkPos: { x: 0, z: W2 + 2000 },
+    spawn: { x: 0, z: W2 + 1952 },
+    // 2세계 대장간(상점) — 광장 남쪽, 문은 광장(북쪽)을 향한다
+    shop: {
+      id: 'shop_w2',
+      x: 0, z: W2 + 2150, radius: 138, facing: -1,
+      interact: { x: 0, z: W2 + 2086, radius: 78 },
+    },
+  },
   goblin_forest: {
     id: 'goblin_forest',
     world: 2,
@@ -222,8 +260,8 @@ export const BIOMES_W2 = {
     mobCount: 16,
     landmark: '고블린 토템',
     landmarkPos: { x: 0, z: W2 + 900 },
-    spawn: { x: 0, z: W2 + 1400 },
-    arrival: true,
+    // 2세계 태초마을 북문을 나서면 바로 고블린 숲 남쪽 길로 들어선다
+    spawn: { x: 0, z: W2 + 1320 },
   },
   ominous_cave: {
     id: 'ominous_cave',
@@ -335,8 +373,8 @@ export const BIOMES_W2 = {
   },
 };
 
-// 2번째 세계 지역 순서 (도착지인 고블린 숲이 먼저)
-export const BIOME_ORDER_W2 = ['goblin_forest', 'misty_plains', 'sakura', 'ominous_cave', 'dark_realm'];
+// 2번째 세계 지역 순서 (도착지인 2세계 태초마을이 먼저 — 북쪽으로 고블린 숲 → 암흑지역)
+export const BIOME_ORDER_W2 = ['village_w2', 'goblin_forest', 'misty_plains', 'sakura', 'ominous_cave', 'dark_realm'];
 
 // 1번째 세계 지역 순서
 export const BIOME_ORDER = ['village', 'forest', 'graveyard', 'savanna', 'old_village', 'jungle', 'temple'];
@@ -361,8 +399,8 @@ export function biomeOrderFor(worldId) {
 // 미니맵 · 나침반에서 사용할 지역 목록 (사원 우선 표시)
 export const COMPASS_ORDER = ['temple', 'village', 'forest', 'graveyard', 'savanna', 'old_village', 'jungle'];
 
-// 2번째 세계 나침반 (보스가 있는 암흑지역을 맨 위에)
-export const COMPASS_ORDER_W2 = ['dark_realm', 'goblin_forest', 'misty_plains', 'sakura', 'ominous_cave'];
+// 2번째 세계 나침반 (보스가 있는 암흑지역을 맨 위에 · 안전 지대인 2세계 태초마을도 표시)
+export const COMPASS_ORDER_W2 = ['dark_realm', 'goblin_forest', 'misty_plains', 'sakura', 'ominous_cave', 'village_w2'];
 
 export function compassOrderFor(worldId) {
   return worldId === 2 ? COMPASS_ORDER_W2 : COMPASS_ORDER;
@@ -438,11 +476,11 @@ export const MOB_TYPES = {
 // 2번째 세계 보스가 서는 자리 (암흑지역 제단 앞)
 export const BOSS2_POS = { x: 0, z: WORLD2.originZ + 130 };
 
-// 2번째 세계 도착 광장 · 고대 골렘을 잡으면 열리는 포털 자리
-export const WORLD2_ARRIVAL = { x: 0, z: WORLD2.originZ + 1400 };
+// 2번째 세계 도착 지점 — 2세계 태초마을 광장 (고대 골렘을 잡으면 열리는 포털이 여기로 보낸다)
+export const WORLD2_ARRIVAL = { x: 0, z: WORLD2.originZ + 1880 };
 export const WORLD1_PORTAL_POS = { x: 0, z: 172 };
-// 1번째 세계로 돌아가는 귀환 포털 (도착 광장 옆)
-export const WORLD2_RETURN_POS = { x: 190, z: WORLD2.originZ + 1400 };
+// 1번째 세계로 돌아가는 귀환 포털 (2세계 태초마을 광장 옆 · 도착 지점에서 200 이상 떨어져 바로 되돌아가지 않는다)
+export const WORLD2_RETURN_POS = { x: 215, z: WORLD2.originZ + 1880 };
 
 
 export const CLASSES = {
@@ -611,6 +649,11 @@ export const PLAYER_SIZE = { width: 10, height: 20, radius: 4.6 };
 
 /* ------------------------- 태초마을 무기 · 포션 상점 ------------------------- */
 export const SHOP = {
+  id: 'shop_w1',
+  kind: 'world1',
+  // 상점 창 상단 문구 (어느 상점인지 한눈에 보이게)
+  eyebrow: '1번째 세계 태초마을 · 상점',
+  title: '무기 · 갑옷 · 포션 상점',
   keeper: { name: '도로시', role: '상점 주인', line: '필요한 게 있으면 얼마든지 골라 봐.' },
   // 직업별 상위 무기 (Tier 2 · 3) — 사면 바로 장착됩니다
   weapons: {
@@ -659,15 +702,123 @@ export const SHOP = {
   starterPotions: { 'potion-hp': 1 },
 };
 
-export function shopWeaponsFor(classId) {
-  return SHOP.weapons[classId] || [];
+/* ------------------------------------------------------------------
+   2세계 태초마을 상점 — 1번째 세계보다 훨씬 강하고 훨씬 비싸다
+   · 무기: 화면 표시 Tier 4 · 5 (내부 등급 3 · 4)
+   · 갑옷: Tier 4 · 5
+   · 포션: 초월 체력 포션 · 완전 회복의 성수 · 광폭의 영약
+------------------------------------------------------------------ */
+export const SHOP2 = {
+  id: 'shop_w2',
+  kind: 'world2',
+  eyebrow: '2세계 태초마을 · 대장간',
+  title: '2세계 대장간 · 무기 · 갑옷 · 포션',
+  keeper: {
+    name: '그렌', role: '2세계 대장장이',
+    line: '2세계에서는 이 정도 장비라야 살아남아. 값은 세지만 그만한 값은 하지.',
+  },
+  // 직업별 상위 무기 (표시 Tier 4 · 5) — 사면 바로 장착됩니다
+  weapons: {
+    warrior: [
+      { id: 'w2-warrior-4', tier: 4, name: '흑요석 대검', price: 620, damage: 46, crit: 0.08, desc: '2세계 흑요석을 벼린 대검. 공격력 +46 · 치명타 +8%' },
+      { id: 'w2-warrior-5', tier: 5, name: '불멸의 심판검', price: 1320, damage: 84, crit: 0.12, desc: '차원을 가르는 심판의 검. 공격력 +84 · 치명타 +12%' },
+    ],
+    archer: [
+      { id: 'w2-archer-4', tier: 4, name: '심연의 장궁', price: 600, damage: 42, crit: 0.08, desc: '심연의 바람을 쏘는 장궁. 공격력 +42 · 치명타 +8%' },
+      { id: 'w2-archer-5', tier: 5, name: '유성의 명궁', price: 1300, damage: 76, crit: 0.12, desc: '유성을 떨어뜨리는 명궁. 공격력 +76 · 치명타 +12%' },
+    ],
+    rogue: [
+      { id: 'w2-rogue-4', tier: 4, name: '심연 쌍단검', price: 600, damage: 34, crit: 0.09, desc: '어둠을 베는 심연 쌍단검. 공격력 +34 · 치명타 +9%' },
+      { id: 'w2-rogue-5', tier: 5, name: '차원 쌍검', price: 1280, damage: 60, crit: 0.14, desc: '차원을 오가는 쌍검. 공격력 +60 · 치명타 +14%' },
+    ],
+    tanker: [
+      { id: 'w2-tanker-4', tier: 4, name: '심연 수호방패', price: 620, damage: 42, crit: 0.06, desc: '2세계를 막아서는 수호방패. 공격력 +42 · 치명타 +6%' },
+      { id: 'w2-tanker-5', tier: 5, name: '불멸의 성벽', price: 1300, damage: 74, crit: 0.08, desc: '무너지지 않는 불멸의 성벽. 공격력 +74 · 치명타 +8%' },
+    ],
+    mage: [
+      { id: 'w2-mage-4', tier: 4, name: '성운 지팡이', price: 640, damage: 48, crit: 0.08, desc: '성운을 담은 지팡이. 공격력 +48 · 치명타 +8%' },
+      { id: 'w2-mage-5', tier: 5, name: '태초의 홀', price: 1340, damage: 86, crit: 0.12, desc: '태초의 빛이 깃든 홀. 공격력 +86 · 치명타 +12%' },
+    ],
+  },
+  // 2세계 갑옷 (Tier 4 · 5) — 1번째 세계 갑옷보다 훨씬 비싸고 튼튼하다
+  armors: [
+    {
+      id: 'a-mithril', tier: 4, name: '미스릴 성기사 갑옷', price: 720, hp: 340, defense: 0.62,
+      desc: '별빛 미스릴로 벼린 성기사 갑옷. 최대 HP +340 · 받는 피해 62% 감소',
+    },
+    {
+      id: 'a-eternal', tier: 5, name: '차원의 불멸 갑옷', price: 1520, hp: 550, defense: 0.72,
+      desc: '차원의 장막을 두른 불멸의 갑옷. 최대 HP +550 · 받는 피해 72% 감소',
+    },
+  ],
+  // 2세계 포션 — 1번째 세계 포션보다 훨씬 강하고 비싸다
+  potions: [
+    {
+      id: 'potion-hp-supreme', name: '초월 체력 포션', icon: '💠', price: 180, heal: 600, key: '4',
+      desc: 'HP 600 회복',
+    },
+    {
+      id: 'potion-full-restore', name: '완전 회복의 성수', icon: '🏺', price: 320, heal: 'full',
+      buff: 'guard', duration: 15, defense: 0.5, key: '5',
+      desc: 'HP 전체 회복 · 15초간 받는 피해 50% 감소',
+    },
+    {
+      id: 'potion-rage', name: '광폭의 영약', icon: '🔥', price: 380, buff: 'rage', duration: 25, mult: 1.6, key: '6',
+      desc: '25초간 공격력 +60%',
+    },
+  ],
+};
+
+// 상점 두 곳을 한 곳에서 찾는다
+export const SHOPS = { shop_w1: SHOP, shop_w2: SHOP2 };
+
+export function shopById(id) { return SHOPS[id] || SHOP; }
+
+// 지역(마을)에 붙은 상점 설정 — village = 1번째 세계, village_w2 = 2번째 세계
+export function shopForBiome(biomeId) {
+  if (biomeId === 'village_w2') return SHOP2;
+  if (biomeId === 'village') return SHOP;
+  return null;
+}
+
+// 그 세계의 태초마을 (죽었을 때 돌아갈 안전한 자리)
+export function homeBiomeFor(worldId) {
+  return worldId === 2 ? BIOMES.village_w2 : BIOMES.village;
+}
+
+export function homeSpawnFor(worldId) {
+  return homeBiomeFor(worldId).spawn;
+}
+
+// 두 상점의 같은 이름 함수들 (샵 UI · 구매 로직 · 테스트가 함께 쓴다)
+export function shopWeaponsFor(classId, shopId) {
+  const shop = shopById(shopId);
+  return (shop.weapons && shop.weapons[classId]) || [];
+}
+
+export function allWeapons(classId) {
+  return shopWeaponsFor(classId, 'shop_w1').concat(shopWeaponsFor(classId, 'shop_w2'));
+}
+
+export function allArmors() {
+  return SHOP.armors.concat(SHOP2.armors);
+}
+
+export function allPotions() {
+  return SHOP.potions.concat(SHOP2.potions);
+}
+
+export function potionById(id) {
+  return allPotions().find((p) => p.id === id) || null;
 }
 
 export function armorByTier(tier) {
-  return SHOP.armors.find((a) => a.tier === tier) || null;
+  return allArmors().find((a) => a.tier === tier) || null;
 }
 
-export const MAX_ARMOR_TIER = 3;
+// 내부 등급(0 ~ 4)의 최댓값 · 갑옷 등급(0 ~ 5)의 최댓값
+export const MAX_WEAPON_TIER = 4;
+export const MAX_ARMOR_TIER = 5;
 
 export const BOSS_POS = { x: 0, z: -165 };
 export const TEMPLE_GATE = { x: 0, z: 0 };

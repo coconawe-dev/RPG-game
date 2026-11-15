@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import {
   BIOMES, BIOME_ORDER, ALL_BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD, WORLD2, WORLD2_ARRIVAL,
+  SHOP, shopForBiome, homeBiomeFor,
 } from './config.js';
 import { buildWorld, updateSun, updateVillage, updateOldVillage, updateWorld2, updateBiomeCulling, applyWorldQuality } from './world.js';
 import { Portals, handleBossDefeated, travelPlayer } from './portals.js';
@@ -405,9 +406,12 @@ class Game {
       if (k === 'q') { if (this.state === 'playing' && this.player) this.player.useSkill('q'); }
       if (k === 'e') { if (this.state === 'playing' && this.player) this.player.useSkill('e'); }
       if (k === 'escape' && document.exitPointerLock) document.exitPointerLock();
-      // 포션 빠른 사용: 1 / 2 / 3
+      // 포션 빠른 사용: 1 / 2 / 3 (1세계) · 4 / 5 / 6 (2세계)
       if (this.state === 'playing' && this.player) {
-        const pid = { '1': 'potion-hp', '2': 'potion-hp-big', '3': 'potion-atk' }[k];
+        const pid = {
+          '1': 'potion-hp', '2': 'potion-hp-big', '3': 'potion-atk',
+          '4': 'potion-hp-supreme', '5': 'potion-full-restore', '6': 'potion-rage',
+        }[k];
         if (pid) { this.usePotion(pid); e.preventDefault(); return; }
       }
       if (k === '1' || k === '2' || k === '3' || k === '4' || k === '5') {
@@ -721,6 +725,9 @@ class Game {
     bindBtn('tbtn-potion-1', () => this.usePotion('potion-hp'));
     bindBtn('tbtn-potion-2', () => this.usePotion('potion-hp-big'));
     bindBtn('tbtn-potion-3', () => this.usePotion('potion-atk'));
+    bindBtn('tbtn-potion-4', () => this.usePotion('potion-hp-supreme'));
+    bindBtn('tbtn-potion-5', () => this.usePotion('potion-full-restore'));
+    bindBtn('tbtn-potion-6', () => this.usePotion('potion-rage'));
 
     // 상점 프롬프트 자체가 버튼 (데스크톱 채팅 · iPad 탭 모두)
     const prompt = document.getElementById('shop-prompt');
@@ -1037,7 +1044,7 @@ class Game {
     let startWorld = this.startWorld === 2 ? 2 : 1;
     let biomeId = (this.startBiome && BIOMES[this.startBiome]) ? this.startBiome : 'village';
     if (startWorld === 1 && BIOMES[biomeId] && BIOMES[biomeId].world === 2) startWorld = 2;
-    if (startWorld === 2 && (!BIOMES[biomeId] || BIOMES[biomeId].world !== 2)) biomeId = 'goblin_forest';
+    if (startWorld === 2 && (!BIOMES[biomeId] || BIOMES[biomeId].world !== 2)) biomeId = 'village_w2';
     let spawn;
     let yaw = -Math.PI / 2 + 0.25;
     if (this.debugSpawn) {
@@ -1048,6 +1055,10 @@ class Game {
     } else if (biomeId === 'village') {
       spawn = BIOMES.village.spawn;
       yaw = 0; // 북쪽(광장 · 상점)을 바라보는 시점
+    } else if (biomeId === 'village_w2') {
+      // 2세계 태초마을: 광장에서 남쪽 2세계 대장간을 바라본다 (북쪽으로 나가면 고블린 숲)
+      spawn = BIOMES.village_w2.spawn;
+      yaw = Math.PI;
     } else if (BIOMES[biomeId].spawn) {
       spawn = BIOMES[biomeId].spawn;
       if (startWorld === 2) yaw = 0; // 북쪽(암흑지역)을 바라본다
@@ -1058,6 +1069,7 @@ class Game {
     if (o.spawn) spawn = { x: o.spawn.x, z: o.spawn.z };
     this.player.spawnAt(spawn.x, spawn.z);
     if (biomeId === 'village' && !this.debugSpawn) this.player.facing = Math.PI;
+    if (biomeId === 'village_w2' && !this.debugSpawn) this.player.facing = 0;
     this.setWorld(worldAt(spawn.x, spawn.z), { silent: true });
     if (startWorld === 2) {
       this.world2Unlocked = true;
@@ -1082,7 +1094,7 @@ class Game {
     }
     this.hud.hideEnd();
     this.sfx.init();
-    this.hud.banner(CLASSES[classId].name + ' · ' + BIOMES[regionAt(spawn.x, spawn.z)].name, 2400);
+    this.hud.banner(CLASSES[classId].name + ' · ' + (startWorld === 2 ? '2세계 ' : '') + BIOMES[regionAt(spawn.x, spawn.z)].name, 2400);
     // 터치 조작 안내는 시작 후 잠시 보여주고 사라진다
     const touchHint = document.getElementById('touch-hint');
     if (touchHint) {
@@ -1101,16 +1113,22 @@ class Game {
 
   resetRun() {
     if (!this.player) return;
-    // 부활하면 태초마을(광장 앞)에서 체력을 회복하고 다시 시작한다
-    const spawn = BIOMES.village.spawn;
+    // 부활하면 그 세계의 태초마을(광장 앞)에서 체력을 회복하고 다시 시작한다
+    // (2번째 세계에서 죽었다면 2세계 태초마을로 — 사자마자 다시 포털을 찾아가지 않도록)
+    const inW2 = this.worldId === 2;
+    const home = homeBiomeFor(inW2 ? 2 : 1);
+    const spawn = home.spawn;
     this.player.spawnAt(spawn.x, spawn.z);
-    this.player.facing = Math.PI;
+    this.player.facing = inW2 ? 0 : Math.PI;
+    this.player.root.rotation.y = this.player.facing;
     this.player.hp = this.player.maxHp;
     this.mobManager.resetAggro();
-    this.setWorld(1, { silent: true });
+    this.setWorld(inW2 ? 2 : 1, { silent: true });
+    this.camYaw = this.player.facing + Math.PI;
+    this.placeCamera(true);
     this.hud.hideEnd();
     this.hud.refreshBars();
-    this.hud.banner('태초마을에서 다시 일어났습니다', 2000);
+    this.hud.banner(inW2 ? '2세계 태초마을에서 다시 일어났습니다' : '태초마을에서 다시 일어났습니다', 2000);
     this.state = 'playing';
     this.deathTimer = -1;
   }
@@ -1196,11 +1214,22 @@ class Game {
   }
 
   /* --------------------------- 태초마을 상점 --------------------------- */
-  isNearShop() {
+  // 지금 서 있는 마을의 상점 (1세계 태초마을 · 2세계 태초마을 대장간)
+  activeShopBiome() {
     const p = this.player;
-    if (!p || !p.alive) return false;
-    const inter = BIOMES.village.shop.interact;
-    return Math.hypot(p.position.x - inter.x, p.position.z - inter.z) <= inter.radius;
+    if (!p || !p.alive) return null;
+    const order = worldAt(p.position.x, p.position.z) === 2 ? ['village_w2'] : ['village'];
+    for (const id of order) {
+      const b = BIOMES[id];
+      if (!b || !b.shop || !b.shop.interact) continue;
+      const inter = b.shop.interact;
+      if (Math.hypot(p.position.x - inter.x, p.position.z - inter.z) <= inter.radius) return b;
+    }
+    return null;
+  }
+
+  isNearShop() {
+    return !!this.activeShopBiome();
   }
 
   updateShopProximity() {
@@ -1208,13 +1237,23 @@ class Game {
     if (near === this.nearShop) return;
     this.nearShop = near;
     const el = document.getElementById('shop-prompt');
-    if (el) el.classList.toggle('on', near);
+    if (el) {
+      el.classList.toggle('on', near);
+      if (near) {
+        const b = this.activeShopBiome();
+        const def = b ? shopForBiome(b.id) : null;
+        const txt = el.querySelector('.sp-text');
+        if (txt) txt.textContent = def && def.kind === 'world2' ? '2세계 대장간 열기' : '상점 열기';
+      }
+    }
     const tBtn = document.getElementById('tbtn-shop');
     if (tBtn) tBtn.classList.toggle('on', near);
   }
 
   openShop() {
     if (this.state !== 'playing' || !this.player) return;
+    const b = this.activeShopBiome();
+    const def = b ? shopForBiome(b.id) : SHOP;
     this.state = 'shop';
     this.input.forward = false;
     this.input.back = false;
@@ -1223,7 +1262,7 @@ class Game {
     this.input.sprint = false;
     this.input.jump = false;
     if (document.exitPointerLock) document.exitPointerLock();
-    if (this.shop) this.shop.open();
+    if (this.shop) this.shop.open(def ? def.id : SHOP.id);
     this.sfx.shop();
     this.hud.setCrosshair(false);
     this.nearShop = false;

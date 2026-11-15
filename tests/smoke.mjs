@@ -6,7 +6,7 @@ import { Player } from '/workspace/RPG-game/src/player.js';
 import { Effects } from '/workspace/RPG-game/src/effects.js';
 import { Combat } from '/workspace/RPG-game/src/combat.js';
 import { castSkill } from '/workspace/RPG-game/src/skills.js';
-import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, ALL_BIOME_ORDER, BOSS_POS, BOSS2_POS, MOB_TYPES, SHOP, START_GOLD, WORLD2, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS } from '/workspace/RPG-game/src/config.js';
+import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, ALL_BIOME_ORDER, BOSS_POS, BOSS2_POS, MOB_TYPES, SHOP, SHOP2, START_GOLD, WORLD2, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS, MAX_ARMOR_TIER, MAX_WEAPON_TIER, shopForBiome, shopWeaponsFor, allArmors, allPotions, homeBiomeFor, homeSpawnFor } from '/workspace/RPG-game/src/config.js';
 import { terrainHeight, regionAt, clampToWorld, worldAt, WORLD } from '/workspace/RPG-game/src/utils.js';
 import { Portals, handleBossDefeated, travelPlayer } from '/workspace/RPG-game/src/portals.js';
 import { buyItem } from '/workspace/RPG-game/src/shop.js';
@@ -90,10 +90,11 @@ check(cl3.x === -2000 && cl3.z === 400, 'clamp moved a valid village position');
 {
   const W2 = WORLD2.originZ;
   const expectMob = {
+    village_w2: null,
     goblin_forest: 'goblin', misty_plains: 'skeleton', sakura: 'samurai',
     ominous_cave: 'iron_golem', dark_realm: 'dark_mage',
   };
-  check(BIOME_ORDER_W2.length === 5, 'world 2 must have 5 biomes, got ' + BIOME_ORDER_W2.length);
+  check(BIOME_ORDER_W2.length === 6, 'world 2 must have 6 biomes, got ' + BIOME_ORDER_W2.length);
   check(ALL_BIOME_ORDER.length === BIOME_ORDER.length + BIOME_ORDER_W2.length, 'ALL_BIOME_ORDER must cover both worlds');
 
   for (const region of Object.keys(expectMob)) {
@@ -114,11 +115,44 @@ check(cl3.x === -2000 && cl3.z === 400, 'clamp moved a valid village position');
   check(worldAt(0, 0) === 1 && worldAt(-2000, 0) === 1 && worldAt(0, 1400) === 1, 'world 1 coordinates misclassified');
   check(WORLD2.originZ > WORLD.zMax + 2000, 'world 2 must be far from world 1');
 
+  // 2세계 태초마을: 고블린 숲 남쪽 · 1000x1000 · 평화 지대 · 상점 있음
+  const v2 = BIOMES.village_w2;
+  check(!!v2, 'world 2 starter village missing');
+  check(v2.name === '태초마을', 'world 2 starter village must be called 태초마을, got ' + v2.name);
+  check(v2.bounds.x1 - v2.bounds.x0 === 1000 && v2.bounds.z1 - v2.bounds.z0 === 1000, 'world 2 village must be 1000x1000');
+  check(v2.center.x === 0 && v2.center.z === W2 + 2000, 'world 2 village center must be (0, W2+2000)');
+  check(v2.mob === null && v2.mobCount === 0 && v2.peaceful === true, 'world 2 village must be a peaceful zone');
+  check(regionAt(0, W2 + 2000) === 'village_w2', 'world 2 village region wrong');
+  check(regionAt(-420, W2 + 2200) === 'village_w2', 'world 2 village region wrong (open area)');
+  check(regionAt(0, W2 + 1490) === 'goblin_forest', 'road north of the village must still be goblin forest');
+  check(regionAt(0, W2 + 1510) === 'village_w2', 'road south of the goblin forest must be the village');
+  check(regionAt(v2.spawn.x, v2.spawn.z) === 'village_w2', 'world 2 village spawn is outside the village');
+  check(Math.abs(terrainHeight(v2.center.x, v2.center.z)) < 1.5, 'world 2 village plaza must be flat: ' + terrainHeight(v2.center.x, v2.center.z));
+  // 사거리: 남쪽 끝까지 걸어갈 수 있고 그 밖으로는 못 나간다
+  const deepSouth = clampToWorld({ x: 0, z: W2 + 2440 }, 2);
+  check(deepSouth.z === W2 + 2440, 'south end of the world 2 village must be walkable');
+  check(clampToWorld({ x: 700, z: W2 + 2200 }, 2).x <= WORLD2.halfCell, 'clamp must keep the player inside the village cell');
+
+  // 2세계 상점: 마을 광장 남쪽 건물 · 상호작용 지점도 마을 안
+  check(!!v2.shop && !!v2.shop.interact, 'world 2 village needs a shop');
+  check(v2.shop.id === 'shop_w2', 'world 2 shop must use the world 2 catalog');
+  check(Math.abs(v2.shop.z - (W2 + 2150)) < 1, 'world 2 shop building position wrong');
+  check(regionAt(v2.shop.interact.x, v2.shop.interact.z) === 'village_w2', 'world 2 shop counter must stand in the village');
+  check(Math.hypot(v2.shop.interact.x - v2.spawn.x, v2.shop.interact.z - v2.spawn.z) > v2.shop.interact.radius, 'player must not start inside the shop trigger');
+  check(shopForBiome('village_w2') === SHOP2 && shopForBiome('village') === SHOP, 'shop lookup by biome broken');
+
+  // 죽었을 때 돌아갈 자리: 1세계는 1세계 태초마을, 2세계는 2세계 태초마을
+  check(homeBiomeFor(1) === BIOMES.village && homeBiomeFor(2) === BIOMES.village_w2, 'home biome per world wrong');
+  check(regionAt(homeSpawnFor(2).x, homeSpawnFor(2).z) === 'village_w2', 'respawn point of world 2 must be inside the world 2 village');
+  check(regionAt(homeSpawnFor(1).x, homeSpawnFor(1).z) === 'village', 'respawn point of world 1 must stay in the world 1 village');
+
   // 지형은 바이옴 경계에서 이어져야 한다
   const w2Edges = [
     [0, W2 + 500], [0, W2 - 500], [-500, W2], [500, W2],
     [0, W2 + 1500], [0, W2 - 1500], [-1500, W2], [1500, W2],
     [0, W2 + 1400], [-1000, W2], [1000, W2],
+    [0, W2 + 2500], [-500, W2 + 2000], [500, W2 + 2000],
+    [-380, W2 + 1500], [380, W2 + 1500], [0, W2 + 2000],
   ];
   for (const [x, z] of w2Edges) {
     const a = terrainHeight(x - 0.01, z);
@@ -131,9 +165,9 @@ check(cl3.x === -2000 && cl3.z === 400, 'clamp moved a valid village position');
   check(Math.abs(terrainHeight(WORLD2_ARRIVAL.x, WORLD2_ARRIVAL.z)) < 1.5, 'arrival plaza must be flat');
   check(Math.abs(terrainHeight(0, W2)) < 3, 'boss arena must be fairly flat');
 
-  // 도직 지점은 안전한 고블린 숲 안
-  check(regionAt(WORLD2_ARRIVAL.x, WORLD2_ARRIVAL.z) === 'goblin_forest', 'world 2 arrival must be in goblin forest');
-  check(regionAt(WORLD2_RETURN_POS.x, WORLD2_RETURN_POS.z) === 'goblin_forest', 'return portal must stand in the arrival plaza');
+  // 도착 지점은 안전한 2세계 태초마을 광장 안
+  check(regionAt(WORLD2_ARRIVAL.x, WORLD2_ARRIVAL.z) === 'village_w2', 'world 2 arrival must be the world 2 village: ' + regionAt(WORLD2_ARRIVAL.x, WORLD2_ARRIVAL.z));
+  check(regionAt(WORLD2_RETURN_POS.x, WORLD2_RETURN_POS.z) === 'village_w2', 'return portal must stand in the world 2 village plaza');
   check(Math.hypot(WORLD2_RETURN_POS.x - WORLD2_ARRIVAL.x, WORLD2_RETURN_POS.z - WORLD2_ARRIVAL.z) > 100, 'return portal must be far enough from the arrival spot');
   check(regionAt(WORLD1_PORTAL_POS.x, WORLD1_PORTAL_POS.z) === 'temple', 'world 2 portal must open at the temple');
   check(regionAt(BOSS2_POS.x, BOSS2_POS.z) === 'dark_realm', 'dark mage must stand in the dark realm');
@@ -144,6 +178,7 @@ check(cl3.x === -2000 && cl3.z === 400, 'clamp moved a valid village position');
   check(w2culled.length === 0, 'world 2 biomes must be culled while in world 1: ' + w2culled.join(','));
   updateBiomeCulling(world, { x: 0, z: W2 + 1400 }, 1280);
   check(world.biomeGroups.goblin_forest.visible === true, 'goblin forest must show at the arrival plaza');
+  check(world.biomeGroups.village_w2.visible === true, 'world 2 village must be visible from the forest gate');
   check(world.biomeGroups.dark_realm.visible === true, 'dark realm must be visible from the arrival plaza');
   check(world.biomeGroups.village.visible === false, 'world 1 village must be culled while in world 2');
   check(world.biomeGroups.temple.visible === false, 'world 1 temple must be culled while in world 2');
@@ -474,6 +509,167 @@ for (const classId of CLASS_ORDER) {
   check(p2.hp > 0, 'armor test player should survive 100 damage');
 }
 
+/* ================== 2세계 태초마을 상점: 더 세고 더 비싼 장비 ================== */
+{
+  // 상점 목록 분리: 1세계 마을은 1세계 물건만, 2세계 마을은 2세계 물건만 판다
+  check(allArmors().length === 5, 'five armor tiers expected across both shops, got ' + allArmors().length);
+  check(MAX_ARMOR_TIER === 5, 'max armor tier must be 5, got ' + MAX_ARMOR_TIER);
+  check(MAX_WEAPON_TIER === 4, 'max weapon tier must be 4, got ' + MAX_WEAPON_TIER);
+  check(SHOP.armors.length === 3 && SHOP2.armors.length === 2, 'each shop keeps its own armor list');
+  check(SHOP.potions.length === 3 && SHOP2.potions.length === 2 + 1, 'each shop keeps its own potion list');
+  for (const cls of CLASS_ORDER) {
+    const w1 = shopWeaponsFor(cls, 'shop_w1');
+    const w2 = shopWeaponsFor(cls, 'shop_w2');
+    check(w1.length === 2 && w2.length === 2, cls + ' must have 2 weapons in each shop');
+    check(w1[0].tier === 2 && w1[1].tier === 3, cls + ' world 1 weapon tiers must stay 2/3');
+    check(w2[0].tier === 4 && w2[1].tier === 5, cls + ' world 2 weapon tiers must be 4/5');
+    // 더 비싸고 더 강하다
+    check(w2[0].price > w1[1].price * 2, cls + ' tier4 must cost far more than world 1 tier3: ' + w2[0].price + ' vs ' + w1[1].price);
+    check(w2[1].price > w2[0].price * 1.8, cls + ' tier5 must cost far more than tier4');
+    check(w2[0].damage > w1[1].damage, cls + ' tier4 damage must beat world 1 tier3');
+    check(w2[1].damage > w2[0].damage, cls + ' tier5 damage must beat tier4');
+    check(w2[0].crit > 0 && w2[1].crit >= w2[0].crit, cls + ' world 2 weapons need crit bonuses');
+    check(w2[0].price >= 550 && w2[0].price <= 700, cls + ' tier4 price out of range: ' + w2[0].price);
+    check(w2[1].price >= 1200 && w2[1].price <= 1400, cls + ' tier5 price out of range: ' + w2[1].price);
+    check(w2[0].damage >= 30 && w2[1].damage >= 58, cls + ' world 2 weapon damage too low: ' + w2[0].damage + '/' + w2[1].damage);
+  }
+  const warriorT4 = shopWeaponsFor('warrior', 'shop_w2')[0];
+  const warriorT5 = shopWeaponsFor('warrior', 'shop_w2')[1];
+  check(warriorT4.damage >= 42 && warriorT4.damage <= 52, 'warrior tier4 damage should be 42~52, got ' + warriorT4.damage);
+  check(warriorT5.damage >= 75 && warriorT5.damage <= 90, 'warrior tier5 damage should be 75~90, got ' + warriorT5.damage);
+
+  // 2세계 갑옷 수치
+  const mithril = allArmors().find((a) => a.tier === 4);
+  const eternal = allArmors().find((a) => a.tier === 5);
+  check(mithril && mithril.price === 720 && mithril.hp === 340 && Math.abs(mithril.defense - 0.62) < 1e-9, 'mithril armor terms wrong');
+  check(eternal && eternal.price === 1520 && eternal.hp === 550 && Math.abs(eternal.defense - 0.72) < 1e-9, 'eternal armor terms wrong');
+  check(mithril.price > SHOP.armors[2].price && mithril.hp > SHOP.armors[2].hp && mithril.defense > SHOP.armors[2].defense, 'world 2 armor must beat the golden armor');
+
+  // 무기 구매: 2세계 무기는 내부 등급 3 · 4 로 장착된다
+  const hero = new Player(game, 'warrior');
+  game.player = hero;
+  hero.spawnAt(BIOMES.village_w2.shop.interact.x, BIOMES.village_w2.shop.interact.z);
+  hero.equipWeaponTier(0);
+  hero.weaponBonus = 0;
+  hero.critChance = hero.cls.critChance;
+  const baseDmg = hero.damage;
+  game.gold = 500;
+  let r = buyItem(game, warriorT4.id);
+  check(!r.ok, 'tier4 weapon must not be affordable with 500G');
+  check(hero.weaponTier === 0, 'failed tier4 purchase changed the weapon');
+  game.gold = 1500;
+  r = buyItem(game, warriorT4.id);
+  check(r.ok, 'tier4 weapon purchase failed: ' + r.msg);
+  check(game.gold === 1500 - warriorT4.price, 'tier4 gold not deducted: ' + game.gold);
+  check(hero.weaponTier === 3, 'tier4 weapon must equip internal tier 3, got ' + hero.weaponTier);
+  check(Math.abs(hero.damage - (baseDmg + warriorT4.damage)) < 1e-6, 'tier4 damage bonus not applied: ' + hero.damage);
+  check(Math.abs(hero.critChance - (hero.cls.critChance + warriorT4.crit)) < 1e-9, 'tier4 crit bonus not applied');
+  const mesh4 = hero.weapons.right || hero.weapons.left;
+  check(mesh4 && mesh4.userData.tier === 3, '3D weapon look must upgrade to the world 2 tier 4 model');
+  game.gold = 2000;
+  r = buyItem(game, warriorT5.id);
+  check(r.ok, 'tier5 weapon purchase failed: ' + r.msg);
+  check(hero.weaponTier === 4, 'tier5 weapon must equip internal tier 4, got ' + hero.weaponTier);
+  check(Math.abs(hero.damage - (baseDmg + warriorT5.damage)) < 1e-6, 'tier5 bonus must replace tier4: ' + hero.damage);
+  const mesh5 = hero.weapons.right || hero.weapons.left;
+  check(mesh5 && mesh5.userData.tier === 4, '3D weapon look must upgrade to the mythic model');
+  hero.equipWeaponTier(99);
+  check(hero.weaponTier === MAX_WEAPON_TIER, 'weapon tier must clamp at ' + MAX_WEAPON_TIER + ', got ' + hero.weaponTier);
+
+  // 2세계 갑옷: Tier 4 · 5 장착 · 최대 HP · 피해 감소 · 3D 갑옷
+  const p3 = new Player(game, 'warrior');
+  game.player = p3;
+  p3.spawnAt(BIOMES.village_w2.spawn.x, BIOMES.village_w2.spawn.z);
+  const baseMaxHp3 = p3.maxHp;
+  game.gold = 100;
+  let ares = buyItem(game, mithril.id);
+  check(!ares.ok, 'mithril armor must not be affordable with 100G');
+  check(p3.armorTier === 0 && p3.maxHp === baseMaxHp3, 'failed armor purchase changed the character');
+  game.gold = 800;
+  ares = buyItem(game, mithril.id);
+  check(ares.ok, 'mithril armor purchase failed: ' + ares.msg);
+  check(p3.armorTier === 4 && Math.abs(p3.armorDefense - 0.62) < 1e-9, 'mithril armor not equipped');
+  check(p3.maxHp === baseMaxHp3 + mithril.hp, 'mithril max HP bonus wrong: ' + p3.maxHp);
+  check(!!p3.armorChest && !!p3.armorBracerL, '3D armor pieces missing at tier 4');
+  p3.hp = p3.maxHp;
+  p3.invuln = 0;
+  const taken4 = p3.takeDamage(100, null);
+  check(Math.abs(taken4 - 38) <= 1, '62% damage reduction wrong: ' + taken4);
+  game.gold = 2000;
+  ares = buyItem(game, eternal.id);
+  check(ares.ok, 'eternal armor purchase failed: ' + ares.msg);
+  check(p3.armorTier === 5 && Math.abs(p3.armorDefense - 0.72) < 1e-9, 'eternal armor not equipped');
+  check(p3.maxHp === baseMaxHp3 + eternal.hp, 'eternal max HP bonus wrong: ' + p3.maxHp);
+  p3.hp = p3.maxHp;
+  p3.invuln = 0;
+  const taken5 = p3.takeDamage(100, null);
+  check(Math.abs(taken5 - 28) <= 1, '72% damage reduction wrong: ' + taken5);
+  p3.equipArmorTier(99);
+  check(p3.armorTier === MAX_ARMOR_TIER, 'armor tier must clamp at ' + MAX_ARMOR_TIER);
+
+  // 2세계 포션 3종
+  const pots = allPotions();
+  check(pots.length === 6, 'six potions expected, got ' + pots.length);
+  const keys = pots.map((p) => p.key).sort().join('');
+  check(keys === '123456', 'potion quick keys must be 1~6, got ' + keys);
+  const supreme = pots.find((p) => p.id === 'potion-hp-supreme');
+  const restore = pots.find((p) => p.id === 'potion-full-restore');
+  const rage = pots.find((p) => p.id === 'potion-rage');
+  check(supreme && supreme.price === 180 && supreme.heal === 600, 'supreme HP potion terms wrong');
+  check(restore && restore.price === 320 && restore.heal === 'full' && restore.buff === 'guard', 'full restore potion terms wrong');
+  check(rage && rage.price === 380 && rage.buff === 'rage' && Math.abs(rage.mult - 1.6) < 1e-9, 'rage elixir terms wrong');
+  check(supreme.price > SHOP.potions[1].price && restore.price > supreme.price && rage.price > restore.price, 'world 2 potions must be pricier than world 1');
+  check(supreme.heal > SHOP.potions[0].heal * 5, 'supreme potion must heal far more than the basic one');
+
+  const p4 = new Player(game, 'warrior');
+  game.player = p4;
+  p4.spawnAt(BIOMES.village_w2.spawn.x, BIOMES.village_w2.spawn.z);
+  game.gold = 100;
+  r = buyItem(game, supreme.id);
+  check(!r.ok, 'supreme potion must not be affordable with 100G');
+  game.gold = 1000;
+  r = buyItem(game, supreme.id);
+  check(r.ok && p4.potionCount(supreme.id) === 1, 'supreme potion purchase failed: ' + r.msg);
+  check(game.gold === 1000 - supreme.price, 'supreme potion gold not deducted');
+  p4.hp = 50;
+  const useSup = p4.usePotion(supreme.id);
+  check(useSup.ok, 'supreme potion use failed: ' + useSup.msg);
+  check(Math.abs(p4.hp - Math.min(p4.maxHp, 650)) < 1, 'supreme potion must heal 600 HP (capped by max HP), hp=' + p4.hp);
+  check(p4.potionCount(supreme.id) === 0, 'supreme potion not consumed');
+
+  r = buyItem(game, restore.id);
+  check(r.ok, 'full restore purchase failed: ' + r.msg);
+  p4.hp = Math.round(p4.maxHp * 0.2);
+  const useRes = p4.usePotion(restore.id);
+  check(useRes.ok, 'full restore use failed: ' + useRes.msg);
+  check(p4.hp === p4.maxHp, 'full restore must fill HP: ' + p4.hp + '/' + p4.maxHp);
+  check(p4.buffs.guard > 14, 'full restore must grant a 15s guard buff: ' + p4.buffs.guard);
+  p4.invuln = 0;
+  const guarded = p4.takeDamage(100, null);
+  check(guarded <= 50, 'guard buff must halve incoming damage, took ' + guarded);
+  for (let i = 0; i < 60 * 16; i++) p4.update(1 / 60, input);
+  check(p4.buffs.guard === 0, 'guard buff did not expire: ' + p4.buffs.guard);
+
+  r = buyItem(game, rage.id);
+  check(r.ok, 'rage elixir purchase failed: ' + r.msg);
+  p4.hp = p4.maxHp;
+  const beforeRage = p4.damage;
+  const useRage = p4.usePotion(rage.id);
+  check(useRage.ok, 'rage elixir use failed: ' + useRage.msg);
+  check(Math.abs(p4.damage - beforeRage * 1.6) < 1e-6, 'rage must give +60% attack: ' + p4.damage + ' vs ' + beforeRage * 1.6);
+  check(p4.buffs.rage > 24, 'rage must last 25s: ' + p4.buffs.rage);
+  for (let i = 0; i < 60 * 26; i++) p4.update(1 / 60, input);
+  check(Math.abs(p4.damage - beforeRage) < 1e-6, 'rage buff did not expire: ' + p4.damage);
+
+  // 1세계 포션은 2세계에서도, 2세계 포션은 1세계에서도 그대로 쓸 수 있다
+  const hpSmall = SHOP.potions[0];
+  game.gold = 300;
+  r = buyItem(game, hpSmall.id);
+  check(r.ok, 'world 1 potion must still be purchasable: ' + r.msg);
+  p4.hp = 10;
+  check(p4.usePotion(hpSmall.id).ok, 'world 1 potion must still be usable');
+}
+
 /* ------------------- 고대 골렘: 격노 · 충격파 내려치기 ------------------- */
 {
   const g = game.mobManager.boss();
@@ -561,6 +757,7 @@ check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.pr
     const r = regionAt(m.position.x, m.position.z);
     check(r === home[m.typeId], m.typeId + ' spawned in ' + r + ' (expected ' + home[m.typeId] + ')');
   }
+  check(!w2mobs.some((m) => regionAt(m.position.x, m.position.z) === 'village_w2'), 'no hostile mob may spawn in the world 2 village');
   check(!w2mobs.some((m) => m.position.z < WORLD.zMax + 500), 'world 2 mobs must not spawn in world 1');
 
   const dm = w2mobs.find((m) => m.typeId === 'dark_mage');
@@ -590,7 +787,7 @@ check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.pr
   hero.position.z = WORLD1_PORTAL_POS.z + 20;
   game.portals.update(1 / 60, 1.2);
   check(game.worldId === 2, 'walking into the portal did not move the player to world 2');
-  check(regionAt(hero.position.x, hero.position.z) === 'goblin_forest', 'arrival must be the goblin forest, got ' + regionAt(hero.position.x, hero.position.z));
+  check(regionAt(hero.position.x, hero.position.z) === 'village_w2', 'arrival must be the world 2 village, got ' + regionAt(hero.position.x, hero.position.z));
   check(Math.round(hero.hp) === hpBefore, 'portal travel must not heal: ' + hero.hp + ' vs ' + hpBefore);
   check(hero.alive === true, 'player died during portal travel');
 

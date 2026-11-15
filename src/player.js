@@ -1,6 +1,6 @@
 // 플레이어: 직업별 3D 리그, 이동, 절차적 애니메이션(공격/스킬/피격)
 import * as THREE from 'three';
-import { CLASSES, SHOP } from './config.js';
+import { CLASSES, SHOP, allArmors, allPotions, MAX_ARMOR_TIER, MAX_WEAPON_TIER } from './config.js';
 import { buildWeapons } from './weapons.js';
 import {
   clamp, damp, dampAngle, lerp, smoothstep, terrainHeight, clampToWorld, TAU, disposeObject,
@@ -231,6 +231,9 @@ const ARMOR_STYLE = {
   1: { plate: 0x7a5230, trim: 0x4b3320, rune: 0x2a1a0e, glow: 0, rough: 0.86, metal: 0.06 },
   2: { plate: 0xa9b2ba, trim: 0x6d7883, rune: 0xa8d8ff, glow: 0.35, rough: 0.3, metal: 0.9 },
   3: { plate: 0xd9a93a, trim: 0xf2d784, rune: 0xffe9a0, glow: 1.8, rough: 0.24, metal: 0.95 },
+  // 2세계 갑옷 — 별빛 미스릴(보랏빛 룬) · 차원의 불멸(금빛 불꽃 룬)
+  4: { plate: 0x8f7fd0, trim: 0xd8ccff, rune: 0xa87cff, glow: 2.1, rough: 0.24, metal: 0.96 },
+  5: { plate: 0x2e2846, trim: 0xffd98a, rune: 0xff9a3c, glow: 2.9, rough: 0.18, metal: 0.98 },
 };
 
 /* 키프레임 보간: frames = [{t:0, p:{...}}, ...] */
@@ -434,7 +437,7 @@ export class Player {
     this.weaponTier = 0;
     this.weaponBonus = 0;
     this.weaponName = this.cls.weaponName.split(' ')[0];
-    // 갑옷: 0 = 맨몸(기본 모험가 복장), 1 ~ 3 = 상점 갑옷
+    // 갑옷: 0 = 맨몸(기본 모험가 복장), 1 ~ 3 = 1세계 상점 갑옷, 4 ~ 5 = 2세계 상점 갑옷
     this.armorTier = 0;
     this.armorDefense = 0;
     this.armorBonusHp = 0;
@@ -458,7 +461,7 @@ export class Player {
 
     this.attackCooldown = 0;
     this.cooldowns = { q: 0, e: 0 };
-    this.buffs = { fortress: 0, haste: 0, frost: 0, elixir: 0 };
+    this.buffs = { fortress: 0, haste: 0, frost: 0, elixir: 0, rage: 0, guard: 0 };
     this.invuln = 0;
     this.dash = null;
     this.anim = { name: null, time: 0, duration: 1 };
@@ -594,9 +597,10 @@ export class Player {
   }
 
   /* --------------------------- 무기 교체 --------------------------- */
-  // tier 0 = 기본 장비, 1 = Tier 2, 2 = Tier 3 — 손의 무기 메시를 새로 만들어 갈아끼운다
+  // tier 0 = 기본 장비, 1 = 1세계 Tier 2, 2 = 1세계 Tier 3,
+  // 3 = 2세계 Tier 4, 4 = 2세계 Tier 5 — 손의 무기 메시를 새로 만들어 갈아끼운다
   equipWeaponTier(tier, initial) {
-    const t = clamp(Math.round(tier || 0), 0, 2);
+    const t = clamp(Math.round(tier || 0), 0, MAX_WEAPON_TIER);
     const old = this.weapons;
     if (old && !initial) {
       for (const side of ['right', 'left']) {
@@ -655,10 +659,11 @@ export class Player {
   }
 
   /* ---------------------- 갑옷 (상점) 장착 · 3D 표시 ---------------------- */
-  // tier 0 = 없음(기본 복장), 1 = 가죽, 2 = 강철 판금, 3 = 황금 수호
+  // tier 0 = 없음(기본 복장), 1 = 가죽, 2 = 강철 판금, 3 = 황금 수호,
+  // 4 = 미스릴 성기사, 5 = 차원의 불멸 (2세계)
   equipArmorTier(tier) {
-    const t = clamp(Math.round(tier || 0), 0, 3);
-    const def = (SHOP.armors || []).find((a) => a.tier === t) || null;
+    const t = clamp(Math.round(tier || 0), 0, MAX_ARMOR_TIER);
+    const def = allArmors().find((a) => a.tier === t) || null;
     const nextHp = def ? def.hp : 0;
     const prevHp = this.armorBonusHp || 0;
     this.armorTier = t;
@@ -711,6 +716,8 @@ export class Player {
       return m;
     };
     const slim = tier === 1 ? 0.94 : 1;
+    const hi = tier >= 3;          // 룬 · 발광 장식을 두르는 상위 갑옷
+    const mythic = tier >= 4;      // 2세계 갑옷은 견갑 · 룬이 한 단계 더 크다
 
     // 흉갑 · 목 가리개 · 허리대
     add(chest, new THREE.BoxGeometry(8.2 * slim, 5.9 * slim, 4.6 * slim), plate, 0, 3.5, 0);
@@ -725,19 +732,29 @@ export class Player {
     } else {
       add(chest, new THREE.BoxGeometry(4.0, 2.6, 0.5), trim, 0, 4.3, 2.3);
       add(chest, new THREE.BoxGeometry(1.7, 1.7, 0.45), glow, 0, 4.3, 2.62, [0, 0, Math.PI / 4]);
-      if (tier === 3) {
+      if (hi) {
         add(chest, new THREE.SphereGeometry(1.0, 10, 8), glow, 0, 4.3, 2.75);
         add(chest, new THREE.BoxGeometry(2.0, 0.5, 0.4), glow, 0, 1.0, 2.5);
+      }
+      if (mythic) {
+        // 2세계 갑옷: 가슴 한가운데의 큰 문장 + 어깨로 뻗는 빛줄기
+        add(chest, new THREE.BoxGeometry(6.2, 0.5, 0.4), glow, 0, 5.6, 2.4, [0, 0, 0.5]);
+        add(chest, new THREE.BoxGeometry(6.2, 0.5, 0.4), glow, 0, 5.6, 2.4, [0, 0, -0.5]);
+        add(chest, new THREE.OctahedronGeometry(1.25, 0), glow, 0, 4.3, 2.8);
       }
     }
 
     // 어깨 견갑 (티어가 높을수록 크고 두꺼움)
-    const padR = tier === 1 ? 2.15 : tier === 2 ? 2.65 : 2.8;
+    const padR = tier === 1 ? 2.15 : tier === 2 ? 2.65 : (mythic ? 3.1 : 2.8);
     for (const s of [-1, 1]) {
       const pad = add(chest, new THREE.SphereGeometry(padR, 11, 9), plate, s * 4.55, 5.9, 0, null, [1, 0.86, 1.05]);
       pad.rotation.z = s * 0.08;
       add(chest, new THREE.BoxGeometry(padR * 1.9, 0.55, padR * 2.0), trim, s * 4.55, 5.9 - padR * 0.72, 0);
-      if (tier === 3) add(chest, new THREE.SphereGeometry(0.55, 8, 6), glow, s * 5.7, 6.5, 0);
+      if (hi) add(chest, new THREE.SphereGeometry(0.55, 8, 6), glow, s * 5.7, 6.5, 0);
+      if (mythic) {
+        const spike = add(chest, new THREE.ConeGeometry(0.85, 2.6, 5), trim, s * 5.9, 8.0, -0.4);
+        spike.rotation.z = -s * 0.35;
+      }
     }
 
     // 팔 보호대
@@ -746,7 +763,7 @@ export class Player {
       parent.add(g);
       add(g, new THREE.BoxGeometry(2.15, 2.5, 2.3), plate, 0, -1.95, 0);
       add(g, new THREE.BoxGeometry(2.3, 0.6, 2.4), trim, 0, -0.85, 0);
-      if (tier === 3) add(g, new THREE.BoxGeometry(0.5, 0.5, 2.42), glow, 0, -1.95, 0);
+      if (hi) add(g, new THREE.BoxGeometry(0.5, 0.5, 2.42), glow, 0, -1.95, 0);
       return g;
     };
     this.armorBracerL = bracer(this.foreL);
@@ -759,10 +776,14 @@ export class Player {
 
   /* ------------------------------ 상태 API ------------------------------ */
   get alive() { return this.state === 'alive'; }
-  // 기본 공격력 + 장비 보너스, 전투의 비약은 20초간 +35%
+  // 기본 공격력 + 장비 보너스 · 전투의 비약(+35%) · 광폭의 영약(+60%)
   get damage() {
-    const base = this.baseDamage + this.weaponBonus;
-    return this.buffs && this.buffs.elixir > 0 ? base * 1.35 : base;
+    let base = this.baseDamage + this.weaponBonus;
+    if (this.buffs) {
+      if (this.buffs.elixir > 0) base *= 1.35;
+      if (this.buffs.rage > 0) base *= 1.6;
+    }
+    return base;
   }
   set damage(v) { this.baseDamage = v; }
   get moveSpeed() {
@@ -783,6 +804,8 @@ export class Player {
     this.buffs.haste = 0;
     this.buffs.frost = 0;
     this.buffs.elixir = 0;
+    this.buffs.rage = 0;
+    this.buffs.guard = 0;
     this.attackCooldown = 0;
     this.cooldowns.q = 0;
     this.cooldowns.e = 0;
@@ -854,6 +877,8 @@ export class Player {
     if (!this.alive || this.invuln > 0) return 0;
     let dmg = amount;
     if (this.buffs.fortress > 0) dmg *= 0.4;
+    // 완전 회복의 성수: 15초간 받는 피해 50% 감소
+    if (this.buffs.guard > 0) dmg *= 0.5;
     if (this.armorDefense > 0) dmg *= (1 - this.armorDefense);
     dmg = Math.max(1, Math.round(dmg));
     this.hp -= dmg;
@@ -887,29 +912,45 @@ export class Player {
   potionCount(id) { return Math.max(0, this.potions[id] || 0); }
 
   // 포션 사용 — 실제로 효과가 있을 때만 1개 소모한다
+  // 효과 정의(config.js)
+  //  · heal: 숫자(그만큼 회복) | 'full'(전체 회복)
+  //  · buff: buffs 키 · duration(초) · mult(공격력 배율) · defense(피해 감소율)
   usePotion(id) {
-    const def = SHOP.potions.find((p) => p.id === id);
+    const def = allPotions().find((p) => p.id === id);
     if (!def) return { ok: false, msg: '알 수 없는 포션입니다' };
     if (!this.alive) return { ok: false, msg: '지금은 사용할 수 없습니다' };
     if (this.potionCount(id) <= 0) return { ok: false, msg: def.name + '이(가) 없습니다' };
 
-    if (def.heal) {
-      if (this.hp >= this.maxHp - 0.5) return { ok: false, msg: '체력이 이미 가득 찼습니다' };
-      this.heal(def.heal);
-      this.potions[id] = this.potionCount(id) - 1;
-      this.game.sfx.potion();
-      return { ok: true, msg: def.name + ' 사용 · HP ' + Math.round(this.hp) + '/' + Math.round(this.maxHp) };
+    const full = def.heal === 'full';
+    const hasHeal = def.heal !== undefined && def.heal !== null;
+    const needsHp = hasHeal && this.hp < this.maxHp - 0.5;
+    // 회복도 버프도 쓸모가 없을 때만 거절한다 (버프 포션은 풀피에서도 쓸 수 있다)
+    if (hasHeal && !needsHp && !def.buff) return { ok: false, msg: '체력이 이미 가득 찼습니다' };
+
+    const notes = [];
+    if (needsHp) {
+      this.heal(full ? this.maxHp : def.heal);
+      notes.push('HP ' + Math.round(this.hp) + '/' + Math.round(this.maxHp));
     }
     if (def.buff) {
-      this.buffs[def.buff] = def.duration;
-      this.potions[id] = this.potionCount(id) - 1;
-      this.game.sfx.potion();
-      if (this.game.effects) this.game.effects.aura(this.root, 0xffb347, 7, 14, 12);
-      if (this.game.effects) this.game.effects.ring(this.position, 0xffb347, 46, { duration: 0.6 });
-      this.game.hud.floater('공격력 +35%', this.position, 'xp', 2.4);
-      return { ok: true, msg: def.name + ' 사용 · ' + def.duration + '초간 공격력 +35%' };
+      this.buffs[def.buff] = def.duration || 15;
+      if (def.mult) notes.push('공격력 +' + Math.round((def.mult - 1) * 100) + '%');
+      if (def.defense) notes.push('받는 피해 ' + Math.round(def.defense * 100) + '% 감소');
+      notes.push(def.duration + '초');
+      if (this.game.effects) {
+        const auraColor = def.buff === 'rage' ? 0xff6a3c : (def.buff === 'guard' ? 0x8fd8ff : 0xffb347);
+        this.game.effects.aura(this.root, auraColor, 7, 14, 12);
+        this.game.effects.ring(this.position, auraColor, 46, { duration: 0.6 });
+      }
+      if (this.game.effects && def.buff === 'rage') {
+        this.game.effects.ring(this.position, 0xff3c1e, 76, { duration: 0.8, thickness: 0.05 });
+      }
     }
-    return { ok: false, msg: '사용 효과가 없는 포션입니다' };
+    this.potions[id] = this.potionCount(id) - 1;
+    this.game.sfx.potion();
+    const label = def.buff === 'rage' ? '광폭' : (def.buff === 'guard' ? '수호' : (def.buff ? '공격' : ''));
+    if (label) this.game.hud.floater(label, this.position, 'xp', 2.4);
+    return { ok: true, msg: def.name + ' 사용 · ' + notes.join(' · ') };
   }
 
   die() {
@@ -952,6 +993,8 @@ export class Player {
     if (this.buffs.haste > 0) this.buffs.haste = Math.max(0, this.buffs.haste - dt);
     if (this.buffs.frost > 0) this.buffs.frost = Math.max(0, this.buffs.frost - dt);
     if (this.buffs.elixir > 0) this.buffs.elixir = Math.max(0, this.buffs.elixir - dt);
+    if (this.buffs.rage > 0) this.buffs.rage = Math.max(0, this.buffs.rage - dt);
+    if (this.buffs.guard > 0) this.buffs.guard = Math.max(0, this.buffs.guard - dt);
     if (this.hurtTint > 0) {
       this.hurtTint = Math.max(0, this.hurtTint - dt);
       const t = clamp(this.hurtTint / 0.32, 0, 1);
@@ -1058,10 +1101,10 @@ export class Player {
     this.time += dt;
     const s = st || {};
     if (s.weaponTier !== undefined && s.weaponTier !== this.weaponTier) {
-      this.equipWeaponTier(clamp(Math.round(s.weaponTier), 0, 2));
+      this.equipWeaponTier(clamp(Math.round(s.weaponTier), 0, MAX_WEAPON_TIER));
     }
     if (s.armorTier !== undefined && Math.round(s.armorTier) !== this.armorTier) {
-      this.equipArmorTier(clamp(Math.round(s.armorTier), 0, 3));
+      this.equipArmorTier(clamp(Math.round(s.armorTier), 0, MAX_ARMOR_TIER));
     }
     this.attackCooldown = Math.max(0, this.attackCooldown - dt);
     this.invuln = Math.max(0, this.invuln - dt);

@@ -1,6 +1,6 @@
 // HUD: 상태창 · 지역 표시 · 미니맵 · 나침반 · 스킬바 · 네임플레이트 · 데미지 숫자
 import * as THREE from 'three';
-import { CLASSES, CLASS_ORDER, BIOMES, COMPASS_ORDER, BIOME_ORDER, SHOP, compassOrderFor, biomeOrderFor } from './config.js';
+import { CLASSES, CLASS_ORDER, BIOMES, COMPASS_ORDER, BIOME_ORDER, SHOP, compassOrderFor, biomeOrderFor, allPotions } from './config.js';
 import { regionAt } from './utils.js';
 
 const $ = (id) => document.getElementById(id);
@@ -247,15 +247,16 @@ export class HUD {
   }
 
   /* ---------------------------- 포션 바 ---------------------------- */
+  // 1세계 포션(1 · 2 · 3) + 2세계 포션(4 · 5 · 6) — 두 세계의 포션을 함께 쓰는 도구 막대
   buildPotionBar() {
     const bar = this.dom.potionBar;
     if (!bar) return;
     bar.innerHTML = '';
     this.potionSlots = {};
-    for (const pt of SHOP.potions) {
+    for (const pt of allPotions()) {
       const slot = document.createElement('button');
       slot.type = 'button';
-      slot.className = 'slot potion-slot';
+      slot.className = 'slot potion-slot' + (pt.key >= '4' ? ' w2' : '');
       slot.setAttribute('data-potion', pt.id);
       slot.innerHTML =
         '<span class="slot-key">' + pt.key + '</span>' +
@@ -275,14 +276,17 @@ export class HUD {
   refreshPotions() {
     const p = this.game.player;
     if (!p || !this.potionSlots) return;
+    const list = allPotions();
     const parts = [];
-    for (const pt of SHOP.potions) parts.push(p.potionCount(pt.id));
+    for (const pt of list) parts.push(p.potionCount(pt.id));
     const sig = parts.join(',') + '|' + (p.alive ? 1 : 0);
     if (sig === (this._potionSig || '')) return;
     this._potionSig = sig;
-    for (const pt of SHOP.potions) {
+    let w2Any = 0;
+    for (const pt of list) {
       const s = this.potionSlots[pt.id];
       const n = p.potionCount(pt.id);
+      if (pt.key >= '4') w2Any += n;
       if (!s) continue;
       s.count.textContent = '×' + n;
       s.el.classList.toggle('empty', n <= 0);
@@ -291,6 +295,9 @@ export class HUD {
       const tBtn = document.getElementById('tbtn-potion-' + pt.key);
       if (tBtn) tBtn.classList.toggle('empty', n <= 0);
     }
+    // 2세계 포션 줄은 하나라도 갖고 있을 때만 휴대폰 화면에 나온다
+    const w2Row = document.getElementById('trow-potion-w2');
+    if (w2Row) w2Row.classList.toggle('on', w2Any > 0);
   }
 
   updateGold() {
@@ -420,6 +427,8 @@ export class HUD {
     if (p.buffs.fortress > 0) buffs.push(['철벽 태세 ' + p.buffs.fortress.toFixed(1) + 's', '']);
     if (p.buffs.haste > 0) buffs.push(['신속 ' + p.buffs.haste.toFixed(1) + 's', 'frost']);
     if (p.buffs.elixir > 0) buffs.push(['전투의 비약 +35% ' + Math.ceil(p.buffs.elixir) + 's', 'attack']);
+    if (p.buffs.rage > 0) buffs.push(['광폭 +60% ' + Math.ceil(p.buffs.rage) + 's', 'attack']);
+    if (p.buffs.guard > 0) buffs.push(['수호 -50% 피해 ' + Math.ceil(p.buffs.guard) + 's', 'frost']);
     const buffHtml = buffs.map((b) => '<span class="buff ' + b[1] + '">' + b[0] + '</span>').join('');
     if (buffHtml !== this._buffHtml) {
       this._buffHtml = buffHtml;
@@ -606,6 +615,19 @@ export class HUD {
       ctx.lineTo(lx - 3.5, ly);
       ctx.closePath();
       ctx.fill();
+    }
+
+    // 상점 자리 — 어느 마을에 상점이 있는지 지도에서 바로 보이게
+    for (const id of order) {
+      const b = BIOMES[id];
+      if (!b || !b.shop) continue;
+      const sx = toPx(b.shop.x);
+      const sy = toPy(b.shop.z);
+      ctx.fillStyle = '#ffd24a';
+      ctx.fillRect(sx - 2.6, sy - 2.6, 5.2, 5.2);
+      ctx.strokeStyle = 'rgba(60,30,0,0.8)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(sx - 2.6, sy - 2.6, 5.2, 5.2);
     }
 
     // 몹 점

@@ -1,7 +1,7 @@
 // 몹: 슬라임 · 좀비 · 하이에나 · 고릴라 · 고대 골렘(보스) + AI
 import * as THREE from 'three';
 import { BIOMES, BIOME_ORDER, BIOME_ORDER_W2, MOB_TYPES, BOSS_POS, BOSS2_POS } from './config.js';
-import { terrainHeight, clamp, damp, dampAngle, rand, TAU, lerp, WORLD, clampToWorld } from './utils.js';
+import { terrainHeight, clamp, damp, dampAngle, rand, TAU, lerp, WORLD, WORLD2, clampToWorld } from './utils.js';
 
 function mkMesh(geo, mat, x, y, z) {
   const m = new THREE.Mesh(geo, mat);
@@ -1053,6 +1053,10 @@ export class Mob {
 
     // 태초마을은 안전 지대 — 몬스터는 마을로 들어오지 않는다 (1번째 세계 한정)
     if (this.worldId === 1 && this.biomeId !== 'village' && this.position.x < -1492) this.position.x = -1492;
+    // 2세계 태초마을도 안전 지대 — 고블린 숲 몬스터는 마을 남문 밖에서 멈춘다
+    if (this.worldId === 2 && this.biomeId !== 'village_w2' && this.position.z > WORLD2.originZ + 1492) {
+      this.position.z = WORLD2.originZ + 1492;
+    }
 
     // 지형 · 경계 (사는 세계의 통행 영역)
     clampToWorld(this.position, this.worldId);

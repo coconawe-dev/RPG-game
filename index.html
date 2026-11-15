@@ -121,7 +121,8 @@
           <li><kbd>E</kbd> <span id="ctrl-e">스킬 2</span></li>
           <li><kbd>F</kbd> <span>상점 열기 (상점 앞)</span></li>
           <li><kbd>M</kbd> <span>지도 열기 / 접기</span></li>
-          <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> <span>포션 사용</span></li>
+          <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> <span>1세계 포션 사용</span></li>
+          <li><kbd>4</kbd><kbd>5</kbd><kbd>6</kbd> <span>2세계 포션 사용</span></li>
           <li><kbd>Esc</kbd> <span>마우스 고정 해제</span></li>
         </ul>
       </section>
@@ -155,6 +156,11 @@
           <button class="tbtn small potion" id="tbtn-potion-1" type="button"><span>🧪</span><b id="tpotion-1">0</b></button>
           <button class="tbtn small potion" id="tbtn-potion-2" type="button"><span>🍶</span><b id="tpotion-2">0</b></button>
           <button class="tbtn small potion" id="tbtn-potion-3" type="button"><span>⚗️</span><b id="tpotion-3">0</b></button>
+        </div>
+        <div class="trow trow-potion trow-potion-w2" id="trow-potion-w2">
+          <button class="tbtn small potion w2" id="tbtn-potion-4" type="button"><span>💠</span><b id="tpotion-4">0</b></button>
+          <button class="tbtn small potion w2" id="tbtn-potion-5" type="button"><span>🏺</span><b id="tpotion-5">0</b></button>
+          <button class="tbtn small potion w2" id="tbtn-potion-6" type="button"><span>🔥</span><b id="tpotion-6">0</b></button>
         </div>
         <div class="trow">
           <button class="tbtn small" id="tbtn-jump" type="button">점프</button>
@@ -214,7 +220,7 @@
     <div class="shop-modal" role="dialog" aria-modal="true" aria-labelledby="shop-title">
       <header class="shop-head">
         <div class="shop-head-main">
-          <p class="shop-eyebrow">태초마을 · 상점</p>
+          <p class="shop-eyebrow" id="shop-eyebrow">1번째 세계 태초마을 · 상점</p>
           <h2 id="shop-title">무기 · 갑옷 · 포션 상점</h2>
           <p class="shop-keeper" id="shop-keeper">상점 주인 <b>도로시</b></p>
         </div>

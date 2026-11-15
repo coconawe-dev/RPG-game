@@ -20,8 +20,9 @@ const NEIGHBORS = {
     { side: 'north', id: 'graveyard' },
     { side: 'south', id: 'jungle' },
   ],
-  // 2번째 세계 — 중앙 암흑지역을 네 방향이 감싼다
-  goblin_forest: [{ side: 'north', id: 'dark_realm' }],
+  // 2번째 세계 — 중앙 암흑지역을 네 방향이 감싸고, 남쪽 끝에 2세계 태초마을
+  village_w2: [{ side: 'north', id: 'goblin_forest' }],
+  goblin_forest: [{ side: 'north', id: 'dark_realm' }, { side: 'south', id: 'village_w2' }],
   misty_plains: [{ side: 'east', id: 'dark_realm' }],
   sakura: [{ side: 'west', id: 'dark_realm' }],
   ominous_cave: [{ side: 'south', id: 'dark_realm' }],
@@ -175,14 +176,25 @@ function buildGround(scene, biome) {
       tmp.lerp(C(0xe9a8bd), smoothstep(0.34, 0.5, petals) * 0.55);
     }
     // 암흑지역: 흑요석 판 · 제단을 감싼 자줏빛 룬 미늘
-    if (biome.id === 'dark_realm') {
-      const shard = fbm(wx * 0.026, wz * 0.026, 2);
+    if (biome.id === 'dark_realm') {      const shard = fbm(wx * 0.026, wz * 0.026, 2);
       tmp.lerp(C(0x141020), clamp(0.4 - shard * 0.7, 0, 0.45));
       const r = Math.hypot(lx, lz);
       const runeA = Math.abs(Math.sin(r * 0.045));
       tmp.lerp(C(0x7a3fbf), smoothstep(0.965, 1, runeA) * 0.55);
       const runeB = Math.abs(Math.sin(Math.atan2(lz, lx) * 6));
       tmp.lerp(C(0xc23a6a), smoothstep(0.985, 1, runeB) * (r > 90 && r < 330 ? 0.5 : 0));
+    }
+    // 2세계 태초마을: 달빛이 내린 잔디 마당 · 광장을 감싼 조약돌 길
+    if (biome.id === 'village_w2') {
+      const moss = fbm(wx * 0.013, wz * 0.013, 3);
+      tmp.lerp(C(0x4d7a63), clamp(0.35 + moss * 0.85, 0, 1) * 0.45);
+      const r = Math.hypot(lx, lz - 2000);
+      const ring = Math.abs(r - 150) / 150;
+      tmp.lerp(C(0x6a7684), smoothstep(0.86, 1, 1 - ring) * 0.35);
+      const road = Math.abs(wx) / 40;
+      tmp.lerp(C(0x6b6f74), clamp(1 - road, 0, 1) * 0.4);
+      const slab = fbm(wx * 0.06, wz * 0.06, 2);
+      tmp.lerp(C(0x3a4742), smoothstep(0.3, 0.45, Math.abs(slab)) * 0.2);
     }
 
     // 인접 바이옴과의 경계 색 블렌딩 (울퉁불퉁한 경계)
@@ -318,9 +330,30 @@ const KEEP_OUTS = {
   // 2번째 세계 — 도착 광장 · 랜드마크 · 보스 투기장을 비워 둔다
   goblin_forest: [
     { x: 0, z: WORLD2.originZ + 1400, r: 250 },
+    { x: 0, z: WORLD2.originZ + 1470, r: 150 },
     { x: 190, z: WORLD2.originZ + 1400, r: 110 },
     { x: 0, z: WORLD2.originZ + 900, r: 130 },
     { x: 0, z: WORLD2.originZ + 500, r: 90 },
+  ],
+  // 2세계 태초마을 — 광장 · 상점 · 북문 길 · 집 터를 비운다
+  village_w2: [
+    { x: 0, z: WORLD2.originZ + 2000, r: 170 },
+    { x: 0, z: WORLD2.originZ + 2150, r: 150 },
+    { x: 0, z: WORLD2.originZ + 2086, r: 80 },
+    { x: 0, z: WORLD2.originZ + 1520, r: 110 },
+    { x: 0, z: WORLD2.originZ + 1620, r: 110 },
+    { x: 0, z: WORLD2.originZ + 1720, r: 110 },
+    { x: 0, z: WORLD2.originZ + 1820, r: 110 },
+    { x: 0, z: WORLD2.originZ + 1880, r: 120 },
+    { x: 215, z: WORLD2.originZ + 1880, r: 90 },
+    { x: -300, z: WORLD2.originZ + 1850, r: 95 },
+    { x: -305, z: WORLD2.originZ + 2160, r: 95 },
+    { x: 300, z: WORLD2.originZ + 2160, r: 95 },
+    { x: 300, z: WORLD2.originZ + 1850, r: 95 },
+    { x: -320, z: WORLD2.originZ + 2005, r: 95 },
+    { x: 320, z: WORLD2.originZ + 2005, r: 95 },
+    { x: 0, z: WORLD2.originZ + 1950, r: 70 },
+    { x: 0, z: WORLD2.originZ + 2050, r: 70 },
   ],
   ominous_cave: [{ x: 0, z: WORLD2.originZ - 1000, r: 170 }, { x: 0, z: WORLD2.originZ - 500, r: 100 }],
   misty_plains: [{ x: -1000, z: WORLD2.originZ, r: 160 }, { x: -500, z: WORLD2.originZ, r: 100 }],
@@ -1259,15 +1292,19 @@ function buildVillageGate(scene) {
 }
 
 // 무기 · 갑옷 · 포션 상점 건물 + 상점 주인 NPC
-function buildShop(scene) {
-  const s = BIOMES.village.shop;
+// opts: { shop, signMain, signSub, style: 'market' | 'forge', keeper }
+//   · 문은 +z 쪽을 향해 서고, 2세계 대장간은 그룹을 통째로 돌려 북쪽(광장)을 향하게 한다
+function buildShop(scene, opts) {
+  const o = opts || {};
+  const s = o.shop || BIOMES.village.shop;
+  const forge = o.style === 'forge';
   const g = new THREE.Group();
-  const woodMat = propMat(0x7c5433, { roughness: 0.92 });
-  const woodDark = propMat(0x53341f, { roughness: 0.95 });
-  const stoneMat = propMat(0xb9b2a2, { roughness: 1 });
-  const stripeA = propMat(0xc0493c, { roughness: 0.85 });
-  const stripeB = propMat(0xf0e6d2, { roughness: 0.85 });
-  const shelfMat = propMat(0x5c3b23, { roughness: 0.95 });
+  const woodMat = propMat(forge ? 0x4a3a3f : 0x7c5433, { roughness: 0.92 });
+  const woodDark = propMat(forge ? 0x2c2126 : 0x53341f, { roughness: 0.95 });
+  const stoneMat = propMat(forge ? 0x6e6a72 : 0xb9b2a2, { roughness: 1 });
+  const stripeA = propMat(forge ? 0x4a3f7a : 0xc0493c, { roughness: 0.85 });
+  const stripeB = propMat(forge ? 0xd8ccff : 0xf0e6d2, { roughness: 0.85 });
+  const shelfMat = propMat(forge ? 0x3a2c31 : 0x5c3b23, { roughness: 0.95 });
 
   const base = new THREE.Mesh(new THREE.BoxGeometry(128, 3, 96), stoneMat);
   base.position.y = 1.5;
@@ -1302,7 +1339,7 @@ function buildShop(scene) {
   counterTop.castShadow = true;
   g.add(counterTop);
 
-  // 앞 기둥 + 차양 (빨강 · 크림 줄무늬)
+  // 앞 기둥 + 차양 (1세계는 빨강 · 크림 줄무늬, 2세계는 자주 · 은빛 줄무늬)
   for (const sx of [-58, 58]) {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 54, 8), woodDark);
     post.position.set(sx, 27, 36);
@@ -1325,13 +1362,15 @@ function buildShop(scene) {
     g.add(shelf);
   }
   const steelMat = new THREE.MeshStandardMaterial({ color: 0xdfe6ec, roughness: 0.3, metalness: 0.9 });
-  const potionColors = [0xe0574f, 0x7fc16a, 0x9a7fd0, 0x6fa8dc, 0xffc95a];
+  const potionColors = forge
+    ? [0x9a6cff, 0xff8a3c, 0x6fd8ff, 0xffd24a, 0xff5a7a]
+    : [0xe0574f, 0x7fc16a, 0x9a7fd0, 0x6fa8dc, 0xffc95a];
   for (let i = 0; i < 9; i++) { // 무기 진열
     const blade = new THREE.Mesh(new THREE.BoxGeometry(1.2, 14, 2.2), steelMat);
     blade.position.set(-46 + i * 11.5, 34, -33);
     blade.rotation.z = 0.06 * (i % 2 ? 1 : -1);
     g.add(blade);
-    const hilt = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.2, 2.4), propMat(0xd8b25e, { roughness: 0.4, metalness: 0.7 }));
+    const hilt = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.2, 2.4), propMat(forge ? 0x9a6cff : 0xd8b25e, { roughness: 0.4, metalness: 0.7 }));
     hilt.position.set(-46 + i * 11.5, 27.6, -33);
     g.add(hilt);
   }
@@ -1350,7 +1389,7 @@ function buildShop(scene) {
   // 간판
   const signBoard = new THREE.Mesh(
     new THREE.BoxGeometry(82, 24, 2.6),
-    signMaterial('무기 · 갑옷 · 포션 상점', 'WEAPONS · ARMOR · POTIONS', 0x3f2712)
+    signMaterial(o.signMain || '무기 · 갑옷 · 포션 상점', o.signSub || 'WEAPONS · ARMOR · POTIONS', forge ? 0x1d1426 : 0x3f2712)
   );
   signBoard.position.set(0, 63, 34);
   signBoard.castShadow = true;
@@ -1361,13 +1400,44 @@ function buildShop(scene) {
     g.add(chain);
   }
 
+  // 2세계 대장간: 앞쪽 흑요석 기둥 + 보랏빛 수정 · 모루
+  if (forge) {
+    const obsidian = propMat(0x1c1626, { roughness: 0.6, metalness: 0.4 });
+    const crystal = new THREE.MeshStandardMaterial({
+      color: 0xb98cff, emissive: 0x7a2fd0, emissiveIntensity: 2.0, roughness: 0.25, transparent: true, opacity: 0.94,
+    });
+    for (const sx of [-70, 70]) {
+      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(5, 7, 70, 6), obsidian);
+      pillar.position.set(sx, 35, 22);
+      pillar.castShadow = true;
+      g.add(pillar);
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(4.4, 0), crystal);
+      gem.position.set(sx, 76, 22);
+      g.add(gem);
+      const hal = glowHalo(0x9f6cff, 16, 0.16);
+      hal.position.set(sx, 76, 22);
+      g.add(hal);
+    }
+    const anvilBase = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 10), obsidian);
+    anvilBase.position.set(52, 5, 62);
+    anvilBase.castShadow = true;
+    g.add(anvilBase);
+    const anvilTop = new THREE.Mesh(new THREE.BoxGeometry(20, 5, 11), propMat(0x40465a, { roughness: 0.45, metalness: 0.8 }));
+    anvilTop.position.set(52, 10, 62);
+    anvilTop.castShadow = true;
+    g.add(anvilTop);
+    const anvilGlow = glowHalo(0xff8a3c, 12, 0.12);
+    anvilGlow.position.set(52, 12, 62);
+    g.add(anvilGlow);
+  }
+
   // 상점 주인 NPC
   const npc = new THREE.Group();
-  const skin = propMat(0xe8bd98, { roughness: 0.8 });
-  const tunic = propMat(0x4f7fa8, { roughness: 0.9 });
-  const apron = propMat(0xf0e6d2, { roughness: 0.9 });
-  const hairMat = propMat(0x6b4a2f, { roughness: 0.9 });
-  const pants = propMat(0x3d4652, { roughness: 0.95 });
+  const skin = propMat(forge ? 0xd8a882 : 0xe8bd98, { roughness: 0.8 });
+  const tunic = propMat(forge ? 0x3a2f4e : 0x4f7fa8, { roughness: 0.9 });
+  const apron = propMat(forge ? 0x2a2028 : 0xf0e6d2, { roughness: 0.9 });
+  const hairMat = propMat(forge ? 0x8a8a94 : 0x6b4a2f, { roughness: 0.9 });
+  const pants = propMat(forge ? 0x24202a : 0x3d4652, { roughness: 0.95 });
   const mkPart = (geo, mat, x, y, z) => {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z);
@@ -1382,41 +1452,51 @@ function buildShop(scene) {
   npc.add(mkPart(new THREE.BoxGeometry(3.2, 8, 3.4), skin, 6.4, 15, 0));
   npc.add(mkPart(new THREE.BoxGeometry(6.4, 6.4, 6.2), skin, 0, 24, 0));
   npc.add(mkPart(new THREE.BoxGeometry(6.8, 2.4, 6.6), hairMat, 0, 27.6, -0.2));
-  const brim = mkPart(new THREE.CylinderGeometry(5.6, 5.6, 0.9, 14), hairMat, 0, 28.4, 0);
-  npc.add(brim);
-  npc.add(mkPart(new THREE.CylinderGeometry(3.2, 3.4, 3.4, 12), hairMat, 0, 30.4, 0));
+  if (forge) {
+    // 2세계 대장장이: 수염 · 어깨 망치
+    npc.add(mkPart(new THREE.BoxGeometry(4.6, 2.6, 2.2), propMat(0xb8b8c2, { roughness: 0.95 }), 0, 21, 3));
+    const hammerHead = mkPart(new THREE.BoxGeometry(3.4, 3.0, 3.0), propMat(0x4a4652, { roughness: 0.5, metalness: 0.8 }), 8.4, 22, 0);
+    npc.add(hammerHead);
+    npc.add(mkPart(new THREE.CylinderGeometry(0.7, 0.7, 12, 6), propMat(0x5c3b23, { roughness: 0.9 }), 8.4, 15, 0));
+  } else {
+    const brim = mkPart(new THREE.CylinderGeometry(5.6, 5.6, 0.9, 14), hairMat, 0, 28.4, 0);
+    npc.add(brim);
+    npc.add(mkPart(new THREE.CylinderGeometry(3.2, 3.4, 3.4, 12), hairMat, 0, 30.4, 0));
+  }
   const eyeA = new THREE.MeshBasicMaterial({ color: 0x2b2b30 });
   npc.add(mkPart(new THREE.BoxGeometry(0.7, 0.9, 0.3), eyeA, -1.3, 24.6, 3.15));
   npc.add(mkPart(new THREE.BoxGeometry(0.7, 0.9, 0.3), eyeA, 1.3, 24.6, 3.15));
-  npc.add(mkPart(new THREE.BoxGeometry(3.2, 0.7, 0.3), propMat(0xb4544a), 0, 21.6, 3.1));
+  npc.add(mkPart(new THREE.BoxGeometry(3.2, 0.7, 0.3), propMat(0xb4544a), 0, forge ? 22.6 : 21.6, 3.1));
   npc.position.set(-16, 0, 12);
-  npc.rotation.y = Math.PI;
+  npc.rotation.y = 0;      // 계산대(+z) 쪽, 손님을 바라본다
   g.add(npc);
 
   // 상호작용 표시 링 · 떠 있는 표식
   const ringGeo = new THREE.RingGeometry(60, 66, 44);
   ringGeo.rotateX(-Math.PI / 2);
   const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
-    color: 0xffd24a, transparent: true, opacity: 0.18, depthWrite: false,
+    color: forge ? 0xb98cff : 0xffd24a, transparent: true, opacity: 0.18, depthWrite: false,
   }));
   ring.position.y = 2.2;
   g.add(ring);
 
+  const markColor = forge ? 0xb98cff : 0xffd24a;
   const marker = new THREE.Mesh(new THREE.OctahedronGeometry(5.4, 0), new THREE.MeshStandardMaterial({
-    color: 0xffd24a, emissive: 0xffb020, emissiveIntensity: 1.8, roughness: 0.3, metalness: 0.6,
+    color: markColor, emissive: forge ? 0x7a2fd0 : 0xffb020, emissiveIntensity: 1.8, roughness: 0.3, metalness: 0.6,
   }));
   marker.position.set(0, 84, 26);
   g.add(marker);
   const lightBeam = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.4, 150, 10, 1, true), new THREE.MeshBasicMaterial({
-    color: 0xffd88a, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    color: forge ? 0xc9a8ff : 0xffd88a, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
   }));
   lightBeam.position.set(0, 80, 26);
   g.add(lightBeam);
-  const shopGlow = glowHalo(0xffcf8a, 18, 0.12, 0.9);
+  const shopGlow = glowHalo(forge ? 0x9f6cff : 0xffcf8a, 18, 0.12, 0.9);
   shopGlow.position.set(0, 50, 30);
   g.add(shopGlow);
 
   g.position.set(s.x, terrainHeight(s.x, s.z), s.z);
+  if (s.facing === -1) g.rotation.y = Math.PI;   // 문이 -z(북쪽)를 향한다
   scene.add(g);
   return { group: g, npc, marker, ring, beam: lightBeam, npcBaseY: 0, markerBaseY: 84 };
 }
@@ -1450,8 +1530,153 @@ function buildVillage(scene) {
   board.position.set(postX, terrainHeight(postX, postZ) + 26, postZ);
   scene.add(board);
 
-  const shop = buildShop(scene);
+  const shop = buildShop(scene, {
+    shop: BIOMES.village.shop,
+    signMain: '무기 · 갑옷 · 포션 상점',
+    signSub: 'WEAPONS · ARMOR · POTIONS',
+    style: 'market',
+  });
   return { shop, fountain };
+}
+
+/* =====================================================================
+   2세계 태초마을 — 고블린 숲 남쪽 문 너머의 별빛 안전 지대
+   1세계 태초마을과 같은 뼈대(광장 · 분수 · 집 · 마을 문)에 2세계의 색
+   (남보라 밤 · 보랏빛 등불 · 흑요석)을 입혔고, 광장 남쪽에 2세계 대장간이 있다.
+   모든 프롭은 인스턴싱으로 묶고 점광원은 쓰지 않는다(발광 재질 + 가산 후광).
+   ===================================================================== */
+function buildVillageW2(scene) {
+  const b = BIOMES.village_w2;
+  const cx = b.center.x;
+  const cz = b.center.z;
+  const W2 = WORLD2.originZ;
+
+  // 길 · 광장 (북문 → 광장 → 대장간 / 동서 골목)
+  buildRoad(scene, 0, cz - 470, 0, cz - 110, 46, 0x6c7078);
+  buildRoad(scene, 0, cz - 120, 0, cz + 170, 82, 0x7d828a);
+  buildRoad(scene, -340, cz + 40, 340, cz + 40, 34, 0x6c7078);
+  buildDisc(scene, cx, cz, 150, 0x6b727a, 0.3, 64);
+  buildDisc(scene, cx, cz, 112, 0x7c838b, 0.42, 56);
+
+  // 집 — 2세계 색(잿빛 벽 · 남보라 지붕 · 창문 불빛)
+  const housesA = [
+    { x: -300, z: cz - 150, ry: 0.24 }, { x: 300, z: cz - 150, ry: -0.24 },
+    { x: -305, z: cz + 160, ry: 0.42 }, { x: 305, z: cz + 160, ry: -0.42 },
+  ];
+  const housesB = [
+    { x: -320, z: cz + 5, ry: 1.42 }, { x: 320, z: cz + 5, ry: -1.42 },
+  ];
+  const place = (list) => list.map((p) => ({
+    x: p.x, z: p.z, y: terrainHeight(p.x, p.z), ry: p.ry, s: 1,
+  }));
+  buildInstancedSet(scene, cottageParts(0xcfd2dc, 0x3f3a72), place(housesA));
+  buildInstancedSet(scene, cottageParts(0xc2c6d2, 0x2f3a5e), place(housesB));
+
+  // 분수 · 의자
+  const fountain = buildFountain(scene, cx, cz);
+  buildBenches(scene, cx, cz);
+
+  // 보랏빛 등불 — 불빛은 발광 유리와 후광으로만 표현한다 (점광원 없음)
+  const poleMat = propMat(0x2b2833, { roughness: 0.7, metalness: 0.5 });
+  const lampMat = new THREE.MeshStandardMaterial({
+    color: 0xd8ccff, emissive: 0x8a6cff, emissiveIntensity: 2.0, roughness: 0.4,
+  });
+  const lampSpots = [
+    { x: -96, z: cz - 96 }, { x: 96, z: cz - 96 },
+    { x: -96, z: cz + 96 }, { x: 96, z: cz + 96 },
+    { x: -200, z: cz - 30 }, { x: 200, z: cz - 30 },
+    { x: -64, z: cz - 260 }, { x: 64, z: cz - 260 },
+  ];
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(0.9, 1.5, 32, 8), mat: poleMat, pos: [0, 16, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(7, 1.2, 7), mat: poleMat, pos: [0, 32, 0] },
+    { geo: new THREE.BoxGeometry(6, 8, 6), mat: lampMat, pos: [0, 36.5, 0] },
+    { geo: new THREE.ConeGeometry(5, 3.4, 4), mat: poleMat, pos: [0, 42, 0], rot: [0, Math.PI / 4, 0] },
+  ], lampSpots.map((s) => ({ x: s.x, z: s.z, y: terrainHeight(s.x, s.z), ry: 0, s: 1 })));
+  const lampHalos = [];
+  for (const s of lampSpots.slice(0, 4)) {
+    const hal = glowHalo(0x9f7cff, 13, 0.14, 0.9);
+    hal.position.set(s.x, terrainHeight(s.x, s.z) + 36.5, s.z);
+    scene.add(hal);
+    lampHalos.push(hal);
+  }
+
+  // 마을 문 — 북쪽(고블린 숲)을 향한 문
+  const gateZ = cz - 440;
+  const postMat = propMat(0x332c3a, { roughness: 0.95 });
+  const roofMat = propMat(0x2f3a6e, { roughness: 0.9 });
+  for (const x of [-46, 46]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(4.4, 5.4, 56, 8), postMat);
+    post.position.set(x, terrainHeight(x, gateZ) + 28, gateZ);
+    post.castShadow = true;
+    scene.add(post);
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(3.2, 0), new THREE.MeshStandardMaterial({
+      color: 0xb98cff, emissive: 0x7a2fd0, emissiveIntensity: 1.8, roughness: 0.3,
+    }));
+    gem.position.set(x, terrainHeight(x, gateZ) + 60, gateZ);
+    scene.add(gem);
+  }
+  const gateY = terrainHeight(0, gateZ);
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(108, 10, 12), postMat);
+  beam.position.set(0, gateY + 58, gateZ);
+  beam.castShadow = true;
+  scene.add(beam);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(120, 5, 18), roofMat);
+  roof.position.set(0, gateY + 65, gateZ);
+  roof.castShadow = true;
+  scene.add(roof);
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(76, 18, 2.4), signMaterial('태초마을', 'STARTER VILLAGE II', 0x1d1426));
+  sign.position.set(0, gateY + 42, gateZ + 3);
+  scene.add(sign);
+
+  // 문 옆 이정표 — 북쪽 고블린 숲
+  const postX = 78, postZ = gateZ + 12;
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2, 26, 7), postMat);
+  post.position.set(postX, terrainHeight(postX, postZ) + 13, postZ);
+  post.castShadow = true;
+  scene.add(post);
+  const board = new THREE.Mesh(new THREE.BoxGeometry(44, 12, 2), signMaterial('↑ 고블린 숲', 'GOBLIN FOREST', 0x1d1426));
+  board.position.set(postX, terrainHeight(postX, postZ) + 26, postZ);
+  scene.add(board);
+
+  // 나무 · 풀 · 별빛 먼지
+  const trunkMat = propMat(0x3b2f27, { roughness: 1 });
+  const leafMat = propMat(0x2f5a4a, { roughness: 0.95 });
+  const leafMat2 = propMat(0x3d6f58, { roughness: 0.95 });
+  const trees = scatter(9701, b, 120, KEEP_OUTS.village_w2, { margin: 60, minScale: 0.7, maxScale: 1.4 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(1.2, 2.1, 20, 6), mat: trunkMat, pos: [0, 10, 0], castShadow: true },
+    { geo: new THREE.IcosahedronGeometry(8.0, 1), mat: leafMat, pos: [0, 24, 0], scale: [1.1, 0.95, 1.1], castShadow: true },
+    { geo: new THREE.IcosahedronGeometry(5.2, 1), mat: leafMat2, pos: [3.2, 28, -1.8], scale: 0.85 },
+  ], trees);
+
+  const grassMat = propMat(0x3f7a5c, { roughness: 1 });
+  const grass = scatter(9702, b, 520, null, { margin: 24, minScale: 0.7, maxScale: 1.4 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.ConeGeometry(1.0, 4.2, 4), mat: grassMat, pos: [0, 2.1, 0] },
+  ], grass);
+
+  const moteMat = new THREE.MeshBasicMaterial({ color: 0xc9b8ff, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false });
+  const motes = [];
+  const rnd = mulberry32(9703);
+  for (let i = 0; i < 90; i++) {
+    const x = lerp(b.bounds.x0 + 40, b.bounds.x1 - 40, rnd());
+    const z = lerp(b.bounds.z0 + 40, b.bounds.z1 - 40, rnd());
+    motes.push({ x, z, y: terrainHeight(x, z) + 12 + rnd() * 46, ry: 0, s: 0.5 + rnd() * 0.9 });
+  }
+  buildInstancedSet(scene, [
+    { geo: new THREE.SphereGeometry(0.7, 5, 4), mat: moteMat, pos: [0, 0, 0] },
+  ], motes);
+
+  // 상점 — 2세계 대장간 (문은 북쪽 광장을 향한다)
+  const shop = buildShop(scene, {
+    shop: b.shop,
+    signMain: '2세계 대장간 · 무기 · 갑옷 · 포션',
+    signSub: 'WORLD 2 FORGE',
+    style: 'forge',
+  });
+
+  return { shop, fountain, lampHalos, gateZ, motes };
 }
 
 function buildBoundary(scene) {
@@ -2014,6 +2239,7 @@ function buildDarkRealm(scene) {
 }
 
 /* --------------------- 2번째 세계 외곽 경계 암벽 --------------------- */
+// 고블린 숲 남쪽 벽은 길(폭 240)을 비우고 갈라 두고, 그 너머 2세계 태초마을을 감싼다
 function buildWorld2Boundary(scene) {
   const rockMat = propMat(0x1e1a24, { roughness: 1 });
   const W2 = WORLD2.originZ;
@@ -2025,7 +2251,13 @@ function buildWorld2Boundary(scene) {
     { x0: -1500, z0: W2 - 500, x1: -1500, z1: W2 + 500 },
     { x0: 1500, z0: W2 - 500, x1: 1500, z1: W2 + 500 },
     { x0: -500, z0: W2 - 1500, x1: 500, z1: W2 - 1500 },
-    { x0: -500, z0: W2 + 1500, x1: 500, z1: W2 + 1500 },
+    // 고블린 숲 남쪽 벽 — 가운데는 2세계 태초마을로 가는 길
+    { x0: -500, z0: W2 + 1500, x1: -120, z1: W2 + 1500 },
+    { x0: 120, z0: W2 + 1500, x1: 500, z1: W2 + 1500 },
+    // 2세계 태초마을의 서 · 동 · 남쪽 벽
+    { x0: -500, z0: W2 + 1500, x1: -500, z1: W2 + 2500 },
+    { x0: 500, z0: W2 + 1500, x1: 500, z1: W2 + 2500 },
+    { x0: -500, z0: W2 + 2500, x1: 500, z1: W2 + 2500 },
   ];
   const rnd = mulberry32(9601);
   const list = [];
@@ -2051,6 +2283,7 @@ function buildWorld2Boundary(scene) {
 // 2번째 세계 전체를 조립한다 (바이옴 그룹별로 담아 컬링한다)
 export function buildWorld2(scene, groups) {
   const out = {};
+  out.villageW2 = buildVillageW2(groups.village_w2);
   out.goblinForest = buildGoblinForest(groups.goblin_forest);
   out.mistyPlains = buildMistyPlains(groups.misty_plains);
   out.sakura = buildSakura(groups.sakura);
@@ -2093,6 +2326,21 @@ export function updateWorld2(world, dt, t, pos) {
   // 고블린 숲: 토템 눈빛이 약하게 깜박인다
   if (w2.goblinForest && w2.goblinForest.totemGlow) {
     w2.goblinForest.totemGlow.material.opacity = 0.1 + Math.sin(t * 1.9) * 0.04;
+  }
+  // 2세계 태초마을: 등불이 은은하게 숨 쉬고 상점 주인이 인사한다
+  if (w2.villageW2) {
+    const v = w2.villageW2;
+    if (v.lampHalos) {
+      for (let i = 0; i < v.lampHalos.length; i++) {
+        const h = v.lampHalos[i];
+        h.material.opacity = 0.11 + 0.05 * (0.5 + 0.5 * Math.sin(t * 1.6 + i * 1.7));
+      }
+    }
+    animateShop(v.shop, dt, t);
+    if (v.fountain && v.fountain.water) {
+      v.fountain.water.material.opacity = 0.82 + Math.sin(t * 1.8) * 0.06;
+      if (v.fountain.top) v.fountain.top.rotation.y += dt * 0.5;
+    }
   }
 }
 
@@ -2261,24 +2509,27 @@ export function updateOldVillage(world, dt, t) {
 }
 
 /* 태초마을의 생동감: 상인 인사 · 상점 표식 · 분수 물결 */
+/* 태초마을의 생동감: 상인 인사 · 상점 표식 · 분수 물결 */
+function animateShop(shop, dt, t) {
+  if (!shop) return;
+  if (shop.npc) {
+    shop.npc.position.y = shop.npcBaseY + Math.sin(t * 1.7) * 0.45;
+    shop.npc.rotation.y = Math.sin(t * 0.7) * 0.3;   // 계산대 쪽(손님)을 바라보며 천천히 인사한다
+  }
+  if (shop.marker) {
+    shop.marker.rotation.y += dt * 1.1;
+    shop.marker.position.y = shop.markerBaseY + Math.sin(t * 2.1) * 3.4;
+  }
+  if (shop.ring) {
+    shop.ring.material.opacity = 0.12 + 0.1 * (0.5 + 0.5 * Math.sin(t * 2.2));
+    shop.ring.rotation.z += dt * 0.06;
+  }
+}
+
 export function updateVillage(world, dt, t) {
   const v = world && world.village;
   if (!v) return;
-  const shop = v.shop;
-  if (shop) {
-    if (shop.npc) {
-      shop.npc.position.y = shop.npcBaseY + Math.sin(t * 1.7) * 0.45;
-      shop.npc.rotation.y = Math.PI + Math.sin(t * 0.7) * 0.3;
-    }
-    if (shop.marker) {
-      shop.marker.rotation.y += dt * 1.1;
-      shop.marker.position.y = shop.markerBaseY + Math.sin(t * 2.1) * 3.4;
-    }
-    if (shop.ring) {
-      shop.ring.material.opacity = 0.12 + 0.1 * (0.5 + 0.5 * Math.sin(t * 2.2));
-      shop.ring.rotation.z += dt * 0.06;
-    }
-  }
+  animateShop(v.shop, dt, t);
   const f = v.fountain;
   if (f && f.water) {
     f.water.material.opacity = 0.82 + Math.sin(t * 1.8) * 0.06;
