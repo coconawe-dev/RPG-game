@@ -558,6 +558,7 @@ function buildDisc(scene, x, z, radius, color, yOff, seg) {
   }
   geo.computeVertexNormals();
   const mesh = new THREE.Mesh(geo, propMat(color, { roughness: 1 }));
+  mesh.position.set(x, 0, z); // 정점은 절대 좌표로 계산했으므로 중심만 옮긴다
   mesh.receiveShadow = true;
   scene.add(mesh);
   return mesh;

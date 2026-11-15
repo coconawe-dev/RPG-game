@@ -66,7 +66,7 @@ function addAura(g, st, radius, height, y, color) {
   const m = new THREE.Mesh(
     new THREE.CylinderGeometry(radius, radius * 0.68, height, 10, 1, true),
     new THREE.MeshBasicMaterial({
-      color: color || st.t.glowColor, transparent: true, opacity: st.idx >= 2 ? 0.2 : 0.11,
+      color: color || st.t.glowColor, transparent: true, opacity: st.idx >= 2 ? 0.15 : 0.075,
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
     })
   );
@@ -91,7 +91,7 @@ export function buildSword(tier) {
     // 날을 따라 흐르는 발광선
     g.add(mesh(new THREE.BoxGeometry(0.5, 7.0, 0.12), st.glow(st.t.glowColor, 2.2), 0, 6.6, 0.18));
   }
-  addAura(g, st, 3.0, 13.2, 6.4);
+  addAura(g, st, 2.4, 13.2, 6.4);
   g.scale.setScalar(st.t.scale);
   g.userData.tip = new THREE.Vector3(0, 12.2, 0);
   g.userData.tier = st.idx;
@@ -144,7 +144,7 @@ export function buildBow(tier) {
   arrow.position.set(0, 0, 0.4);
   arrow.visible = false;
   g.add(arrow);
-  addAura(g, st, 2.4, 10.4, 0, st.t.glowColor);
+  addAura(g, st, 2.0, 10.4, 0, st.t.glowColor);
 
   g.rotation.y = 0.72; // 3인칭 뒤 시점에서 활의 실루엣이 보이도록 살짝 돌림
   g.scale.setScalar(st.t.scale);
@@ -202,7 +202,7 @@ export function buildShield(tier) {
     rim.scale.set(1, 1.15, 1);
     g.add(rim);
   }
-  addAura(g, st, 4.6, 10.0, 0);
+  addAura(g, st, 3.8, 10.0, 0);
   g.scale.setScalar(st.t.scale);
   g.userData.tip = new THREE.Vector3(0.9, 0, 0);
   g.userData.tier = st.idx;

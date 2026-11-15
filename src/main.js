@@ -529,7 +529,7 @@ class Game {
     this.hud.onStart(this.player);
     this.hud.hideEnd();
     this.sfx.init();
-    this.hud.banner(CLASSES[classId].name + ' · ' + BIOMES[biomeId].name, 2400);
+    this.hud.banner(CLASSES[classId].name + ' · ' + BIOMES[regionAt(spawn.x, spawn.z)].name, 2400);
     // 터치 조작 안내는 시작 후 잠시 보여주고 사라진다
     const touchHint = document.getElementById('touch-hint');
     if (touchHint) {
