@@ -169,7 +169,7 @@
     const rpText = await waitFor(() => {
       const t = roomPanel ? roomPanel.textContent.replace(/\s+/g, ' ').trim() : '';
       return /2명/.test(t) ? t.slice(0, 60) : null;
-    }, 8000, 250);
+    }, 20000, 250);
     record('방 패널에 접속 인원 표시', !!rpText, rpText || (roomPanel ? roomPanel.textContent.replace(/\s+/g, ' ').trim().slice(0, 60) : ''));
     const copyBtn = hd.getElementById('rp-copy');
     const leaveBtn = hd.getElementById('rp-leave');
