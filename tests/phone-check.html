@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>휴대폰 화면 점검 (390×844)</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #0a0d12; color: #e6edf3; font: 11px/1.45 ui-monospace, monospace; }
+  #wrap { display: flex; gap: 16px; padding: 10px; align-items: flex-start; }
+  .cell { position: relative; flex: none; }
+  .tag { position: absolute; left: 8px; top: 8px; z-index: 5; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.6); color: #ffd98a; font-weight: 700; pointer-events: none; }
+  .device { display: block; width: 390px; height: 844px; border: 1px solid #2a3440; border-radius: 12px; background: #000; }
+  #result { position: fixed; left: 0; right: 0; bottom: 0; max-height: 34%; overflow: auto; margin: 0; padding: 8px 12px; background: rgba(4,7,10,.94); border-top: 1px solid #24303c; white-space: pre-wrap; }
+  .ok { color: #7ee787; }
+  .fail { color: #ff7b72; }
+</style>
+</head>
+<body>
+<!--
+  휴대폰 화면(390×844) 점검 페이지.
+
+  왼쪽 iframe 이 방을 만들고(호스트), 오른쪽 iframe 이 그 방에 참가한다.
+  참가 방식은 ?mode=typed (방 코드를 직접 입력해 참가) 또는 ?mode=invite (?room=CODE 초대 링크로 들어가 참가).
+  결과는 아래 #result 에 JSON 으로 찍히고, document.title 이 ALL PASS / FAIL 로 바뀐다.
+-->
+<div id="wrap">
+  <div class="cell"><span class="tag">호스트 · 검사 · 390×844</span><iframe class="device" id="host" title="호스트 휴대폰 화면"></iframe></div>
+  <div class="cell"><span class="tag">참가자 · 마법사 · 390×844</span><iframe class="device" id="guest" title="참가자 휴대폰 화면"></iframe></div>
+</div>
+<pre id="result">running…</pre>
+<script>
+(() => {
+  const out = document.getElementById('result');
+  const results = {};
+  const lines = [];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const record = (name, pass, detail) => {
+    results[name] = { pass: !!pass, detail: detail === undefined ? null : detail };
+    lines.push((pass ? 'PASS ' : 'FAIL ') + name + (detail === undefined ? '' : ' :: ' + JSON.stringify(detail)));
+    out.textContent = lines.join('\n') + '\n';
+  };
+  const game = (frame) => {
+    try { return frame.contentWindow.__GAME__ || null; } catch (e) { return null; }
+  };
+  const doc = (frame) => {
+    try { return frame.contentDocument; } catch (e) { return null; }
+  };
+  async function waitFor(fn, ms, step) {
+    const start = Date.now();
+    while (Date.now() - start < (ms || 20000)) {
+      let v = null;
+      try { v = fn(); } catch (e) { v = null; }
+      if (v) return v;
+      await sleep(step || 200);
+    }
+    return null;
+  }
+  const tap = (el) => { if (el) el.click(); };   // 휴대폰 탭이 만드는 click 과 같은 경로
+  const rectOf = (el) => {
+    if (!el) return null;
+    const b = el.getBoundingClientRect();
+    return { top: Math.round(b.top), bottom: Math.round(b.bottom), left: Math.round(b.left), right: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) };
+  };
+
+  window.__PHONE_CHECK__ = { results, frames: {} };
+
+  window.addEventListener('load', async () => {
+    const qp = new URLSearchParams(location.search);
+    const prefix = qp.get('src') || '../index.html';
+    const mode = qp.get('mode') === 'invite' ? 'invite' : 'typed';
+    const v = 'v=' + Date.now();
+    const hostFrame = document.getElementById('host');
+    const guestFrame = document.getElementById('guest');
+    window.__PHONE_CHECK__.frames = { host: hostFrame, guest: guestFrame };
+    window.__PHONE_CHECK__.mode = mode;
+
+    // ---------- 1) 호스트 시작 화면(휴대폰) 레이아웃 ----------
+    const hostLoaded = new Promise((r) => hostFrame.addEventListener('load', r, { once: true }));
+    hostFrame.src = prefix + '?' + v;
+    await hostLoaded;
+    const ready = await waitFor(() => game(hostFrame) && doc(hostFrame) && doc(hostFrame).querySelector('.class-card') && doc(hostFrame).getElementById('loader').classList.contains('done'), 30000, 250);
+    const hd = doc(hostFrame);
+    if (!ready || !hd) { record('호스트 화면 로드', false, '시간 초과'); return; }
+    record('호스트 화면 로드', true);
+
+    const ov = hd.getElementById('start-overlay');
+    const panel = hd.getElementById('mp-panel');
+    const nick = hd.getElementById('mp-nick');
+    const btnSolo = hd.getElementById('mp-mode-solo');
+    const btnHost = hd.getElementById('mp-mode-host');
+    const btnJoin = hd.getElementById('mp-mode-join');
+    const pr = rectOf(panel);
+    const vh = hostFrame.contentWindow.innerHeight;
+    record('시작 화면 위쪽 잘림 없음', pr && pr.top >= 0, { panel: pr, vh });
+    record('방 참가 버튼이 화면 안', !!btnJoin && rectOf(btnJoin).top >= 0 && rectOf(btnJoin).bottom <= vh, rectOf(btnJoin));
+    const hitJoin = btnJoin && hd.elementFromPoint(rectOf(btnJoin).left + 10, rectOf(btnJoin).top + 10);
+    record('방 참가 버튼이 눌리는 자리에 있음', !!hitJoin && (hitJoin.id === 'mp-mode-join' || hitJoin.closest('#mp-mode-join')), hitJoin ? (hitJoin.id || hitJoin.className) : null);
+    record('닉네임 칸이 화면 안', !!nick && rectOf(nick).top >= 0 && rectOf(nick).bottom <= vh, rectOf(nick));
+    record('직업 카드가 화면 안', rectOf(hd.querySelector('.class-card')).top < vh, rectOf(hd.querySelector('.class-card')));
+
+    // ---------- 2) 호스트: 닉네임 → 방 만들기 → 직업 ----------
+    nick.value = '지우';
+    nick.dispatchEvent(new hostFrame.contentWindow.Event('input', { bubbles: true }));
+    tap(btnHost);
+    await sleep(120);
+    record('방 만들기 선택', hd.getElementById('mp-mode-host').classList.contains('on'));
+    tap(hd.querySelector('.class-card'));   // 검사
+    const hostGame = await waitFor(() => {
+      const g = game(hostFrame);
+      return g && g.net && g.net.active && g.net.roomCode ? g : null;
+    }, 30000, 250);
+    if (!hostGame) { record('호스트 방 생성', false, '시간 초과'); return; }
+    const code = hostGame.net.roomCode;
+    record('호스트 방 생성', true, { code, transports: hostGame.net.transports.length });
+
+    // ---------- 3) 참가자: 초대 링크 또는 코드 입력으로 참가 ----------
+    const guestLoaded = new Promise((r) => guestFrame.addEventListener('load', r, { once: true }));
+    guestFrame.src = prefix + '?' + (mode === 'invite' ? 'room=' + code + '&' : '') + v;
+    await guestLoaded;
+    const guestReady = await waitFor(() => game(guestFrame) && doc(guestFrame) && doc(guestFrame).getElementById('loader').classList.contains('done'), 30000, 250);
+    const gd = doc(guestFrame);
+    if (!guestReady || !gd) { record('참가자 화면 로드', false, '시간 초과'); return; }
+    record('참가자 화면 로드', true);
+
+    if (mode === 'invite') {
+      const codeInput = gd.getElementById('mp-code');
+      record('초대 링크가 방 코드를 채움', codeInput.value === code && gd.getElementById('mp-mode-join').classList.contains('on'), { filled: codeInput.value, code });
+    } else {
+      tap(gd.getElementById('mp-mode-join'));
+      await sleep(120);
+      const codeInput = gd.getElementById('mp-code');
+      record('방 참가 선택 시 코드 칸이 열림', gd.querySelector('.mp-join-row').classList.contains('on'), rectOf(gd.querySelector('.mp-join-row')));
+      codeInput.value = code;
+      codeInput.dispatchEvent(new guestFrame.contentWindow.Event('input', { bubbles: true }));
+      tap(gd.getElementById('mp-join-go'));
+      await sleep(150);
+      record('참가 버튼이 방 코드를 받아들임', gd.getElementById('mp-note').textContent.indexOf(code) >= 0, gd.getElementById('mp-note').textContent.slice(0, 60));
+    }
+
+    tap(gd.querySelectorAll('.class-card')[4]);   // 마법사
+    const guestGame = await waitFor(() => {
+      const g = game(guestFrame);
+      return g && g.net && g.net.active && g.net.remotes.size ? g : null;
+    }, 26000, 250);
+    if (!guestGame) {
+      const note = gd.getElementById('mp-note').textContent;
+      record('참가자 방 참가', false, { note, code });
+      return;
+    }
+    record('참가자 방 참가', true, { room: guestGame.net.roomCode, note: gd.getElementById('mp-note').textContent.slice(0, 60) });
+
+    // ---------- 4) 서로 보이는지 · HUD 방 패널 ----------
+    const seen = await waitFor(() => (hostGame.net.remotes.size ? [...hostGame.net.remotes.values()] : null), 12000, 200);
+    record('호스트가 참가자를 봄', !!seen, seen ? { nick: seen[0].nick, cls: seen[0].classId, count: hostGame.net.playerCount } : null);
+    record('참가자가 호스트를 봄', guestGame.net.remotes.size > 0, { remotes: guestGame.net.remotes.size });
+
+    const roomPanel = hd.getElementById('room-panel');
+    const rpRect = rectOf(roomPanel);
+    record('방 패널이 화면 안 (호스트)', !!rpRect && rpRect.right <= 396 && rpRect.top >= 0, rpRect);
+    const rpText = roomPanel ? roomPanel.textContent.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+    record('방 패널에 접속 인원 표시', /2명/.test(rpText), rpText);
+    const copyBtn = hd.getElementById('rp-copy');
+    const leaveBtn = hd.getElementById('rp-leave');
+    record('초대 링크 · 나가기 버튼이 화면 안', rectOf(copyBtn).right <= 396 && rectOf(leaveBtn).right <= 396, { copy: rectOf(copyBtn), leave: rectOf(leaveBtn) });
+
+    // 시작 화면이 닫히고 두 캐릭터가 태초마을에 있는지
+    record('게임 화면으로 넘어감', hd.getElementById('start-overlay').classList.contains('hidden') && gd.getElementById('start-overlay').classList.contains('hidden'));
+    const region = (g) => (g && g.regionId) || '?';
+    record('두 사람 모두 태초마을', region(hostGame) === 'village' && region(guestGame) === 'village', { host: region(hostGame), guest: region(guestGame) });
+
+    const hostErrors = (hostGame.errors || []).slice(0, 4);
+    const guestErrors = (guestGame.errors || []).slice(0, 4);
+    record('콘솔 오류 없음', hostErrors.length === 0 && guestErrors.length === 0, { host: hostErrors, guest: guestErrors });
+
+    // ---------- 5) 두 캐릭터가 한 화면에 보이도록 자리 맞추기 ----------
+    const gp = guestGame.player.position;
+    hostGame.player.position.x = gp.x;
+    hostGame.player.position.z = gp.z - 26;
+    await sleep(6000);
+
+    const pass = Object.values(results).every((r) => r.pass);
+    out.textContent = lines.join('\n') + '\n\n' + (pass ? 'ALL PASS' : 'SOME FAILED');
+    document.title = pass ? 'phone-check ALL PASS' : 'phone-check FAIL';
+  });
+})();
+</script>
+</body>
+</html>
