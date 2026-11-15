@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>touch-check</title>
+<style>
+  body { margin: 0; font: 12px/1.5 ui-monospace, monospace; background: #111; color: #eee; }
+  iframe { width: 1120px; height: 780px; border: 0; display: block; }
+  pre { white-space: pre-wrap; padding: 8px 12px; }
+  .ok { color: #7ee787; }
+  .fail { color: #ff7b72; }
+</style>
+</head>
+<body>
+<!--
+  브라우저 터치 입력 자체 점검 페이지.
+  게임을 iframe으로 띄운 뒤, 손가락 두 개(조이스틱 + 화면 드래그)를 흉내 내는 TouchEvent를
+  게임 페이지 안에서 직접 만들어 던지고, 카메라(yaw/pitch)와 입력 상태가 기대대로 바뀌는지 확인한다.
+  결과는 아래 <pre id="result">에 JSON으로 찍힌다.
+-->
+<iframe id="game" src="../index.html?class=warrior&touch=1"></iframe>
+<pre id="result">running…</pre>
+<script>
+(() => {
+  const log = [];
+  const results = {};
+  const out = document.getElementById('result');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const record = (name, pass, detail) => {
+    results[name] = { pass: !!pass, detail: detail === undefined ? null : detail };
+    log.push((pass ? 'PASS ' : 'FAIL ') + name + (detail === undefined ? '' : ' :: ' + JSON.stringify(detail)));
+  };
+
+  window.addEventListener('load', async () => {
+    const f = document.getElementById('game');
+    const W = f.contentWindow;
+    const D = f.contentDocument;
+    const errors = [];
+    W.addEventListener('error', (e) => errors.push(String(e.message)));
+
+    // 게임이 시작될 때까지 대기 (?class=warrior 로 350ms 뒤 자동 시작)
+    let g = null;
+    for (let i = 0; i < 120; i++) {
+      g = W.__GAME__;
+      if (g && g.state === 'playing' && g.player) break;
+      await sleep(100);
+    }
+    record('game_running', !!g && g.state === 'playing', g ? { state: g.state, frames: g.frames } : 'no __GAME__');
+    if (!g || g.state !== 'playing') { out.textContent = log.join('\n'); return; }
+
+    record('touch_mode_on', W.document.body.classList.contains('touch-mode'), { touchMode: g.touchMode, isTouch: g.isTouch });
+    record('pointer_lock_off', W.document.pointerLockElement === null, { locked: !!W.document.pointerLockElement });
+
+    const canvas = D.getElementById('scene');
+    const joy = D.getElementById('joy');
+
+    const mkTouch = (id, x, y, target) => new W.Touch({
+      identifier: id, target,
+      clientX: x, clientY: y, pageX: x, pageY: y, screenX: x, screenY: y,
+      radiusX: 12, radiusY: 12, force: 0.6,
+    });
+    const fire = (el, type, touches, changed) => el.dispatchEvent(new W.TouchEvent(type, {
+      bubbles: true, cancelable: true, composed: true,
+      touches, targetTouches: touches, changedTouches: changed,
+    }));
+
+    const jr = joy.getBoundingClientRect();
+    const cr = canvas.getBoundingClientRect();
+    const jx = jr.left + jr.width / 2, jy = jr.top + jr.height / 2;
+    const ax = cr.left + cr.width * 0.55, ay = cr.top + cr.height * 0.45;
+
+    // ---- 1) 한 손가락만으로 화면 드래그 (기본 동작) ----
+    let yaw0 = g.camYaw;
+    const s1 = mkTouch(11, ax, ay, canvas);
+    fire(canvas, 'touchstart', [s1], [s1]);
+    const s1b = mkTouch(11, ax + 50, ay, canvas);
+    fire(canvas, 'touchmove', [s1b], [s1b]);
+    const yaw1 = g.camYaw;
+    fire(canvas, 'touchend', [], [s1b]);
+    record('single_finger_look', Math.abs(yaw1 - yaw0) > 0.1 && g._look === null, { delta: +(yaw1 - yaw0).toFixed(3), lookAfterEnd: g._look });
+    await sleep(50);
+
+    // ---- 2) 조이스틱을 잡은 채 다른 손가락으로 화면 드래그 (이번에 고친 핵심) ----
+    const t1 = mkTouch(101, jx, jy, joy);
+    fire(joy, 'touchstart', [t1], [t1]);
+    const t1b = mkTouch(101, jx, jy - 44, joy);   // 위로 끝까지 = 전진 + 달리기
+    fire(joy, 'touchmove', [t1b], [t1b]);
+    const joyHeld = { forward: g.input.forward, sprint: g.input.sprint };
+
+    const t2 = mkTouch(202, ax, ay, canvas);
+    fire(canvas, 'touchstart', [t1b, t2], [t2]);  // 이 시점 touches.length === 2
+    const lookStarted = g._look && g._look.id === 202;
+    const yaw2 = g.camYaw;
+    const t2b = mkTouch(202, ax + 80, ay + 24, canvas);
+    fire(canvas, 'touchmove', [t1b, t2b], [t2b]); // 두 손가락 동시에 눌린 상태의 드래그
+    const yaw3 = g.camYaw;
+    record('two_finger_look', lookStarted && Math.abs(yaw3 - yaw2) > 0.1,
+      { lookStarted: !!lookStarted, lookId: g._look ? g._look.id : null, delta: +(yaw3 - yaw2).toFixed(3) });
+    record('joystick_still_held', joyHeld.forward && g.input.forward, { atStart: joyHeld, now: { forward: g.input.forward, sprint: g.input.sprint } });
+
+    // ---- 3) 조이스틱 손가락만 움직여도 카메라는 그대로 ----
+    const yawBeforeJoyMove = g.camYaw;
+    const t1c = mkTouch(101, jx + 36, jy, joy);
+    fire(joy, 'touchmove', [t1c, t2b], [t1c]);
+    record('joystick_move_keeps_camera', Math.abs(g.camYaw - yawBeforeJoyMove) < 1e-6,
+      { yawDelta: +(g.camYaw - yawBeforeJoyMove).toFixed(6), right: g.input.right });
+
+    // ---- 4) 조이스틱 손가락을 떼도 카메라 드래그는 유지 ----
+    fire(joy, 'touchend', [t2b], [t1c]);
+    const lookAlive = !!g._look;
+    const yaw4 = g.camYaw;
+    const t2c = mkTouch(202, ax + 150, ay, canvas);
+    fire(canvas, 'touchmove', [t2c], [t2c]);
+    record('look_survives_joystick_release', lookAlive && Math.abs(g.camYaw - yaw4) > 0.1,
+      { lookAlive, delta: +(g.camYaw - yaw4).toFixed(3), inputAfterRelease: { forward: g.input.forward, right: g.input.right } });
+
+    // ---- 5) 카메라 손가락을 떼면 드래그 종료 ----
+    fire(canvas, 'touchend', [], [t2c]);
+    record('look_ends_on_own_touchend', g._look === null, { look: g._look });
+
+    // ---- 6) 화면 짧은 탭 = 공격 ----
+    await sleep(400);
+    const atkBefore = g.player.anim.name;
+    const tap1 = mkTouch(303, ax, ay, canvas);
+    fire(canvas, 'touchstart', [tap1], [tap1]);
+    fire(canvas, 'touchend', [], [tap1]);
+    await sleep(60);
+    record('tap_attacks', g.player.anim.name === 'attack' || g.player.attackCooldown > 0,
+      { before: atkBefore, after: g.player.anim.name, cd: +(g.player.attackCooldown || 0).toFixed(2) });
+
+    // ---- 7) 마우스/트랙패드 드래그 (포인터 락 없이) ----
+    await sleep(900); // 터치 뒤 700ms 동안은 합성 마우스 이벤트를 무시하므로 대기
+    const fireMouse = (target, type, x, y, extra) => target.dispatchEvent(new W.MouseEvent(type, Object.assign({
+      bubbles: true, cancelable: true, view: W, button: 0, buttons: 1, clientX: x, clientY: y,
+    }, extra || {})));
+    const yawM0 = g.camYaw;
+    fireMouse(canvas, 'mousedown', ax, ay);
+    const draggingOn = g.mouseDragging;
+    fireMouse(W, 'mousemove', ax + 60, ay + 10);
+    const yawM1 = g.camYaw;
+    fireMouse(W, 'mouseup', ax + 60, ay + 10, { buttons: 0 });
+    record('mouse_drag_without_lock', draggingOn && Math.abs(yawM1 - yawM0) > 0.1 && g.mouseDragging === false,
+      { draggingOn, delta: +(yawM1 - yawM0).toFixed(3), draggingOff: g.mouseDragging });
+
+    // ---- 8) 짧은 클릭 = 공격 (포인터 락 없음) ----
+    await sleep(400);
+    const animBeforeClick = g.player.anim.name;
+    fireMouse(canvas, 'mousedown', ax, ay);
+    fireMouse(W, 'mouseup', ax, ay, { buttons: 0 });
+    await sleep(60);
+    record('click_attacks_without_lock', g.player.anim.name === 'attack' || g.player.attackCooldown > 0,
+      { before: animBeforeClick, after: g.player.anim.name });
+
+    // ---- 9) 콘솔 에러 없음 + 렌더 지속 ----
+    await sleep(300);
+    const frames0 = g.frames;
+    await sleep(400);
+    record('no_errors', errors.length === 0 && (!g.errors || g.errors.length === 0), { windowErrors: errors, gameErrors: g.errors || [] });
+    record('rendering', g.frames > frames0, { frames0, frames1: g.frames });
+
+    const failed = Object.keys(results).filter((k) => !results[k].pass);
+    document.title = (failed.length ? 'FAIL ' + failed.length : 'PASS') + ' touch-check';
+    out.textContent = JSON.stringify(results, null, 1) + '\n\n' + log.join('\n')
+      + '\n\nSUMMARY: ' + (failed.length ? 'FAIL ' + failed.join(', ') : 'ALL PASS (' + Object.keys(results).length + ' checks)');
+  });
+})();
+</script>
+</body>
+</html>
