@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>멀티플레이 두 창 점검</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0a0d12; color: #e6edf3; font: 11px/1.45 ui-monospace, monospace; }
+  #wrap { display: flex; height: 100%; }
+  .cell { flex: 1 1 50%; position: relative; border-right: 1px solid #1f2630; }
+  .cell:last-child { border-right: 0; }
+  iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .tag { position: absolute; left: 8px; top: 8px; z-index: 5; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.55); color: #ffd98a; font-weight: 700; }
+  #result { position: fixed; left: 0; right: 0; bottom: 0; max-height: 42%; overflow: auto; margin: 0; padding: 8px 12px; background: rgba(4,7,10,.92); border-top: 1px solid #24303c; white-space: pre-wrap; }
+  .ok { color: #7ee787; }
+  .fail { color: #ff7b72; }
+</style>
+</head>
+<body>
+<!--
+  멀티플레이 두 창 점검 페이지.
+  왼쪽 iframe 이 방을 만들고(호스트), 오른쪽 iframe 이 그 방 코드로 참가한다.
+  두 게임을 한 화면에 나란히 띄워 서로의 캐릭터가 보이는지, 이동이 동기화되는지 확인한다.
+  결과는 아래 #result 에 JSON 으로 찍힌다.
+-->
+<div id="wrap">
+  <div class="cell"><span class="tag">호스트 · 검사</span><iframe id="host"></iframe></div>
+  <div class="cell"><span class="tag">참가자 · 마법사</span><iframe id="guest"></iframe></div>
+</div>
+<pre id="result">running…</pre>
+<script>
+(() => {
+  const out = document.getElementById('result');
+  const results = {};
+  const lines = [];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const record = (name, pass, detail) => {
+    results[name] = { pass: !!pass, detail: detail === undefined ? null : detail };
+    lines.push((pass ? 'PASS ' : 'FAIL ') + name + (detail === undefined ? '' : ' :: ' + JSON.stringify(detail)));
+    out.textContent = lines.join('\n') + '\n';
+  };
+  const game = (frame) => {
+    try { return frame.contentWindow.__GAME__ || null; } catch (e) { return null; }
+  };
+
+  async function waitFor(fn, ms, step) {
+    const start = Date.now();
+    while (Date.now() - start < (ms || 20000)) {
+      const v = fn();
+      if (v) return v;
+      await sleep(step || 200);
+    }
+    return null;
+  }
+
+  window.addEventListener('load', async () => {
+    const hostFrame = document.getElementById('host');
+    const guestFrame = document.getElementById('guest');
+    const qp = new URLSearchParams(location.search);
+    const prefix = qp.get('src') || '../index.html';
+
+    const hostLoaded = new Promise((r) => hostFrame.addEventListener('load', r, { once: true }));
+    hostFrame.src = prefix + '?mp=host&class=warrior&nick=' + encodeURIComponent('지우');
+    await hostLoaded;
+    out.textContent = '호스트 방을 여는 중…';
+
+    const hostGame = await waitFor(() => {
+      const g = game(hostFrame);
+      return g && g.net && g.net.active && g.net.roomCode ? g : null;
+    }, 30000);
+    if (!hostGame) {
+      record('호스트 방 생성', false, '시간 초과');
+      return;
+    }
+    const code = hostGame.net.roomCode;
+    record('호스트 방 생성', true, { code, transports: hostGame.net.transports.length });
+    out.textContent = '방 코드 ' + code + ' · 참가자 접속 중…';
+
+    const guestLoaded = new Promise((r) => guestFrame.addEventListener('load', r, { once: true }));
+    guestFrame.src = prefix + '?mp=join&room=' + code + '&class=mage&nick=' + encodeURIComponent('아빠');
+    await guestLoaded;
+
+    const guestGame = await waitFor(() => {
+      const g = game(guestFrame);
+      return g && g.net && g.net.active && g.net.remotes.size ? g : null;
+    }, 30000);
+    if (!guestGame) {
+      record('참가자 방 참가', false, '시간 초과');
+      return;
+    }
+    record('참가자 방 참가', true, { room: guestGame.net.roomCode });
+
+    // 서로를 보는지
+    const hostSees = await waitFor(() => (hostGame.net.remotes.size ? hostGame.net.remotes : null), 12000);
+    record('호스트가 참가자를 봄', !!hostSees, hostSees ? { count: hostGame.net.playerCount, nick: [...hostSees.values()][0].nick, cls: [...hostSees.values()][0].classId } : null);
+    record('참가자가 호스트를 봄', guestGame.net.remotes.size > 0, { remotes: guestGame.net.remotes.size, mirrors: guestGame.net.mirrors.size });
+
+    // 호스트를 앞으로 이동시켜 참가자 화면에 반영되는지
+    const beforeX = guestGame.net.remotes.size ? [...guestGame.net.remotes.values()][0].x : 0;
+    hostGame.input.forward = true;
+    await sleep(1300);
+    hostGame.input.forward = false;
+    await sleep(700);
+    const hostX = hostGame.player.position.x;
+    const guestViewX = guestGame.net.remotes.size ? [...guestGame.net.remotes.values()][0].x : 0;
+    record('이동 동기화', Math.abs(guestViewX - beforeX) > 5 && Math.abs(guestViewX - hostX) < 90, {
+      before: Math.round(beforeX), host: Math.round(hostX), guestView: Math.round(guestViewX),
+    });
+
+    // 몹 스냅샷
+    record('게스트 몹 미러', guestGame.net.mirrors.size > 0, { mirrors: guestGame.net.mirrors.size, mobs: guestGame.mobManager.mobs.length });
+
+    // 오류
+    const hostErrors = (hostGame.errors || []).slice(0, 5);
+    const guestErrors = (guestGame.errors || []).slice(0, 5);
+    record('콘솔 오류 없음', hostErrors.length === 0 && guestErrors.length === 0, { host: hostErrors, guest: guestErrors });
+
+    // 두 화면 스크린샷용으로 잠시 유지
+    const pass = Object.values(results).every((r) => r.pass);
+    out.textContent = lines.join('\n') + '\n\n' + (pass ? 'ALL PASS' : 'SOME FAILED');
+    document.title = pass ? 'mp-check ALL PASS' : 'mp-check FAIL';
+  });
+})();
+</script>
+</body>
+</html>

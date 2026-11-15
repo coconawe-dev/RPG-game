@@ -118,7 +118,17 @@ class Game {
     if (this.autoClass && CLASSES[this.autoClass]) {
       // ?room= 초대 링크로 들어왔으면 혼자 모드로 새지 않게 한다
       const inviteRoom = normalizeRoomCode(qp.get('room') || '');
-      if (!inviteRoom) setTimeout(() => this.startClass(this.autoClass), 350);
+      const mp = qp.get('mp');
+      const nick = qp.get('nick');
+      if (nick && this.mpDom && this.mpDom.nick) this.mpDom.nick.value = nick.slice(0, 10);
+      if (mp === 'host' || mp === 'join') {
+        // 점검/공유용: ?mp=host / ?mp=join&room=CODE 로 바로 방을 열거나 참가한다
+        if (this.mpSetMode) this.mpSetMode(mp);
+        if (mp === 'join' && inviteRoom && this.mpDom.code) this.mpDom.code.value = inviteRoom;
+        setTimeout(() => this.requestStart(this.autoClass), 500);
+      } else if (!inviteRoom) {
+        setTimeout(() => this.startClass(this.autoClass), 350);
+      }
     }
 
     this.clock = new THREE.Clock();
