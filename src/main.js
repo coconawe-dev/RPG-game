@@ -203,6 +203,13 @@ class Game {
     return 'high';
   }
 
+  // 화면 배율 — 점검용으로 ?dpr=3 처럼 Retina 화면을 흔내볼 수 있다
+  effectiveDpr() {
+    const forced = parseFloat(new URLSearchParams(window.location.search).get('dpr'));
+    if (isFinite(forced) && forced > 0) return forced;
+    return window.devicePixelRatio || 1;
+  }
+
   readQualityPreference() {
     try {
       return window.localStorage ? window.localStorage.getItem('rpg.quality') : null;
@@ -218,7 +225,7 @@ class Game {
   }
 
   targetPixelRatio() {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = this.effectiveDpr();
     if (this.quality === 'low') {
       if (this.qualityLevel >= 2) return 1;
       if (this.qualityLevel === 1) return Math.min(dpr, 1.1);

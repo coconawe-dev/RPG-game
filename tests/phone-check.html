@@ -112,9 +112,9 @@
     const qBtn = hd.getElementById('quality-toggle');
     const qRect = rectOf(qBtn);
     const mapRect = rectOf(hd.getElementById('map-panel'));
-    const charRect = rectOf(hd.getElementById('char-panel'));
+    const charRect = rectOf(hd.querySelector('.char-panel'));
     record('화질 버튼이 390px 화면 안', !!qRect && qRect.left >= 0 && qRect.right <= 396 && qRect.top >= 0 && qRect.bottom <= vh, qRect);
-    record('화질 버튼이 지도 · 캐릭터 패널과 안 겹침', !overlapOf(qRect, mapRect) && !overlapOf(qRect, charRect), { btn: qRect, map: mapRect, char: charRect });
+    record('화질 버튼이 지도 · 캐릭터 패널과 안 겹침', !!charRect && !overlapOf(qRect, mapRect) && !overlapOf(qRect, charRect), { btn: qRect, map: mapRect, char: charRect });
     record('휴대폰 기본 화질 = 고화질', game(hostFrame).quality === 'high', { quality: game(hostFrame).quality, text: qBtn ? qBtn.textContent : null });
 
     // ---------- 2) 호스트: 닉네임 → 방 만들기 → 직업 ----------

@@ -85,7 +85,7 @@
       quality: g.quality,
       level: g.qualityLevel,
       pixelRatio: g.pixelRatio,
-      dpr: frame.contentWindow.devicePixelRatio,
+      dpr: g && g.effectiveDpr ? g.effectiveDpr() : frame.contentWindow.devicePixelRatio,
       antialias: attrs ? !!attrs.antialias : null,
       shadowType: g.renderer ? g.renderer.shadowMap.type : null,
       shadowMap: g.world && g.world.sun ? g.world.sun.shadow.mapSize.x : null,
@@ -103,6 +103,7 @@
     const qp = new URLSearchParams(location.search);
     const prefix = qp.get('src') || '../index.html';
     const v = 'v=' + Date.now();
+    const dprParam = qp.get('dpr') ? '&dpr=' + encodeURIComponent(qp.get('dpr')) : '';
     const phoneHigh = document.getElementById('phone-high');
     const phoneLow = document.getElementById('phone-low');
     const deskHigh = document.getElementById('desktop-high');
@@ -112,9 +113,9 @@
 
     const loaded = (frame) => new Promise((r) => frame.addEventListener('load', r, { once: true }));
     const srcs = [
-      [phoneHigh, prefix + '?class=warrior&biome=forest&touch=1&' + v],
-      [phoneLow, prefix + '?class=warrior&biome=forest&touch=1&quality=low&' + v],
-      [deskHigh, prefix + '?class=warrior&biome=forest&' + v],
+      [phoneHigh, prefix + '?class=warrior&biome=forest&touch=1' + dprParam + '&' + v],
+      [phoneLow, prefix + '?class=warrior&biome=forest&touch=1&quality=low' + dprParam + '&' + v],
+      [deskHigh, prefix + '?class=warrior&biome=forest' + dprParam + '&' + v],
     ];
     const waits = srcs.map(async ([frame, src]) => {
       const done = loaded(frame);
@@ -160,7 +161,8 @@
     const btn = pd.getElementById('quality-toggle');
     const modeBtn = pd.getElementById('mode-toggle');
     const mapPanel = pd.getElementById('map-panel');
-    const charPanel = pd.getElementById('char-panel');
+    const charPanel = pd.querySelector('.char-panel');
+    const charRect = rectOf(charPanel);
     const br = rectOf(btn);
     const vw = phoneHigh.contentWindow.innerWidth;
     const vh = phoneHigh.contentWindow.innerHeight;
@@ -168,7 +170,7 @@
     record('화질 버튼 표시 = ✨ 고화질', !!btn && btn.textContent.indexOf('고화질') >= 0, btn ? btn.textContent : null);
     record('화질 버튼이 390px 화면 안', !!br && br.left >= 0 && br.right <= vw && br.top >= 0 && br.bottom <= vh, { btn: br, vw, vh });
     record('화질 버튼이 지도 패널과 겹치지 않음', !overlaps(br, rectOf(mapPanel)), { btn: br, map: rectOf(mapPanel) });
-    record('화질 버튼이 캐릭터 패널과 겹치지 않음', !overlaps(br, rectOf(charPanel)), { btn: br, char: rectOf(charPanel) });
+    record('화질 버튼이 캐릭터 패널과 겹치지 않음', !!charRect && !overlaps(br, charRect), { btn: br, char: charRect });
     record('화질 버튼이 터치 모드 버튼과 겹치지 않음', !overlaps(br, rectOf(modeBtn)), { btn: br, mode: rectOf(modeBtn) });
     const hit = br ? pd.elementFromPoint(br.left + Math.round(br.w / 2), br.top + Math.round(br.h / 2)) : null;
     record('화질 버튼이 눌리는 자리에 있음', !!hit && (hit.id === 'quality-toggle' || !!(hit.closest && hit.closest('#quality-toggle'))), hit ? (hit.id || hit.className) : null);
@@ -191,9 +193,10 @@
     record('고화질은 그리기 호출이 더 많음(프롭 그림자)', afterHigh.drawCalls >= lo.drawCalls, { high: afterHigh.drawCalls, low: lo.drawCalls });
 
     // ---------- 4) Retina(dpr 3) 에서도 2배까지 그리는지 ----------
+    // (?dpr=3 으로 연 경우에는 이미 실제 Retina 배율로 돌고 있으므로 이 흔내내기는 건너뜀)
     const w = phoneHigh.contentWindow;
-    const dprDesc = Object.getOwnPropertyDescriptor(w, 'devicePixelRatio');
-    try {
+    const dprDesc = dprParam ? null : Object.getOwnPropertyDescriptor(w, 'devicePixelRatio');
+    if (!dprParam) try {
       Object.defineProperty(w, 'devicePixelRatio', { configurable: true, get: () => 3 });
       g1.setQuality('high', { persist: false });
       const pr0 = g1.pixelRatio;
