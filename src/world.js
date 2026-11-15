@@ -359,7 +359,7 @@ function buildGraveyard(scene) {
   candle.position.set(0, 8, 0);
   g.add(candle);
   // 촛불 후광 (점광원 대신 가산 메시)
-  const candleGlow = glowHalo(0x9fd8ff, 11, 0.16);
+  const candleGlow = glowHalo(0x9fd8ff, 7, 0.14);
   candleGlow.position.set(0, 9, 0);
   g.add(candleGlow);
   g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
@@ -572,7 +572,7 @@ function buildOldVillage(scene) {
   ember.position.y = 4.4;
   fire.add(ember);
   // 모닥불 후광 — 실제 조명 대신 가산 혼합 메시 (아래 updateOldVillage 에서 흔들린다)
-  const fireGlow = glowHalo(0xffa040, 44, 0.17, 0.75);
+  const fireGlow = glowHalo(0xffa040, 18, 0.13, 0.7);
   fireGlow.position.y = 11;
   fire.add(fireGlow);
   fire.position.set(fx, terrainHeight(fx, fz), fz);
@@ -689,7 +689,7 @@ function buildJungle(scene) {
     eye.position.set(sx, 30, 12.4);
     g.add(eye);
   }
-  const eyeGlow = glowHalo(0x8cff8c, 16, 0.13, 0.55);
+  const eyeGlow = glowHalo(0x8cff8c, 9, 0.12, 0.55);
   eyeGlow.position.set(0, 30, 13);
   g.add(eyeGlow);
   g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
@@ -725,7 +725,7 @@ function buildTemple(scene) {
   }));
   crystal.position.y = topY + 18;
   g.add(crystal);
-  const crystalGlow = glowHalo(0x6fe0ff, 26, 0.2);
+  const crystalGlow = glowHalo(0x6fe0ff, 16, 0.16);
   crystalGlow.position.y = topY + 18;
   g.add(crystalGlow);
 
@@ -791,7 +791,7 @@ function buildTemple(scene) {
     const flame = new THREE.Mesh(new THREE.SphereGeometry(2.6, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffb45c }));
     flame.position.set(0, 62, 0);
     gate.add(flame);
-    const flameGlow = glowHalo(0xffb45c, 12, 0.18);
+    const flameGlow = glowHalo(0xffb45c, 7, 0.16);
     flameGlow.position.set(0, 62, 0);
     gate.add(flameGlow);
     gate.position.set(gd.x, terrainHeight(gd.x, gd.z), gd.z);
@@ -811,7 +811,7 @@ function buildTemple(scene) {
     const fire = new THREE.Mesh(new THREE.SphereGeometry(4.2, 9, 7), new THREE.MeshBasicMaterial({ color: 0xff9a3c }));
     fire.position.y = 12;
     brazier.add(fire);
-    const fireGlow = glowHalo(0xff9a3c, 20, 0.18);
+    const fireGlow = glowHalo(0xff9a3c, 12, 0.16);
     fireGlow.position.y = 13;
     brazier.add(fireGlow);
     brazier.position.set(x, terrainHeight(x, z), z);
@@ -1025,7 +1025,7 @@ function buildFountain(scene, cx, cz) {
     jet.rotation.set(Math.sin(a) * 0.42, 0, -Math.cos(a) * 0.42);
     g.add(jet);
   }
-  const waterGlow = glowHalo(0x9fe0ff, 26, 0.1, 0.6);
+  const waterGlow = glowHalo(0x9fe0ff, 20, 0.08, 0.6);
   waterGlow.position.set(0, 34, 0);
   g.add(waterGlow);
   g.position.set(cx, terrainHeight(cx, cz), cz);
@@ -1073,13 +1073,7 @@ function buildLamps(scene) {
     { geo: new THREE.BoxGeometry(6, 8, 6), mat: lampMat, pos: [0, 34.5, 0] },
     { geo: new THREE.ConeGeometry(5, 3.4, 4), mat: poleMat, pos: [0, 40, 0], rot: [0, Math.PI / 4, 0] },
   ], placements);
-  // 조명은 램프 유리(발광 재질)와 작은 후광 메시로만 표현한다 — 점광원은 쓰지 않는다
-  for (const i of [0, 1, 2, 3]) {
-    const s = spots[i];
-    const halo = glowHalo(0xffd79a, 11, 0.22);
-    halo.position.set(s.x, terrainHeight(s.x, s.z) + 34.5, s.z);
-    scene.add(halo);
-  }
+  // 조명은 램프 유리(발광 재질)만으로 표현한다 — 점광원 · 후광 없이도 불빛으로 보인다
 }
 
 function villageTrees(scene) {
@@ -1304,7 +1298,7 @@ function buildShop(scene) {
   }));
   lightBeam.position.set(0, 80, 26);
   g.add(lightBeam);
-  const shopGlow = glowHalo(0xffcf8a, 34, 0.14, 0.9);
+  const shopGlow = glowHalo(0xffcf8a, 18, 0.12, 0.9);
   shopGlow.position.set(0, 50, 30);
   g.add(shopGlow);
 
