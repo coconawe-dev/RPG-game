@@ -60,6 +60,17 @@ function mesh(geo, mat, x, y, z) {
   return m;
 }
 
+// 손잡이(그립) 지점을 그룹 원점으로 옮긴다.
+// 그러면 손 뼈(주먹 중심)에 그대로 붙였을 때 손잡이가 주먹을 지나가고,
+// 회전을 어떻게 주든 쥔 자리가 어긋나지 않는다.
+function gripAt(g, x, y, z) {
+  const off = new THREE.Vector3(x || 0, y || 0, z || 0);
+  if (!off.lengthSq()) return g;
+  g.children.forEach((c) => c.position.sub(off));
+  if (g.userData.tip) g.userData.tip.sub(off);
+  return g;
+}
+
 // 상위 티어는 무기 둘레에 옅은 빛무리를 더해 손에서 바로 눈에 띄게 한다
 function addAura(g, st, radius, height, y, color) {
   if (!st.t.glow) return;
@@ -95,7 +106,7 @@ export function buildSword(tier) {
   g.scale.setScalar(st.t.scale);
   g.userData.tip = new THREE.Vector3(0, 12.2, 0);
   g.userData.tier = st.idx;
-  return g;
+  return gripAt(g, 0, 1.3, 0); // 손잡이 가운데가 원점
 }
 
 /* 활: 왼손에 세로로 들고 +Z 방향으로 조준 */
@@ -146,13 +157,12 @@ export function buildBow(tier) {
   g.add(arrow);
   addAura(g, st, 2.0, 10.4, 0, st.t.glowColor);
 
-  g.rotation.y = 0.72; // 3인칭 뒤 시점에서 활의 실루엣이 보이도록 살짝 돌림
   g.scale.setScalar(st.t.scale);
   g.userData.tip = new THREE.Vector3(0, 0, 1.6);
   g.userData.string = stringGroup;
   g.userData.arrow = arrow;
   g.userData.tier = st.idx;
-  return g;
+  return gripAt(g, 0, 0, 1.15); // 가죽 손잡이가 원점 (활몸이 앞으로 나온다)
 }
 
 /* 단검: 짧은 칼날 */
@@ -173,7 +183,7 @@ export function buildDagger(tier) {
   g.scale.setScalar(st.t.scale);
   g.userData.tip = new THREE.Vector3(0, 6.6, 0);
   g.userData.tier = st.idx;
-  return g;
+  return gripAt(g, 0, 0.85, 0); // 손잡이 가운데가 원점
 }
 
 /* 방패 */
@@ -206,7 +216,7 @@ export function buildShield(tier) {
   g.scale.setScalar(st.t.scale);
   g.userData.tip = new THREE.Vector3(0.9, 0, 0);
   g.userData.tier = st.idx;
-  return g;
+  return gripAt(g, -0.75, 0, 0); // 앞면(보스)이 주먹 앞쪽, 팔은 방패 뒤
 }
 
 /* 보조 철퇴 */
@@ -227,7 +237,7 @@ export function buildMace(tier) {
   g.scale.setScalar(st.t.scale);
   g.userData.tip = new THREE.Vector3(0, 5.4, 0);
   g.userData.tier = st.idx;
-  return g;
+  return gripAt(g, 0, 0.55, 0); // 자루 아래쪽(손잡이)이 원점, 머리는 앞으로
 }
 
 /* 지팡이: 끝에 마력 구체 */
@@ -255,7 +265,7 @@ export function buildStaff(tier) {
   g.userData.tip = new THREE.Vector3(0, 11.6, 0);
   g.userData.orbMat = orbMat;
   g.userData.tier = st.idx;
-  return g;
+  return gripAt(g, 0, 3.4, 0); // 자루 중간 아래를 쥔다 (맨 끝 마개가 아니라)
 }
 
 export function buildWeapons(classId, tier) {

@@ -7,18 +7,206 @@ import {
 } from './utils.js';
 
 // 손에 쥐는 무기의 위치·회전 (직업별)
+// 무기 그룹의 원점은 곧 '손잡이를 쥔 지점'이라, p는 손 뼈의 주먹 중심(0,-0.5,0)에 거의 그대로 둔다.
+// r.x = 손 안에서 무기를 앞으로 눕히는 각(π/2면 무기가 손에서 정확히 앞(+Z)을 향한다).
 const WEAPON_POSE = {
-  warrior: { r: { p: [-0.4, -1.0, 0.55], r: [0.14, 0, 0.46] } },
-  archer: { l: { p: [1.35, -0.6, 0.5], r: [0.05, 0.72, -0.22] } },
+  // 검: 주먹에서 앞·살짝 위(지면 기준 약 22°)로 뻗는다
+  warrior: { r: { p: [0.04, -0.5, 0.1], r: [1.79, 0.35, 0.14] } },
+  // 활: 왼손 가죽 손잡이를 쥐고 세워 든다 (활몸이 앞, 시위가 몸 쪽)
+  archer: { l: { p: [0.05, -0.5, 0.12], r: [0.6, 0.25, -0.1] } },
+  // 쌍단검: 양손 모두 앞쪽으로 낮게 겨눈다
   rogue: {
-    r: { p: [-0.25, -0.8, 0.4], r: [0.12, 0, 0.26] },
-    l: { p: [0.25, -0.8, 0.4], r: [0.12, 0, -0.26] },
+    r: { p: [0, -0.5, 0.08], r: [2.06, 0.35, 0.16] },
+    l: { p: [0, -0.5, 0.08], r: [2.06, 0.35, -0.16] },
   },
   tanker: {
-    r: { p: [-0.3, -0.8, 0.35], r: [0.1, 0, 0.32] },
-    l: { p: [0.7, -0.5, 0.25], r: [0, -Math.PI / 2, 0.12] },
+    // 철퇴: 자루를 쥐고 머리가 앞·위로
+    r: { p: [0, -0.5, 0.08], r: [1.75, 0.35, 0.14] },
+    // 방패: 앞면이 앞·바깥(왼쪽)을 향해 몸 앞을 가린다
+    l: { p: [0, -0.45, 0.15], r: [0, -1.15, 0.12] },
   },
-  mage: { r: { p: [-0.2, -0.85, 0.45], r: [0.1, 0, 0.22] } },
+  // 지팡이: 자루 중간 아래를 쥐고 결정구가 어깨 위로 올라온다
+  mage: { r: { p: [0, -0.5, 0.08], r: [1.01, 0.35, 0.12] } },
+};
+
+// 직업별 기본 서 있는 자세 (팔은 붙이지 않고 살짝 굽혀 든다)
+// swingL/R = 달릴 때 그 팔이 흔들리는 비율 (무기를 든 팔은 덜 흔든다)
+const STANCE = {
+  warrior: { armRx: -0.22, armRz: -0.34, foreRx: -0.38, armLx: 0.02, armLz: 0.17, foreLx: -0.30, swingR: 0.55, swingL: 0.95 },
+  archer: { armRx: 0.02, armRz: -0.16, foreRx: -0.34, armLx: -0.34, armLz: 0.26, foreLx: -0.26, swingR: 0.95, swingL: 0.50 },
+  rogue: { armRx: -0.30, armRz: -0.30, foreRx: -0.45, armLx: -0.30, armLz: 0.30, foreLx: -0.45, swingR: 0.65, swingL: 0.65 },
+  // 방패 팔은 윗팔을 살짝 뒤로 · 팔꿈치를 펴서 손목이 수직이 되게 둔다(방패가 똑바로 선다)
+  tanker: { armRx: -0.30, armRz: -0.38, foreRx: -0.40, armLx: 0.20, armLz: 0.22, foreLx: -0.20, swingR: 0.50, swingL: 0.45 },
+  mage: { armRx: -0.34, armRz: -0.30, foreRx: -0.28, armLx: 0.02, armLz: 0.16, foreLx: -0.30, swingR: 0.45, swingL: 0.95 },
+};
+
+// 공격/스킬 중 무기 방향(몸통 기준). [pitch, yaw] 도(°)
+//   pitch: 0=수평 앞, 90=위, -90=아래 / yaw: 0=정면, +90=캐릭터 왼쪽, 180=뒤
+// 표에 없는 클립은 기본 파지 자세(WEAPON_POSE)를 그대로 쓴다 → 팔 움직임을 무기가 따라간다.
+const WEAPON_AIM = {
+  warrior: {
+    right: {
+      cleave: {
+        0.00: { p: 20, y: 8 },
+        0.28: { p: 95, y: 35 },
+        0.35: { p: 108, y: 25 },
+        0.46: { p: 35, y: -25 },
+        0.52: { p: 5, y: -55 },
+        0.62: { p: -18, y: -65 },
+        0.72: { p: 0, y: -25 },
+        0.85: { p: 12, y: 0 },
+        0.95: { p: 19, y: -5 },
+        1.00: { p: 19, y: -5 },
+      },
+      whirlwind: {
+        0.00: { p: 15, y: 30 },
+        0.12: { p: 5, y: 60 },
+        0.50: { p: 5, y: 60 },
+        0.78: { p: 8, y: 55 },
+        0.92: { p: 15, y: 20 },
+        1.00: { p: 19, y: -5 },
+      },
+      dashstrike: {
+        0.00: { p: 0, y: 160 },
+        0.35: { p: 0, y: 165 },
+        0.46: { p: 100, y: 30 },
+        0.52: { p: 25, y: 0 },
+        0.62: { p: -20, y: -10 },
+        0.72: { p: -5, y: -5 },
+        0.85: { p: 10, y: 0 },
+        1.00: { p: 19, y: -5 },
+      },
+    },
+  },
+  archer: {
+    left: {
+      shoot: {
+        0.00: { p: 82, y: 0 },
+        0.30: { p: 78, y: 0 },
+        0.52: { p: 76, y: 0 },
+        0.62: { p: 80, y: 0 },
+        0.85: { p: 82, y: 0 },
+        1.00: { p: 84, y: 0 },
+      },
+      multishot: {
+        0.00: { p: 82, y: 0 },
+        0.38: { p: 78, y: 0 },
+        0.50: { p: 78, y: 0 },
+        0.75: { p: 81, y: 0 },
+        1.00: { p: 84, y: 0 },
+      },
+      barrage: {
+        0.00: { p: 82, y: 0 },
+        0.16: { p: 80, y: 0 },
+        0.34: { p: 78, y: 0 },
+        0.52: { p: 78, y: 0 },
+        0.84: { p: 82, y: 0 },
+        1.00: { p: 84, y: 0 },
+      },
+    },
+  },
+  rogue: {
+    right: {
+      stab: {
+        0.00: { p: 8, y: -12 },
+        0.35: { p: 2, y: -8 },
+        0.62: { p: 6, y: -12 },
+        1.00: { p: 12, y: -10 },
+      },
+      ambush: {
+        0.00: { p: 8, y: -12 },
+        0.22: { p: -6, y: -14 },
+        0.50: { p: 4, y: -10 },
+        0.72: { p: 8, y: -12 },
+        1.00: { p: 12, y: -10 },
+      },
+      flurry: {
+        0.00: { p: 10, y: -12 },
+        0.20: { p: 2, y: -10 },
+        0.60: { p: 4, y: -12 },
+        0.90: { p: 8, y: -10 },
+        1.00: { p: 12, y: -10 },
+      },
+    },
+    left: {
+      stab: {
+        0.00: { p: 8, y: 12 },
+        0.35: { p: 2, y: 8 },
+        0.62: { p: 6, y: 12 },
+        1.00: { p: 12, y: 10 },
+      },
+      ambush: {
+        0.00: { p: 8, y: 12 },
+        0.22: { p: -6, y: 14 },
+        0.50: { p: 4, y: 10 },
+        0.72: { p: 8, y: 12 },
+        1.00: { p: 12, y: 10 },
+      },
+      flurry: {
+        0.00: { p: 10, y: 12 },
+        0.20: { p: 2, y: 10 },
+        0.60: { p: 4, y: 12 },
+        0.90: { p: 8, y: 10 },
+        1.00: { p: 12, y: 10 },
+      },
+    },
+  },
+  tanker: {
+    left: {
+      bash: {
+        0.00: { p: 82, y: 0 },
+        0.26: { p: 84, y: 0 },
+        0.46: { p: 72, y: 0 },
+        0.62: { p: 80, y: 0 },
+        0.85: { p: 82, y: 0 },
+        1.00: { p: 82, y: 0 },
+      },
+      shieldslam: {
+        0.00: { p: 82, y: 0 },
+        0.26: { p: 58, y: 0 },
+        0.46: { p: 40, y: 0 },
+        0.72: { p: 74, y: 0 },
+        1.00: { p: 82, y: 0 },
+      },
+      fortress: {
+        0.00: { p: 82, y: 0 },
+        0.18: { p: 88, y: 0 },
+        0.85: { p: 88, y: 0 },
+        1.00: { p: 82, y: 0 },
+      },
+    },
+  },
+  mage: {
+    right: {
+      cast: {
+        0.00: { p: 70, y: 6 },
+        0.32: { p: 62, y: 6 },
+        0.52: { p: 66, y: 6 },
+        0.80: { p: 70, y: 6 },
+        1.00: { p: 69, y: 10 },
+      },
+      explosion: {
+        0.00: { p: 68, y: 10 },
+        0.30: { p: 58, y: 8 },
+        0.48: { p: 55, y: 6 },
+        0.62: { p: 52, y: 4 },
+        0.82: { p: 66, y: 8 },
+        1.00: { p: 69, y: 10 },
+      },
+      nova: {
+        0.00: { p: 69, y: 10 },
+        0.40: { p: 64, y: 6 },
+        0.80: { p: 66, y: 6 },
+        1.00: { p: 69, y: 10 },
+      },
+    },
+  },
+};
+
+// 조준 시 무기의 '평면' 기준: 무기 로컬 +Z가 향할 방향 (몸통 기준)
+const AIM_HINT = {
+  archer: { left: [-0.95, 0, 0.3] },   // 활몸이 앞, 시위가 몸 쪽
+  tanker: { left: [-0.91, 0, 0.41] },  // 방패 앞면이 앞·왼쪽
 };
 
 const POSE_KEYS = [
@@ -191,11 +379,47 @@ function toFrames(obj) {
 const FRAMES = {};
 Object.keys(CLIPS).forEach((k) => { FRAMES[k] = toFrames(CLIPS[k]); });
 
+const AIM_FRAMES = {};
+Object.keys(WEAPON_AIM).forEach((cid) => {
+  AIM_FRAMES[cid] = {};
+  Object.keys(WEAPON_AIM[cid]).forEach((side) => {
+    AIM_FRAMES[cid][side] = {};
+    Object.keys(WEAPON_AIM[cid][side]).forEach((clip) => {
+      AIM_FRAMES[cid][side][clip] = toFrames(WEAPON_AIM[cid][side][clip]);
+    });
+  });
+});
+
+// 캐릭터 기준 (pitch, yaw) 방향으로 무기를 세우는 쿼터니언
+const _aimAxis = new THREE.Vector3();
+const _aimZ = new THREE.Vector3();
+const _aimX = new THREE.Vector3();
+const _aimRef = new THREE.Vector3();
+const _aimMat = new THREE.Matrix4();
+const _qTorso = new THREE.Quaternion();
+const _qArm = new THREE.Quaternion();
+const _qFore = new THREE.Quaternion();
+const _qHand = new THREE.Quaternion();
+function aimQuaternion(pitchDeg, yawDeg, hint) {
+  const pitch = (pitchDeg * Math.PI) / 180;
+  const yaw = (yawDeg * Math.PI) / 180;
+  _aimAxis.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).normalize();
+  _aimRef.set(hint[0], hint[1], hint[2]);
+  if (Math.abs(_aimAxis.dot(_aimRef)) > 0.98) _aimRef.set(0, 1, 0);
+  _aimZ.copy(_aimRef).addScaledVector(_aimAxis, -_aimAxis.dot(_aimRef));
+  if (_aimZ.lengthSq() < 1e-5) _aimZ.set(0, 0, 1);
+  _aimZ.normalize();
+  _aimX.crossVectors(_aimAxis, _aimZ).normalize();
+  _aimMat.makeBasis(_aimX, _aimAxis, _aimZ);
+  return new THREE.Quaternion().setFromRotationMatrix(_aimMat);
+}
+
 export class Player {
   constructor(game, classId) {
     this.game = game;
     this.classId = classId;
     this.cls = CLASSES[classId];
+    this.stance = STANCE[classId] || STANCE.warrior;
     this.level = 1;
     this.maxHp = this.cls.hp;
     this.hp = this.maxHp;
@@ -361,16 +585,19 @@ export class Player {
     }
     const w = buildWeapons(this.classId, t);
     const wp = WEAPON_POSE[this.classId] || {};
+    this.weaponBase = { right: [0, 0, 0], left: [0, 0, 0] };
     if (w.right) {
-      const cfg = wp.r || { p: [0, -0.7, 0.2], r: [0, 0, 0] };
+      const cfg = wp.r || { p: [0, -0.5, 0.05], r: [0, 0, 0] };
       w.right.position.set(cfg.p[0], cfg.p[1], cfg.p[2]);
       w.right.rotation.set(cfg.r[0], cfg.r[1], cfg.r[2]);
+      this.weaponBase.right = cfg.r.slice();
       this.handR.add(w.right);
     }
     if (w.left) {
-      const cfg = wp.l || { p: [0, -0.5, 0.2], r: [0, 0, 0] };
+      const cfg = wp.l || { p: [0, -0.5, 0.05], r: [0, 0, 0] };
       w.left.position.set(cfg.p[0], cfg.p[1], cfg.p[2]);
       w.left.rotation.set(cfg.r[0], cfg.r[1], cfg.r[2]);
+      this.weaponBase.left = cfg.r.slice();
       this.handL.add(w.left);
     }
     this.weapons = w;
@@ -694,14 +921,15 @@ export class Player {
     POSE_KEYS.forEach((k) => { t[k] = 0; });
 
     const breath = Math.sin(this.time * 2.0);
+    const st = this.stance;
     t.bodyY = breath * 0.16;
     t.torsoPitch = 0.035 + breath * 0.015;
-    t.armLz = 0.17;
-    t.armRz = -0.22;
-    t.armLx = breath * 0.05;
-    t.armRx = -breath * 0.05;
-    t.foreLx = -0.28;
-    t.foreRx = -0.28;
+    t.armLz = st.armLz;
+    t.armRz = st.armRz;
+    t.armLx = st.armLx + breath * 0.05;
+    t.armRx = st.armRx - breath * 0.05;
+    t.foreLx = st.foreLx;
+    t.foreRx = st.foreRx;
     t.headYaw = Math.sin(this.time * 0.8) * 0.05;
     t.legLx = 0.02;
     t.legRx = -0.02;
@@ -715,10 +943,10 @@ export class Player {
       t.legRx = -s * 0.9 * moveAmt;
       t.kneeLx = Math.max(0, -s) * 1.15 * moveAmt;
       t.kneeRx = Math.max(0, s) * 1.15 * moveAmt;
-      t.armLx += -s * 0.62 * moveAmt;
-      t.armRx += s * 0.62 * moveAmt;
-      t.armLz = 0.15 + Math.abs(s) * 0.06;
-      t.armRz = -0.15 - Math.abs(s) * 0.06;
+      t.armLx += -s * 0.62 * moveAmt * st.swingL;
+      t.armRx += s * 0.62 * moveAmt * st.swingR;
+      t.armLz = st.armLz + Math.abs(s) * 0.05 * st.swingL;
+      t.armRz = st.armRz - Math.abs(s) * 0.05 * st.swingR;
       t.bodyY = Math.abs(Math.sin(this.walkPhase)) * 0.5 * moveAmt + breath * 0.12;
       t.torsoPitch = 0.05 + moveAmt * 0.07;
       t.torsoYaw = -s * 0.09 * moveAmt;
@@ -785,6 +1013,37 @@ export class Player {
     this.legR.rotation.set(p.legRx, 0, p.legRz);
     this.kneeL.rotation.x = p.kneeLx;
     this.kneeR.rotation.x = p.kneeRx;
+    this.updateWeaponHold();
+  }
+
+  // 클립별 무기 방향: 표가 있으면 몸통 기준 방향을 직접 지정하고,
+  // 없으면 기본 파지 자세(손 기준)를 그대로 둔다.
+  updateWeaponHold() {
+    const w = this.weapons;
+    if (!w || !this.weaponBase) return;
+    const table = AIM_FRAMES[this.classId];
+    const clip = this.anim.name;
+    const prog = clip ? clamp(this.anim.time / this.anim.duration, 0, 1) : 0;
+    for (const side of ['right', 'left']) {
+      const m = w[side];
+      if (!m) continue;
+      const b = this.weaponBase[side];
+      const frames = table && table[side] && clip ? table[side][clip] : null;
+      if (!frames) {
+        m.rotation.set(b[0], b[1], b[2]);
+        continue;
+      }
+      const aim = sampleFrames(prog, frames);
+      const hint = (AIM_HINT[this.classId] && AIM_HINT[this.classId][side]) || [0, 1, 0];
+      // 손(월드) 기준 → 몸통 기준: 몸통 아래 사슬을 합성한다
+      _qTorso.setFromEuler(this.torso.rotation);
+      _qArm.setFromEuler(side === 'right' ? this.armR.rotation : this.armL.rotation);
+      _qFore.setFromEuler(side === 'right' ? this.foreR.rotation : this.foreL.rotation);
+      _qHand.setFromEuler(side === 'right' ? this.handR.rotation : this.handL.rotation);
+      _qTorso.multiply(_qArm).multiply(_qFore).multiply(_qHand);
+      const target = aimQuaternion(aim.p, aim.y, hint);
+      m.quaternion.copy(_qTorso.invert().multiply(target));
+    }
   }
 
   updateWeaponFx(dt) {
