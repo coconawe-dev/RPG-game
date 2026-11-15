@@ -576,7 +576,8 @@ function buildRoad(scene, x0, z0, x1, z1, width, color) {
   const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
   for (let i = 0; i < pos.count; i++) {
     const u = pos.getX(i);
-    const v = pos.getZ(i);
+    // 회전된 평면의 로컬 z는 진행 방향의 반대 -> 뒤집지 않으면 면이 아래를 봐서 사라진다
+    const v = -pos.getZ(i);
     const wx = mx + nx * u + dx * v;
     const wz = mz + nz * u + dz * v;
     pos.setXYZ(i, wx, terrainHeight(wx, wz) + 0.24, wz);
