@@ -293,7 +293,7 @@ class Game {
     const label = high ? '✨ 고화질' : '⚡ 성능 우선';
     if (btn.textContent !== label) btn.textContent = label;
     btn.classList.toggle('on', high);
-    btn.setAttribute('aria-pressed', high ? 'false' : 'true');
+    btn.setAttribute('aria-label', high ? '화질: 지금 고화질. 누르면 성능 우선으로 바뀝니다' : '화질: 지금 성능 우선. 누르면 고화질로 바뀝니다');
     btn.title = high
       ? '지금 고화질 — 누르면 성능 우선(선명도 살짝 낮춤)으로 바꿉니다'
       : '지금 성능 우선 — 누르면 고화질(선명하게)로 바꿉니다';

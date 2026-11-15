@@ -191,6 +191,7 @@
     record('다시 탭하면 고화질로 돌아옴', afterHigh.quality === 'high', afterHigh);
     record('고화질 복귀 시 그림자 맵 1536 · 프롭 그림자 복원', afterHigh.shadowMap === 1536 && afterHigh.instancedCasters > 0, { map: afterHigh.shadowMap, casters: afterHigh.instancedCasters });
     record('고화질은 그리기 호출이 더 많음(프롭 그림자)', afterHigh.drawCalls >= lo.drawCalls, { high: afterHigh.drawCalls, low: lo.drawCalls });
+    record('토글 후 콘솔 오류 없음', (game(phoneHigh).errors || []).length === 0, (game(phoneHigh).errors || []).slice(0, 3));
 
     // ---------- 4) Retina(dpr 3) 에서도 2배까지 그리는지 ----------
     // (?dpr=3 으로 연 경우에는 이미 실제 Retina 배율로 돌고 있으므로 이 흔내내기는 건너뜀)
