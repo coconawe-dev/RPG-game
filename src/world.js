@@ -325,7 +325,12 @@ const KEEP_OUTS = {
   ominous_cave: [{ x: 0, z: WORLD2.originZ - 1000, r: 170 }, { x: 0, z: WORLD2.originZ - 500, r: 100 }],
   misty_plains: [{ x: -1000, z: WORLD2.originZ, r: 160 }, { x: -500, z: WORLD2.originZ, r: 100 }],
   sakura: [{ x: 1000, z: WORLD2.originZ, r: 180 }, { x: 500, z: WORLD2.originZ, r: 100 }],
-  dark_realm: [{ x: 0, z: WORLD2.originZ, r: 320 }],
+  dark_realm: [
+    { x: 0, z: WORLD2.originZ, r: 320 },
+    // 남쪽에서 투기장으로 들어오는 길을 비워 둔다 (시야를 가리는 뾰족바위 금지)
+    { x: 0, z: WORLD2.originZ + 250, r: 150 },
+    { x: 0, z: WORLD2.originZ + 420, r: 130 },
+  ],
 };
 
 /* ------------------------------ 바이옴별 프롭 ------------------------------ */
@@ -1915,27 +1920,59 @@ function buildDarkRealm(scene) {
   scene.add(arenaDisc);
 
   const runeRings = new THREE.Group();
-  for (let k = 0; k < 2; k++) {
-    const rr = 150 + k * 90;
-    for (let i = 0; i < 24; i++) {
-      const a = (i / 24) * Math.PI * 2;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 8), k === 0 ? runeMat : crimsonMat);
-      m.position.set(Math.cos(a) * rr, 0.7, W2 + Math.sin(a) * rr);
-      m.rotation.y = -a;
-      runeRings.add(m);
+  // 룬 한 벌을 인스턴싱으로 그린다 (24개씩 두 겹 — 그리기 호출 2번)
+  const makeRuneRing = (mat, count, radius, y) => {
+    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, 0.3, 8), mat, count);
+    const mtx = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const v = new THREE.Vector3();
+    const sc = new THREE.Vector3(1, 1, 1);
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2;
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a);
+      mtx.compose(v.set(Math.cos(a) * radius, y, Math.sin(a) * radius), q, sc);
+      mesh.setMatrixAt(i, mtx);
     }
-  }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.position.z = WORLD2.originZ;
+    mesh.frustumCulled = true;
+    mesh.computeBoundingSphere();
+    return mesh;
+  };
+  runeRings.add(makeRuneRing(runeMat, 24, 150, 0.7));
+  runeRings.add(makeRuneRing(crimsonMat, 24, 240, 0.7));
   scene.add(runeRings);
 
-  // 떠 있는 룬석
+  // 떠 있는 룬석 (색깔별 두 벌 인스턴싱)
   const floaters = new THREE.Group();
   const rnd2 = mulberry32(9503);
+  const floaterSpots = [];
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
     const r = 120 + rnd2() * 150;
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(3.0, 0), i % 3 ? runeMat : crimsonMat);
-    m.position.set(Math.cos(a) * r, 22 + rnd2() * 40, W2 + Math.sin(a) * r);
-    floaters.add(m);
+    floaterSpots.push({
+      x: Math.cos(a) * r, y: 22 + rnd2() * 40, z: WORLD2.originZ + Math.sin(a) * r, odd: i % 3 === 0,
+    });
+  }
+  for (const odd of [false, true]) {
+    const list = floaterSpots.filter((s) => s.odd === odd);
+    const mesh = new THREE.InstancedMesh(
+      new THREE.OctahedronGeometry(3.0, 0),
+      odd ? crimsonMat : runeMat,
+      list.length
+    );
+    const mtx = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const v = new THREE.Vector3();
+    const sc = new THREE.Vector3(1, 1, 1);
+    for (let i = 0; i < list.length; i++) {
+      mtx.compose(v.set(list[i].x, list[i].y, list[i].z), q, sc);
+      mesh.setMatrixAt(i, mtx);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.frustumCulled = true;
+    mesh.computeBoundingSphere();
+    floaters.add(mesh);
   }
   scene.add(floaters);
 
