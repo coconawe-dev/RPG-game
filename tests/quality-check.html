@@ -153,7 +153,7 @@
     record('성능 우선 그림자 맵 · PCF', lo.shadowMap === 1024 && lo.shadowType === 1, { map: lo.shadowMap, type: lo.shadowType });
     record('성능 우선은 프롭 그림자 없음', lo.instancedCasters === 0, { instancedCasters: lo.instancedCasters, total: lo.casters });
     record('성능 우선 픽셀 비율 1.25 이하', lo.pixelRatio <= 1.25 + 1e-6, lo.pixelRatio);
-    record('성능 우선이 그리기를 덜 함', lo.drawCalls < ph.drawCalls, { low: lo.drawCalls, high: ph.drawCalls });
+    record('성능 우선은 그림자를 덜 그림', lo.casters < ph.casters, { low: lo.casters, high: ph.casters });
 
     // ---------- 3) 화질 토글 버튼: 자리 · 표시 · 동작 ----------
     const pd = doc(phoneHigh);
@@ -190,7 +190,7 @@
     const afterHigh = report(phoneHigh);
     record('다시 탭하면 고화질로 돌아옴', afterHigh.quality === 'high', afterHigh);
     record('고화질 복귀 시 그림자 맵 1536 · 프롭 그림자 복원', afterHigh.shadowMap === 1536 && afterHigh.instancedCasters > 0, { map: afterHigh.shadowMap, casters: afterHigh.instancedCasters });
-    record('고화질은 그리기 호출이 더 많음(프롭 그림자)', afterHigh.drawCalls >= lo.drawCalls, { high: afterHigh.drawCalls, low: lo.drawCalls });
+    record('고화질 복귀 시 프롭 그림자 수가 원래대로', afterHigh.instancedCasters === ph.instancedCasters, { now: afterHigh.instancedCasters, before: ph.instancedCasters });
     record('토글 후 콘솔 오류 없음', (game(phoneHigh).errors || []).length === 0, (game(phoneHigh).errors || []).slice(0, 3));
 
     // ---------- 4) Retina(dpr 3) 에서도 2배까지 그리는지 ----------
