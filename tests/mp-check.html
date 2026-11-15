@@ -100,7 +100,9 @@
       ? { x: [...guestGame.net.remotes.values()][0].x, z: [...guestGame.net.remotes.values()][0].z, hx: hostGame.player.position.x, hz: hostGame.player.position.z }
       : { x: 0, z: 0, hx: 0, hz: 0 };
     hostGame.input.forward = true;
-    await sleep(1400);
+    const hold = setInterval(() => { hostGame.input.forward = true; }, 50);
+    await sleep(1600);
+    clearInterval(hold);
     hostGame.input.forward = false;
     await sleep(800);
     const hostX = hostGame.player.position.x;
@@ -111,7 +113,7 @@
     const hostMoved = Math.hypot(hostX - before.hx, hostZ - before.hz);
     const guestSaw = Math.hypot(guestViewX - before.x, guestViewZ - before.z);
     const lag = Math.hypot(guestViewX - hostX, guestViewZ - hostZ);
-    record('이동 동기화', hostMoved > 5 && guestSaw > 4 && lag < 90, {
+    record('이동 동기화', hostMoved > 8 && guestSaw > 6 && lag < 90, {
       hostMoved: Math.round(hostMoved), guestSaw: Math.round(guestSaw), lag: Math.round(lag),
     });
 
