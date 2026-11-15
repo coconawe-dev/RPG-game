@@ -648,18 +648,29 @@ class Game {
 
   copyInviteLink() {
     const url = this.inviteUrl();
-    const done = () => {
+    let settled = false;
+    const success = () => {
+      if (settled) return;
+      settled = true;
       this.hud.flashCopied();
       this.mpNote('초대 링크를 복사했습니다 · 카톡으로 붙여넣어 보내세요', 'ok');
     };
+    const failure = () => {
+      if (settled) return;
+      settled = true;
+      this.copyFallback(url, success);
+    };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url).then(done).catch(() => this.copyFallback(url, done));
+      navigator.clipboard.writeText(url).then(success).catch(failure);
+      // 권한 창이 뜨거나 응답이 없는 경우를 대비해 잠시 뒤 직접 복사로 넘긴다
+      setTimeout(() => { if (!settled) failure(); }, 700);
     } else {
-      this.copyFallback(url, done);
+      failure();
     }
   }
 
   copyFallback(text, done) {
+    let ok = false;
     try {
       const ta = document.createElement('textarea');
       ta.value = text;
@@ -668,13 +679,17 @@ class Game {
       ta.style.opacity = '0';
       document.body.appendChild(ta);
       ta.select();
-      const ok = document.execCommand && document.execCommand('copy');
+      ok = !!(document.execCommand && document.execCommand('copy'));
       document.body.removeChild(ta);
-      if (ok) done();
-      else this.hud.banner('링크: ' + text, 6000);
     } catch (e) {
-      this.hud.banner('링크: ' + text, 6000);
+      ok = false;
     }
+    if (ok) {
+      done();
+      return;
+    }
+    // 복사가 막혔으면 링크를 화면에 보여 주어 직접 복사할 수 있게 한다
+    this.hud.banner('링크 복사: ' + text, 8000);
   }
 
   leaveRoom() {
