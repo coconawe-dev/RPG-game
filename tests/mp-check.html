@@ -96,21 +96,28 @@
     record('참가자가 호스트를 봄', guestGame.net.remotes.size > 0, { remotes: guestGame.net.remotes.size, mirrors: guestGame.net.mirrors.size });
 
     // 호스트 위치를 크게 옮겨 참가자 화면이 따라오는지 (스냅샷 → 보간)
+    // (이 점검 환경은 소프트웨어 WebGL로 프레임이 느려, 고정 시간 대신 따라잡을 때까지 기다린다)
     const before = guestGame.net.remotes.size
       ? { x: [...guestGame.net.remotes.values()][0].x, z: [...guestGame.net.remotes.values()][0].z }
       : { x: 0, z: 0 };
     hostGame.player.position.x += 70;
     hostGame.player.position.z += 70;
-    await sleep(1200);
     const hostX = hostGame.player.position.x;
     const hostZ = hostGame.player.position.z;
-    const rec = guestGame.net.remotes.size ? [...guestGame.net.remotes.values()][0] : null;
-    const guestViewX = rec ? rec.x : 0;
-    const guestViewZ = rec ? rec.z : 0;
-    const guestSaw = Math.hypot(guestViewX - before.x, guestViewZ - before.z);
-    const lag = Math.hypot(guestViewX - hostX, guestViewZ - hostZ);
+    const t0 = Date.now();
+    let rec = null;
+    let lag = 999;
+    while (Date.now() - t0 < 12000) {
+      rec = guestGame.net.remotes.size ? [...guestGame.net.remotes.values()][0] : null;
+      if (rec) {
+        lag = Math.hypot(rec.x - hostX, rec.z - hostZ);
+        if (lag < 90) break;
+      }
+      await sleep(300);
+    }
+    const guestSaw = rec ? Math.hypot(rec.x - before.x, rec.z - before.z) : 0;
     record('위치 동기화', guestSaw > 40 && lag < 90, {
-      guestSaw: Math.round(guestSaw), lag: Math.round(lag),
+      guestSaw: Math.round(guestSaw), lag: Math.round(lag), ms: Date.now() - t0,
     });
 
     // 몹 스냅샷
