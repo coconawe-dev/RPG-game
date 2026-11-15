@@ -146,6 +146,8 @@ class Game {
     this.autoClass = qp.get('class');
     const qx = parseFloat(qp.get('x'));
     const qz = parseFloat(qp.get('z'));
+    // 점검용: 인위적으로 프레임을 느리게 만들어 자동 화질 하향을 시험한다 (?perfdelay=800)
+    this.perfDelay = parseFloat(qp.get('perfdelay')) || 0;
     this.debugSpawn = (isFinite(qx) && isFinite(qz)) ? { x: qx, z: qz } : null;
     if (this.autoClass && CLASSES[this.autoClass]) {
       // ?room= 초대 링크로 들어왔으면 혼자 모드로 새지 않게 한다
@@ -1123,6 +1125,13 @@ class Game {
     this.last = now;
     const dt = clamp(dtRaw, 0, 0.05);
     this.elapsed += dt;
+
+    // 느린 기기 흉내 (?perfdelay=ms) — 지정한 시간이 지나기 전에는 그리지 않고 건너뛴다
+    if (this.perfDelay > 0) {
+      this._pdAcc = (this._pdAcc || 0) + dtRaw * 1000;
+      if (this._pdAcc < this.perfDelay) return;
+      this._pdAcc = 0;
+    }
 
     this.step(dt);
 

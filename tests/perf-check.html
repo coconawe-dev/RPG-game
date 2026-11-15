@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>렉·프레임 점검</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #0a0d12; color: #e6edf3; font: 11px/1.45 ui-monospace, monospace; }
+  #wrap { display: flex; gap: 16px; padding: 10px; align-items: flex-start; }
+  .cell { position: relative; flex: none; }
+  .tag { position: absolute; left: 8px; top: 8px; z-index: 5; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.6); color: #ffd98a; font-weight: 700; pointer-events: none; }
+  iframe.device { display: block; border: 1px solid #2a3440; border-radius: 12px; background: #000; }
+  #result { position: fixed; left: 0; right: 0; bottom: 0; max-height: 34%; overflow: auto; margin: 0; padding: 8px 12px; background: rgba(4,7,10,.94); border-top: 1px solid #24303c; white-space: pre-wrap; }
+  .muted { opacity: .7; }
+</style>
+</head>
+<body>
+<!--
+  렉 · 프레임 점검 페이지.
+
+  게임을 iframe 하나에 띄워 그리기 호출 수(draw calls) · 삼각형 수 · 조명 수 · 화면 품질 ·
+  실제 프레임 수(FPS)를 재서 아래에 JSON 으로 보여 준다.
+
+    tests/perf-check.html?size=phone    390×844 · 휴대폰 품질(low)
+    tests/perf-check.html?size=desktop  1280×800 · 데스크톱 품질(high)
+    tests/perf-check.html?size=phone&mi=120   인위적으로 120ms 마다 한 프레임(아주 느린 기기 흉내 → 자동 화질 하향 확인)
+
+  document.title 이 PASS / FAIL 로 바뀐다.
+-->
+<div id="wrap">
+  <div class="cell">
+    <span class="tag" id="tag">측정 중…</span>
+    <iframe class="device" id="game" title="게임 화면"></iframe>
+  </div>
+</div>
+<pre id="result">running…</pre>
+<script>
+(() => {
+  const out = document.getElementById('result');
+  const frame = document.getElementById('game');
+  const tag = document.getElementById('tag');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const qp = new URLSearchParams(location.search);
+  const size = qp.get('size') === 'desktop' ? 'desktop' : 'phone';
+  const src = qp.get('src') || '../index.html';
+  const mi = Number(qp.get('mi')) || 0; // 인위적 프레임 지연(ms) — 느린 기기 흉내
+  const W = size === 'desktop' ? 1280 : 390;
+  const H = size === 'desktop' ? 800 : 844;
+  frame.style.width = W + 'px';
+  frame.style.height = H + 'px';
+  tag.textContent = (size === 'desktop' ? '데스크톱 1280×800' : '휴대폰 390×844') + (mi ? ' · 느린 기기 흉내' : '');
+
+  const results = {};
+  window.__PERF_CHECK__ = results;
+  const record = (name, pass, detail) => {
+    results[name] = { pass: !!pass, detail: detail === undefined ? null : detail };
+    out.textContent = JSON.stringify(results, null, 1);
+  };
+  const game = () => { try { return frame.contentWindow.__GAME__ || null; } catch (e) { return null; } };
+
+  async function waitFor(fn, ms, step) {
+    const start = Date.now();
+    while (Date.now() - start < (ms || 30000)) {
+      let v = null;
+      try { v = fn(); } catch (e) { v = null; }
+      if (v) return v;
+      await sleep(step || 250);
+    }
+    return null;
+  }
+
+  // 프레임 수를 직접 센다 (게임 루프와 별개로 rAF 를 하나 더 돌린다)
+  async function measureFps(ms) {
+    let frames = 0;
+    const t0 = performance.now();
+    await new Promise((res) => {
+      const loop = () => {
+        frames++;
+        if (performance.now() - t0 < ms) requestAnimationFrame(loop);
+        else res();
+      };
+      requestAnimationFrame(loop);
+    });
+    return +(frames / ((performance.now() - t0) / 1000)).toFixed(1);
+  }
+
+  window.addEventListener('load', async () => {
+    const params = '?class=warrior&biome=forest&quality=' + (size === 'desktop' ? 'high' : 'low')
+      + (mi ? '&perfdelay=' + mi : '') + '&v=' + Date.now();
+    frame.src = src + params;
+    const g = await waitFor(() => {
+      const gg = game();
+      return gg && gg.firstFrameDone && gg.state === 'playing' ? gg : null;
+    }, 40000);
+    if (!g) {
+      record('게임 시작', false, '시간 초과');
+      document.title = 'perf-check FAIL';
+      return;
+    }
+    record('게임 시작', true, { quality: g.quality, pixelRatio: g.pixelRatio });
+
+    // 첫 프레임 뒤 셰이더 컴파일 · 몹 배치가 끝나도록 잠시 기다린다
+    await sleep(1500);
+
+    const info = g.renderer.info;
+    let lights = 0;
+    let shadowCasters = 0;
+    g.scene.traverse((o) => {
+      if (o.isLight) lights++;
+      if ((o.isMesh || o.isInstancedMesh) && o.castShadow) shadowCasters++;
+    });
+    const visBiomes = g.world && g.world.biomeGroups
+      ? Object.keys(g.world.biomeGroups).filter((id) => g.world.biomeGroups[id].visible) : [];
+    const mobTotal = g.mobManager ? g.mobManager.mobs.length : 0;
+    const mobVisible = g.mobManager ? g.mobManager.mobs.filter((m) => m.root.visible).length : 0;
+
+    const stats = {
+      quality: g.quality,
+      pixelRatio: g.pixelRatio,
+      drawCalls: info.render.calls,
+      triangles: info.render.triangles,
+      programs: info.programs.length,
+      lights,
+      shadowCasters,
+      visibleBiomes: visBiomes,
+      mobs: { total: mobTotal, visible: mobVisible },
+      consoleErrors: (g.errors || []).slice(0, 4),
+    };
+    record('그리기 통계', true, stats);
+
+    const fps = await measureFps(3000);
+    record('프레임', true, { fps: fps + ' fps', note: '이 브라우저 · 이 화면 크기에서의 측정값' });
+
+    // 느슨한 기준선: 그리기 호출이 수백 개를 넘거나 프레임이 20 아래면 실패로 표시
+    const callsOk = stats.drawCalls < 500;
+    const trisOk = stats.triangles < 420000;
+    const lightsOk = stats.lights <= 4;
+    const errorsOk = stats.consoleErrors.length === 0;
+    record('그리기 호출 500 이하', callsOk, stats.drawCalls);
+    record('삼각형 42만 이하', trisOk, stats.triangles);
+    record('조명 4개 이하', lightsOk, lights);
+    record('콘솔 오류 없음', errorsOk, stats.consoleErrors);
+
+    const pass = callsOk && trisOk && lightsOk && errorsOk;
+    out.textContent = JSON.stringify(results, null, 1);
+    document.title = pass ? 'perf-check ALL PASS' : 'perf-check FAIL';
+  });
+})();
+</script>
+</body>
+</html>
