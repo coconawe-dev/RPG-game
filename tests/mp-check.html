@@ -132,6 +132,14 @@
     const pass = Object.values(results).every((r) => r.pass);
     out.textContent = lines.join('\n') + '\n\n' + (pass ? 'ALL PASS' : 'SOME FAILED');
     document.title = pass ? 'mp-check ALL PASS' : 'mp-check FAIL';
+
+    // 마지막으로 호스트를 참가자 옆으로 불러 두 캐릭터가 한 화면에 나오게 한다
+    const gRec = guestGame.net.remotes.size ? [...guestGame.net.remotes.values()][0] : null;
+    if (gRec) {
+      hostGame.player.position.x = gRec.x + 24;
+      hostGame.player.position.z = gRec.z + 6;
+    }
+    await sleep(4000);
   });
 })();
 </script>
