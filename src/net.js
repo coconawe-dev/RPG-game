@@ -387,12 +387,14 @@ export class Net {
     this.roomCode = normalizeRoomCode(code);
     this.classId = classId;
     if (onStatus) onStatus('방을 찾는 중…');
-    await this._connectFirst(onStatus);
+    // 호스트가 어느 중계 서버에 있든 만날 수 있게, 연결되는 서버에 모두 붙는다
+    await this._connectAll(onStatus);
     const out = this._topic('h');
     const back = this._topic('g');
-    const t = this.transports[0];
-    t.subscribe(back);
-    t.onPublish = (tp, body) => { if (tp === back) this._onGuestMessage(body); };
+    for (const t of this.transports) {
+      t.subscribe(back);
+      t.onPublish = (tp, body) => { if (tp === back) this._onGuestMessage(body); };
+    }
 
     const welcome = new Promise((resolve, reject) => {
       this._welcomeResolve = resolve;
@@ -407,7 +409,7 @@ export class Net {
       pid: this.pid, nick: this.nick, class: classId, wt: 0,
     }));
     this._joinRetry = setInterval(() => {
-      if (!this.active && !this._welcomeResolve) return;
+      if (this.active) return;
       this.publish(out, encodeMsg('join', { pid: this.pid, nick: this.nick, class: classId, wt: 0 }));
     }, 2500);
     const data = await welcome;
@@ -419,50 +421,59 @@ export class Net {
     return data;
   }
 
+  // 연결되는 중계 서버에 모두 붙는다 — 어느 쪽에 있든 서로 만나게 하기 위해 (병렬 접속)
   async _connectAll(onStatus) {
-    const ok = [];
-    for (const b of BROKERS) {
-      if (onStatus) onStatus('중계 서버 접속 중… (' + b.name + ')');
+    if (onStatus) onStatus('중계 서버 접속 중…');
+    const attempts = BROKERS.map(async (b) => {
       const c = new RelayClient(b.url);
       try {
-        await c.connect('rpg' + makePid() + Math.random().toString(36).slice(2, 6), 8000);
-        ok.push(c);
+        await c.connect('rpg' + makePid() + Math.random().toString(36).slice(2, 6), 9000);
+        return c;
       } catch (e) {
         c.close();
+        return null;
       }
-    }
+    });
+    const results = await Promise.all(attempts);
+    const ok = results.filter(Boolean);
     if (!ok.length) throw new Error('멀티플레이 중계 서버에 접속하지 못했습니다. 잠시 후 다시 시도해 주세요.');
     this.transports = ok;
     this.lastRecvAt = Date.now();
     return ok;
   }
 
-  async _connectFirst(onStatus) {
-    for (const b of BROKERS) {
-      if (onStatus) onStatus('중계 서버 접속 중… (' + b.name + ')');
-      const c = new RelayClient(b.url);
-      try {
-        await c.connect('rpg' + makePid() + Math.random().toString(36).slice(2, 6), 8000);
-        this.transports = [c];
-        this.lastRecvAt = Date.now();
-        return c;
-      } catch (e) {
-        c.close();
-      }
-    }
-    throw new Error('멀티플레이 중계 서버에 접속하지 못했습니다. 잠시 후 다시 시도해 주세요.');
-  }
-
   _topic(kind) { return TOPIC_PREFIX + this.roomCode + '/' + kind; }
 
+  // 같은 메시지가 여러 중계 서버로 두 번 도착할 수 있어 (보낸이,순번)으로 걸러 낸다
+  _stamp(text) {
+    if (typeof text !== 'string' || text.length < 3 || text[0] !== '{' || text[text.length - 1] !== '}') return text;
+    this._seq = (this._seq || 0) + 1;
+    return text.slice(0, -1) + ',"f":"' + this.pid + '","s":' + this._seq + '}';
+  }
+
+  _seenAlready(key) {
+    const now = Date.now();
+    if (!this._seen) this._seen = new Map();
+    const at = this._seen.get(key);
+    if (at && now - at < 4000) return true;
+    this._seen.set(key, now);
+    if (this._seen.size > 240) {
+      for (const [k, t] of this._seen) {
+        if (now - t > 4000) this._seen.delete(k);
+      }
+    }
+    return false;
+  }
+
   publish(channel, text) {
+    const stamped = this._stamp(text);
     let sent = false;
     for (const t of this.transports) {
-      if (t.publish(this._topic(channel), text)) sent = true;
+      if (t.publish(this._topic(channel), stamped)) sent = true;
     }
     if (sent) {
       this.stats.sent++;
-      this.stats.bytes += text.length;
+      this.stats.bytes += stamped.length;
     }
     return sent;
   }
@@ -472,6 +483,9 @@ export class Net {
     const msg = decodeMsg(raw);
     if (!msg) return;
     if (msg.p && msg.p.pid === this.pid) return;  // 내가 보낸 메시지 무시
+    if (msg.f !== undefined && msg.s !== undefined) {
+      if (this._seenAlready(msg.f + ':' + msg.s)) return;
+    }
     this.stats.recv++;
     this.lastRecvAt = Date.now();
     if (this.isHost) this._handleHost(msg);
