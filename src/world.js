@@ -877,10 +877,16 @@ function signTexture(text, sub) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = 'bold 62px "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif';
+  // 글자가 길면 간판 폭(470px)에 맞춰 글씨를 줄인다
+  let size = 62;
+  while (size > 24 && ctx.measureText(text).width > 470) {
+    size -= 2;
+    ctx.font = 'bold ' + size + 'px "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif';
+  }
   ctx.fillText(text, 256, sub ? 64 : 82);
   if (sub) {
     ctx.fillStyle = '#d9c9a0';
-    ctx.font = 'bold 30px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+    ctx.font = 'bold 24px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
     ctx.fillText(sub, 256, 124);
   }
   const tex = new THREE.CanvasTexture(c);
@@ -1119,7 +1125,7 @@ function buildVillageGate(scene) {
   scene.add(sign);
 }
 
-// 무기 · 포션 상점 건물 + 상점 주인 NPC
+// 무기 · 갑옷 · 포션 상점 건물 + 상점 주인 NPC
 function buildShop(scene) {
   const s = BIOMES.village.shop;
   const g = new THREE.Group();
@@ -1211,7 +1217,7 @@ function buildShop(scene) {
   // 간판
   const signBoard = new THREE.Mesh(
     new THREE.BoxGeometry(82, 24, 2.6),
-    signMaterial('무기 · 포션 상점', 'WEAPONS & POTIONS', 0x3f2712)
+    signMaterial('무기 · 갑옷 · 포션 상점', 'WEAPONS · ARMOR · POTIONS', 0x3f2712)
   );
   signBoard.position.set(0, 63, 34);
   signBoard.castShadow = true;
