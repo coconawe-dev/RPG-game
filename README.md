@@ -116,6 +116,14 @@ npm i three   # 테스트용으로만 필요 (게임 실행에는 불필요)
 npm test      # tests/smoke.mjs: 월드 생성, 5개 직업 이동/공격/스킬, 부활, 보스 처치 검증
 ```
 
+브라우저 입력(멀티터치) 점검은 `tests/browser-touch-check.html`을 브라우저로 열면 됩니다.
+게임을 iframe으로 띄운 뒤 조이스틱 + 화면 드래그를 동시에 흉내 내는 터치 이벤트를 보내고,
+카메라 회전·조이스틱 유지·마우스 드래그 폴백이 기대대로 동작하는지 결과를 JSON으로 보여줍니다(16개 항목).
+
+- 기본은 같은 폴더 기준 `../index.html`을 검사합니다.
+- `?src=` 로 다른 빌드를 지정할 수 있습니다. 예: 수정 전 커밋과 비교해 회귀를 확인할 때
+  `tests/browser-touch-check.html?src=https://raw.githack.com/<owner>/<repo>/<commit>/index.html?class=warrior&touch=1`
+
 ### 파일 구조
 
 ```
