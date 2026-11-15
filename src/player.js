@@ -915,6 +915,28 @@ export class Player {
     this.updateWeaponFx(dt);
   }
 
+  /* --------------------------- 원격 친구 렌더 --------------------------- */
+  // 위치·보간은 net 쪽에서 처리하고, 여기서는 자세·애니메이션만 갱신한다.
+  updateRemote(dt, st) {
+    this.time += dt;
+    const s = st || {};
+    if (s.weaponTier !== undefined && s.weaponTier !== this.weaponTier) {
+      this.equipWeaponTier(clamp(Math.round(s.weaponTier), 0, 2));
+    }
+    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+    this.invuln = Math.max(0, this.invuln - dt);
+    if (typeof s.yaw === 'number') this.facing = dampAngle(this.facing, s.yaw, 16, dt);
+    if (s.anim && s.anim !== this.anim.name) {
+      this.playAnim(s.anim, s.animDur || 0.6);
+    }
+    this.speedNow = damp(this.speedNow, Number(s.speed) || 0, 9, dt);
+    this.root.position.copy(this.position);
+    this.root.rotation.y = this.facing;
+    this.updatePose(dt, null);
+    this.updateWeaponFx(dt);
+  }
+
+  /* --------------------------- 원격 친구 렌더 (끝) --------------------------- */
   updatePose(dt, input) {
     const p = this.pose;
     const t = this.target;

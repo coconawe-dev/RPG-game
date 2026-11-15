@@ -32,6 +32,15 @@ export class HUD {
       targetFill: $('target-fill'),
       minimap: $('minimap'),
       compass: $('compass'),
+      mapPanel: $('map-panel'),
+      mapOpenBtn: $('map-open-btn'),
+      mapClose: $('map-close'),
+      roomPanel: $('room-panel'),
+      rpCount: $('rp-count'),
+      rpCode: $('rp-code'),
+      rpCopy: $('rp-copy'),
+      rpPlayers: $('rp-players'),
+      rpLeave: $('rp-leave'),
       banner: $('banner'),
       floaters: $('floaters'),
       nameplates: $('nameplates'),
@@ -57,6 +66,10 @@ export class HUD {
     this.minimapCtx = this.dom.minimap.getContext('2d');
     this.floaters = [];
     this.namePlatePool = [];
+    this.playerPlatePool = [];
+    this.mapOpen = true;
+    this._roomSig = '';
+    this._copyTimer = null;
     this.compSide = {};
     this.target = null;
     this.targetTime = 0;
@@ -82,6 +95,90 @@ export class HUD {
       p.classList.toggle('collapsed');
       this.dom.controlsToggle.textContent = p.classList.contains('collapsed') ? '펼치기' : '접기';
     });
+
+    this.bindMapToggle();
+  }
+
+  /* --------------------------- 지도 접기 / 펴기 --------------------------- */
+  bindMapToggle() {
+    const open = this.dom.mapOpenBtn;
+    const close = this.dom.mapClose;
+    const bind = (el, fn) => {
+      if (!el) return;
+      el.addEventListener('click', (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        fn();
+      });
+      el.addEventListener('touchstart', (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        fn();
+      }, { passive: false });
+    };
+    bind(open, () => this.setMapOpen(true));
+    bind(close, () => this.setMapOpen(false));
+    this.setMapOpen(true);
+  }
+
+  setMapOpen(on) {
+    this.mapOpen = !!on;
+    if (this.dom.mapPanel) this.dom.mapPanel.classList.toggle('collapsed', !this.mapOpen);
+    if (this.dom.mapOpenBtn) this.dom.mapOpenBtn.classList.toggle('hidden', this.mapOpen);
+  }
+
+  toggleMap() {
+    this.setMapOpen(!this.mapOpen);
+    return this.mapOpen;
+  }
+
+  /* ------------------------------ 방 정보 ------------------------------ */
+  showRoom(info) {
+    const d = this.dom;
+    if (!d.roomPanel) return;
+    d.roomPanel.classList.remove('hidden');
+    if (d.rpCode) d.rpCode.textContent = (info && info.code) || '····';
+    if (d.rpCopy) {
+      d.rpCopy.classList.remove('done');
+      d.rpCopy.textContent = '🔗 초대 링크 복사';
+    }
+    this.updateRoom(info || {});
+  }
+
+  hideRoom() {
+    if (this.dom.roomPanel) this.dom.roomPanel.classList.add('hidden');
+    this._roomSig = '';
+  }
+
+  updateRoom(info) {
+    const d = this.dom;
+    if (!d.roomPanel || d.roomPanel.classList.contains('hidden')) return;
+    const players = info.players || [];
+    const count = info.count === undefined ? players.length : info.count;
+    const sig = count + '|' + players.map((p) => p.nick + p.level + p.hp + (p.alive ? 1 : 0)).join(',');
+    if (sig === this._roomSig) return;
+    this._roomSig = sig;
+    if (d.rpCount) d.rpCount.textContent = '👥 ' + count + '명 접속 중';
+    if (d.rpCode && info.code) d.rpCode.textContent = info.code;
+    if (d.rpPlayers) {
+      d.rpPlayers.innerHTML = players.map((p) =>
+        '<div class="rp-player' + (p.me ? ' me' : '') + '">' +
+        '<i class="rp-dot' + (p.alive === false ? ' dead' : '') + '"></i>' +
+        '<b>' + String(p.nick || '친구').slice(0, 10) + '</b>' +
+        '<span>' + (p.classId && CLASSES[p.classId] ? CLASSES[p.classId].name : '') + ' Lv.' + (p.level || 1) + (p.me ? ' · 나' : '') + '</span>' +
+        '</div>'
+      ).join('');
+    }
+  }
+
+  flashCopied() {
+    const el = this.dom.rpCopy;
+    if (!el) return;
+    el.textContent = '✅ 복사됨!';
+    el.classList.add('done');
+    if (this._copyTimer) clearTimeout(this._copyTimer);
+    this._copyTimer = setTimeout(() => {
+      el.textContent = '🔗 초대 링크 복사';
+      el.classList.remove('done');
+    }, 1600);
   }
 
   /* --------------------------- 클래스 선택 --------------------------- */
@@ -106,7 +203,10 @@ export class HUD {
         '<div class="cc-skill"><b>Q</b>' + c.skills.q.name + ' <span style="opacity:.6">(' + c.skills.q.cooldown + '초)</span></div>' +
         '<div class="cc-skill"><b>E</b>' + c.skills.e.name + ' <span style="opacity:.6">(' + c.skills.e.cooldown + '초)</span></div>' +
         '</div>';
-      card.addEventListener('click', () => this.game.startClass(id));
+      card.addEventListener('click', () => {
+        if (this.game.requestStart) this.game.requestStart(id);
+        else this.game.startClass(id);
+      });
       grid.appendChild(card);
     }
   }
@@ -348,11 +448,14 @@ export class HUD {
     }
 
     // 미니맵 · 나침반
-    this.drawMinimap(p);
-    this.updateCompass(p);
+    if (this.mapOpen) {
+      this.drawMinimap(p);
+      this.updateCompass(p);
+    }
 
     // 네임플레이트 · 데미지 숫자
     this.updateNameplates();
+    this.updatePlayerPlates();
     this.updateFloaters(dt);
 
     // 배너 타이머
@@ -523,6 +626,47 @@ export class HUD {
     for (let i = used; i < this.namePlatePool.length; i++) {
       this.namePlatePool[i].el.style.display = 'none';
     }
+  }
+
+  /* ------------------------ 함께 하는 친구 이름표 ------------------------ */
+  updatePlayerPlates() {
+    const g = this.game;
+    const net = g.net;
+    const pool = this.playerPlatePool;
+    let used = 0;
+    if (net && net.active && net.remotes.size && g.camera) {
+      const cam = g.camera;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const v = new THREE.Vector3();
+      for (const rec of net.remotes.values()) {
+        const rig = rec.rig;
+        if (!rig) continue;
+        v.set(rig.position.x, rig.position.y + 26, rig.position.z).project(cam);
+        if (v.z > 1 || v.z < -1) continue;
+        const sx = (v.x * 0.5 + 0.5) * w;
+        const sy = (-v.y * 0.5 + 0.5) * h;
+        if (sx < -120 || sx > w + 120 || sy < -60 || sy > h + 60) continue;
+        let np = pool[used];
+        if (!np) {
+          const el = document.createElement('div');
+          el.className = 'nameplate player';
+          el.innerHTML = '<div class="np-name"></div><div class="np-bar"><div class="np-fill"></div></div>';
+          this.dom.nameplates.appendChild(el);
+          np = { el, name: el.querySelector('.np-name'), fill: el.querySelector('.np-fill') };
+          pool.push(np);
+        }
+        used++;
+        np.el.style.display = 'block';
+        np.el.style.left = sx + 'px';
+        np.el.style.top = sy + 'px';
+        const cls = CLASSES[rec.classId];
+        np.name.textContent = (rec.nick || '친구') + (cls ? ' · ' + cls.name : '') + ' Lv.' + (rec.level || 1);
+        np.fill.style.width = (Math.max(0, Math.min(1, (rec.hp || 0) / (rec.maxHp || 1))) * 100).toFixed(1) + '%';
+        np.el.classList.toggle('dead', !rec.alive);
+      }
+    }
+    for (let i = used; i < pool.length; i++) pool[i].el.style.display = 'none';
   }
 
   /* ---------------------------- 데미지 숫자 ---------------------------- */

@@ -9,6 +9,10 @@ import { castSkill } from '/workspace/RPG-game/src/skills.js';
 import { CLASS_ORDER, BIOMES, BOSS_POS, MOB_TYPES, SHOP, START_GOLD } from '/workspace/RPG-game/src/config.js';
 import { terrainHeight, regionAt, clampToWorld, WORLD } from '/workspace/RPG-game/src/utils.js';
 import { buyItem } from '/workspace/RPG-game/src/shop.js';
+import {
+  Net, encodeMsg, decodeMsg, packPlayer, unpackPlayer, packMob, unpackMob,
+  makeRoomCode, normalizeRoomCode, isValidRoomCode, nearestDistance, ANIM_NAMES,
+} from '/workspace/RPG-game/src/net.js';
 
 const problems = [];
 const check = (cond, msg) => { if (!cond) problems.push(msg); };
@@ -62,7 +66,7 @@ const game = {
   sfx: new Proxy({}, { get: () => () => {} }),
   hud: {
     floater() {}, refreshBars() {}, banner() {}, setTarget() {}, flashSkill() {},
-    update() {}, showEnd() {}, hideEnd() {},
+    update() {}, showEnd() {}, hideEnd() {}, updateRoom() {}, showRoom() {}, hideRoom() {}, flashCopied() {},
   },
   elapsed: 0,
   state: 'playing',
@@ -254,6 +258,162 @@ check(boss.dead, 'boss not dead');
 for (let i = 0; i < 1800; i++) stepAll(1 / 60);
 check(game.effects.items.length < 400, 'effect leak: ' + game.effects.items.length);
 check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.projectiles.length);
+
+/* ------------------- 멀티플레이: 직렬화 · 원격 처리 · 권한 ------------------- */
+{
+  // 1) 메시지 인코딩 / 디코딩
+  const raw = encodeMsg('st', { pid: 'ABC123', x: 1, z: 2 });
+  const msg = decodeMsg(raw);
+  check(!!msg && msg.t === 'st' && msg.p.pid === 'ABC123', 'encode/decode round trip failed');
+  check(decodeMsg('not json') === null, 'garbage message must decode to null');
+  check(decodeMsg(JSON.stringify({ x: 1 })) === null, 'message without type must decode to null');
+  check(decodeMsg(undefined) === null, 'undefined message must decode to null');
+  check(decodeMsg(JSON.stringify({ t: 'x', p: { a: 1 } })).p.a === 1, 'payload lost');
+
+  // 2) 방 코드
+  for (let i = 0; i < 20; i++) {
+    const c = makeRoomCode();
+    check(c.length === 4 && isValidRoomCode(c), 'generated room code invalid: ' + c);
+  }
+  check(normalizeRoomCode(' k7-tq ') === 'K7TQ', 'room code normalize failed: ' + normalizeRoomCode(' k7-tq '));
+  check(normalizeRoomCode('kO1i') === 'K', 'unusable letters must be dropped: ' + normalizeRoomCode('kO1i'));
+  check(isValidRoomCode('K7TQ'), 'K7TQ must be valid');
+  check(!isValidRoomCode('K7'), 'too short code must be invalid');
+  check(!isValidRoomCode('K7T!'), 'symbol code must be invalid');
+
+  // 3) 내 캐릭터 상태 직렬화
+  const me = new Player(game, 'warrior');
+  game.player = me;
+  me.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  me.playAnim('cleave', 0.62);
+  const packedMe = packPlayer('PSELF', me, { nick: '지우', classId: 'warrior' });
+  const unMe = unpackPlayer(packedMe);
+  check(unMe.pid === 'PSELF' && unMe.classId === 'warrior' && unMe.nick === '지우', 'player identity not serialized');
+  check(Math.abs(unMe.x - me.position.x) < 0.2 && Math.abs(unMe.z - me.position.z) < 0.2, 'player position drifted');
+  check(unMe.anim === 'cleave', 'player anim not serialized: ' + unMe.anim);
+  check(Math.abs(unMe.animDur - 0.62) < 0.06, 'player anim duration not serialized: ' + unMe.animDur);
+  check(unMe.maxHp === Math.round(me.maxHp) && unMe.alive === true, 'player hp/alive not serialized');
+  check(ANIM_NAMES[0] === '' && ANIM_NAMES.indexOf('fortress') > 0, 'anim name table broken');
+
+  // 4) 몹 상태 직렬화 + 거리 필터
+  game.mobManager.clearAll();
+  const nearMob = game.mobManager.spawn('slime', { x: me.position.x + 40, z: me.position.z + 20 }, 'forest');
+  const farMob = game.mobManager.spawn('gorilla', { x: 0, z: 1000 }, 'jungle');
+  const um = unpackMob(packMob(nearMob));
+  check(um && um.netId === nearMob.netId && um.typeId === 'slime', 'mob id/type not serialized');
+  check(Math.abs(um.hp - nearMob.hp) < 0.5, 'mob hp drifted: ' + um.hp);
+  check(nearestDistance([me.position], 0, 1000) > 900, 'nearestDistance wrong');
+
+  const netH = new Net(game);
+  game.net = netH;
+  netH.role = 'host';
+  netH.active = true;
+  netH.pid = 'HOSTID';
+  netH.roomCode = 'K7TQ';
+  netH.nick = '나';
+  const outbox = [];
+  netH.publish = (ch, text) => { outbox.push([ch, decodeMsg(text)]); return true; };
+  const records = netH._mobRecords();
+  check(records.length === 1, 'mob snapshot must drop far mobs, got ' + records.length);
+
+  // 5) 게스트 참가 → 원격 캐릭터 · 웰컴 메시지
+  netH._acceptGuest({ pid: 'GUEST1', nick: '엄마', class: 'archer', wt: 0 });
+  check(netH.remotes.size === 1 && netH.playerCount === 2, 'guest not registered');
+  const gRec = netH.remotes.get('GUEST1');
+  check(!!gRec.rig && gRec.rig.classId === 'archer', 'remote rig not built with the guest class');
+  const welcome = outbox.filter((m) => m[1] && m[1].t === 'welcome').pop();
+  check(!!welcome && welcome[1].p.hostPid === 'HOSTID', 'welcome not sent');
+  check(!!welcome[1].p.spawn && Math.abs(welcome[1].p.spawn.x + 2000) < 120, 'welcome spawn not in village');
+
+  // 6) 게스트 상태 → 원격 리그 (무기 등급 · 애니메이션)
+  netH._applyRemoteState(gRec, {
+    pid: 'GUEST1', x: me.position.x + 12, z: me.position.z - 8, yaw: 0.4,
+    anim: 'shoot', ad: 5, hp: 90, maxHp: 120, lvl: 3, wt: 2, spd: 30, alive: true,
+  });
+  check(gRec.weaponTier === 2 && gRec.rig.weaponTier === 2, 'remote weapon tier not applied');
+  check(gRec.anim === 'shoot' && gRec.hp === 90 && gRec.level === 3, 'remote state not stored');
+  netH.update(1 / 60);
+  check(gRec.rig.anim.name === 'shoot', 'remote animation not played: ' + gRec.rig.anim.name);
+  check(Math.abs(gRec.rig.position.x - (me.position.x + 12)) < 8, 'remote rig did not move toward the guest');
+
+  // 7) 몹 AI가 친구를 노릴 수 있다 (호스트 권한 대상 목록)
+  const targets = netH.hostTargets();
+  check(targets.length === 1 && targets[0].pid === 'GUEST1' && targets[0].remote === true, 'guest target missing');
+  const mobTarget = nearMob.pickTarget();
+  check(!!mobTarget && (mobTarget.remote || mobTarget.local), 'mob has no target');
+
+  // 8) 게스트가 요청한 피해를 호스트가 검증 · 적용
+  const xpBefore = me.xp;
+  const levelBefore = me.level;
+  const goldBefore = game.gold;
+  const hpBefore = nearMob.hp;
+  netH._applyGuestDamage({ pid: 'GUEST1', mob: nearMob.netId, d: 12, c: 0, cm: 1.9, dir: [1, 0], k: 6 });
+  check(nearMob.hp < hpBefore, 'host did not apply guest damage');
+  check(nearMob.hp > hpBefore - 20, 'guest damage was doubled or over-applied: ' + (hpBefore - nearMob.hp));
+  outbox.length = 0;
+  netH._applyGuestDamage({ pid: 'GUEST1', mob: nearMob.netId, d: 99999, c: 0, cm: 1.9, dir: [1, 0], k: 6 });
+  check(nearMob.dead, 'huge damage did not kill the mob');
+  check(netH.pendingDeaths.indexOf(nearMob.netId) >= 0, 'death not queued for the snapshot');
+
+  // 9) 몹 사망 → 모든 참가자 보상 + 스냅샷에 사망 목록
+  check(outbox.some((m) => m[1] && m[1].t === 'rw'), 'reward not broadcast');
+  check(me.xp !== xpBefore || me.level > levelBefore, 'host player did not gain xp from the kill');
+  check(game.gold >= goldBefore + (MOB_TYPES.slime.gold - 40), 'host player did not gain gold from the kill');
+  outbox.length = 0;
+  netH._broadcastWorld(false);
+  const worldMsg = outbox.filter((m) => m[1] && m[1].t === 'w').pop();
+  check(!!worldMsg, 'world snapshot not broadcast');
+  check(worldMsg[1].p.ds.indexOf(nearMob.netId) >= 0, 'death id missing in snapshot');
+  check(worldMsg[1].p.ps.length === 2, 'snapshot must include host + guest, got ' + worldMsg[1].p.ps.length);
+
+  // 10) 게스트 화면: 월드 스냅샷 → 몹 미러 · 사망 연출 · 보상
+  const netG = new Net(game);
+  netG.role = 'guest';
+  netG.active = true;
+  netG.pid = 'GUEST1';
+  netG.hostPid = 'HOSTID';
+  game.net = netG;
+  game.mobManager.clearAll();
+  const hostMobRec = packMob({ netId: 7, typeId: 'zombie', position: new THREE.Vector3(10, 0, 10), hp: 74, maxHp: 74, attackT: 0, attackDur: 0.85, state: 'chase' });
+  const hostPlayerRec = packPlayer('HOSTID', me, { nick: '아빠', classId: 'warrior' });
+  netG._applyWorld({ ps: [hostPlayerRec], ms: [hostMobRec], ds: [] });
+  check(netG.remotes.has('HOSTID'), 'host avatar not created on the guest');
+  check(game.mobManager.mobs.length === 1 && game.mobManager.mobs[0].remote, 'mob mirror not created');
+  const mirror = game.mobManager.mobs[0];
+  check(mirror.netId === 7 && mirror.typeId === 'zombie' && mirror.hp === 74, 'mob mirror state wrong');
+  check(Math.abs(mirror.targetPos.x - 10) < 0.2, 'mob mirror target not set');
+
+  // 미러는 AI를 돌리지 않고 호스트 위치를 따라간다
+  mirror.position.set(10, 0, 10);
+  netG._applyWorld({ ps: [hostPlayerRec], ms: [packMob({ netId: 7, typeId: 'zombie', position: new THREE.Vector3(60, 0, 10), hp: 50, maxHp: 74, attackT: 0, attackDur: 0.85, state: 'chase' })], ds: [] });
+  for (let i = 0; i < 20; i++) game.mobManager.update(1 / 60);
+  check(mirror.position.x > 10.5, 'mob mirror did not interpolate toward host position: ' + mirror.position.x);
+  check(mirror.hp === 50, 'mob mirror hp not synced');
+
+  // 게스트 피해는 호스트에게 보내고, 화면에는 예상 피해만 표시
+  const guestOut = [];
+  netG.publish = (ch, text) => { guestOut.push([ch, decodeMsg(text)]); return true; };
+  const mirrorHp = mirror.hp;
+  game.combat.applyDamage(mirror, 10, { critChance: 0 });
+  check(guestOut.some((m) => m[1] && m[1].t === 'dmg' && m[1].p.mob === 7), 'guest did not request damage from host');
+  check(mirror.hp < mirrorHp, 'guest screen did not show predicted damage');
+  check(mirror.hp > mirrorHp - 20, 'predicted damage too large: ' + (mirrorHp - mirror.hp));
+
+  // 사망 연출 · 보상 적용
+  netG._killMobMirror(7);
+  check(mirror.dead, 'mirror did not die on snapshot death');
+  const xp2 = me.xp;
+  netG._applyReward({ xp: 26, gold: 30, x: 10, z: 10 });
+  check(me.xp !== xp2 || me.level > 1, 'guest did not gain xp from reward');
+  netG._applyWorld({ ps: [hostPlayerRec], ms: [hostMobRec], ds: [] });
+  check(mirror.dead === false, 'mirror did not revive on a live snapshot');
+
+  // 11) 게스트 → 혼자 모드 복귀
+  netG.stop();
+  check(!netG.active && netG.role === null, 'net did not stop');
+  check(game.mobManager.mobs.length > 20 && !game.mobManager.mobs.some((m) => m.remote), 'solo mobs not restored after leaving');
+  game.net = null;
+}
 
 console.log(JSON.stringify(results, null, 1));
 console.log('problems:', problems.length ? problems : 'none');

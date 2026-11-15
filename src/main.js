@@ -10,6 +10,9 @@ import { HUD } from './hud.js';
 import { Sfx } from './audio.js';
 import { castSkill } from './skills.js';
 import { Shop } from './shop.js';
+import {
+  Net, normalizeRoomCode, isValidRoomCode, playerListForHud, MAX_PLAYERS,
+} from './net.js';
 import { terrainHeight, clamp, damp, lerp, biomeWeights, regionAt } from './utils.js';
 
 // 터치 목록에서 identifier가 같은 손가락을 찾는다.
@@ -38,6 +41,11 @@ class Game {
     this.elapsed = 0;
     this.player = null;
     this.gold = START_GOLD;
+    this.mpMode = 'solo';
+    this.nick = '';
+    this.net = null;
+    this.pendingStart = null;
+    this._roomAcc = 0;
     this.nearShop = false;
     this.victoryTimer = -1;
     this.deathTimer = -1;
@@ -93,9 +101,11 @@ class Game {
     this.hud = new HUD(this);
     this.sfx = new Sfx();
     this.shop = new Shop(this);
+    this.net = new Net(this);
 
     this.bindInput();
     this.bindTouch();
+    this.setupMultiplayer();
     this.resize();
 
     // 디버그용: ?class=warrior&biome=temple 로 바로 시작, ?x=&z= 로 위치 지정
@@ -106,7 +116,9 @@ class Game {
     const qz = parseFloat(qp.get('z'));
     this.debugSpawn = (isFinite(qx) && isFinite(qz)) ? { x: qx, z: qz } : null;
     if (this.autoClass && CLASSES[this.autoClass]) {
-      setTimeout(() => this.startClass(this.autoClass), 350);
+      // ?room= 초대 링크로 들어왔으면 혼자 모드로 새지 않게 한다
+      const inviteRoom = normalizeRoomCode(qp.get('room') || '');
+      if (!inviteRoom) setTimeout(() => this.startClass(this.autoClass), 350);
     }
 
     this.clock = new THREE.Clock();
@@ -123,12 +135,24 @@ class Game {
     requestAnimationFrame((t) => this.tick(t));
   }
 
-  /* ------------------------------- 입력 ------------------------------- */
+  /* ------------------------------ 입력 ------------------------------ */
   bindInput() {
     const canvas = this.renderer.domElement;
 
     window.addEventListener('keydown', (e) => {
+      // 닉네임 · 방 코드 입력 중에는 게임 키를 먹지 않는다
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+        if (e.key === 'Escape' && t.blur) t.blur();
+        return;
+      }
       const k = e.key ? e.key.toLowerCase() : '';
+      // 지도 접기 / 펴기 (M)
+      if (k === 'm') {
+        if (this.hud) this.hud.toggleMap();
+        e.preventDefault();
+        return;
+      }
       // 상점 모달이 열려 있는 동안은 이동 · 공격 입력을 막는다
       if (this.state === 'shop') {
         if (k === 'escape' || k === 'f') this.closeShop();
@@ -159,7 +183,7 @@ class Game {
         if (this.state === 'menu') {
           const order = ['warrior', 'archer', 'rogue', 'tanker', 'mage'];
           const idx = parseInt(k, 10) - 1;
-          if (order[idx]) this.startClass(order[idx]);
+          if (order[idx]) this.requestStart(order[idx]);
         }
       }
     });
@@ -488,9 +512,226 @@ class Game {
     this.camera.updateProjectionMatrix();
   }
 
-  /* ------------------------------ 게임 시작 ------------------------------ */
-  startClass(classId) {
+  /* ------------------------- 함께 하기 (멀티플레이) ------------------------- */
+  setupMultiplayer() {
+    const $ = (id) => document.getElementById(id);
+    this.mpDom = {
+      nick: $('mp-nick'),
+      code: $('mp-code'),
+      joinRow: document.querySelector('.mp-join-row'),
+      note: $('mp-note'),
+      buttons: {
+        solo: $('mp-mode-solo'), host: $('mp-mode-host'), join: $('mp-mode-join'),
+      },
+      joinGo: $('mp-join-go'),
+    };
+
+    const setMode = (mode) => {
+      this.mpMode = mode;
+      for (const key in this.mpDom.buttons) {
+        const b = this.mpDom.buttons[key];
+        if (b) b.classList.toggle('on', key === mode);
+      }
+      if (this.mpDom.joinRow) this.mpDom.joinRow.classList.toggle('on', mode === 'join');
+      if (mode === 'solo') this.mpNote('혼자 하기를 고르면 바로 시작합니다. 직업을 선택하세요.');
+      else if (mode === 'host') this.mpNote('직업을 고르면 방이 만들어지고 초대 링크가 표시됩니다.');
+      else this.mpNote('초대받은 방 코드를 넣고 직업을 고르면 바로 참가합니다.');
+    };
+    this.mpSetMode = setMode;
+
+    for (const key in this.mpDom.buttons) {
+      const b = this.mpDom.buttons[key];
+      if (!b) continue;
+      const pick = (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        setMode(key);
+        if (key === 'join' && this.mpDom.code) this.mpDom.code.focus();
+      };
+      b.addEventListener('click', pick);
+      b.addEventListener('touchstart', pick, { passive: false });
+    }
+
+    if (this.mpDom.code) {
+      this.mpDom.code.addEventListener('input', () => {
+        const v = normalizeRoomCode(this.mpDom.code.value);
+        if (v !== this.mpDom.code.value) this.mpDom.code.value = v;
+      });
+    }
+
+    if (this.mpDom.joinGo) {
+      const go = (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        setMode('join');
+        const code = normalizeRoomCode(this.mpDom.code ? this.mpDom.code.value : '');
+        if (!isValidRoomCode(code)) {
+          this.mpNote('방 코드를 확인해 주세요 (예: K7TQ)', 'err');
+          if (this.mpDom.code) this.mpDom.code.focus();
+          return;
+        }
+        this.mpNote('직업을 고르면 <b>' + code + '</b> 방에 참가합니다.', 'ok');
+        const grid = document.getElementById('class-grid');
+        if (grid) {
+          grid.classList.remove('mp-flash');
+          void grid.offsetWidth;
+          grid.classList.add('mp-flash');
+          grid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      };
+      this.mpDom.joinGo.addEventListener('click', go);
+    }
+
+    // ?room=CODE 초대 링크로 들어온 경우: 코드 채우고 방 참가 강조
+    const qp = new URLSearchParams(window.location.search);
+    const invite = normalizeRoomCode(qp.get('room') || '');
+    if (invite) {
+      this.inviteCode = invite;
+      if (this.mpDom.code) {
+        this.mpDom.code.value = invite;
+        this.mpDom.code.classList.add('highlight');
+      }
+      setMode('join');
+      this.mpNote('초대받은 방 <b>' + invite + '</b> 입니다 · 직업을 고르면 바로 참가합니다!', 'ok');
+    }
+
+    // HUD 방 패널 버튼
+    const copyBtn = document.getElementById('rp-copy');
+    if (copyBtn) {
+      const cp = (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        this.copyInviteLink();
+      };
+      copyBtn.addEventListener('click', cp);
+      copyBtn.addEventListener('touchstart', cp, { passive: false });
+    }
+    const leaveBtn = document.getElementById('rp-leave');
+    if (leaveBtn) {
+      const lv = (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        this.leaveRoom();
+      };
+      leaveBtn.addEventListener('click', lv);
+      leaveBtn.addEventListener('touchstart', lv, { passive: false });
+    }
+
+    window.addEventListener('beforeunload', () => {
+      if (this.net && this.net.active) this.net.stop('leave');
+    });
+  }
+
+  mpNote(text, kind) {
+    const el = this.mpDom && this.mpDom.note;
+    if (!el) return;
+    el.innerHTML = text;
+    el.classList.toggle('err', kind === 'err');
+    el.classList.toggle('ok', kind === 'ok');
+  }
+
+  readNick() {
+    const v = this.mpDom && this.mpDom.nick ? this.mpDom.nick.value.trim() : '';
+    return (v || '모험가').slice(0, 10);
+  }
+
+  inviteUrl() {
+    const code = this.net && this.net.roomCode ? this.net.roomCode : '';
+    return window.location.origin + window.location.pathname + '?room=' + code;
+  }
+
+  copyInviteLink() {
+    const url = this.inviteUrl();
+    const done = () => {
+      this.hud.flashCopied();
+      this.mpNote('초대 링크를 복사했습니다 · 카톡으로 붙여넣어 보내세요', 'ok');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done).catch(() => this.copyFallback(url, done));
+    } else {
+      this.copyFallback(url, done);
+    }
+  }
+
+  copyFallback(text, done) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', 'readonly');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand && document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) done();
+      else this.hud.banner('링크: ' + text, 6000);
+    } catch (e) {
+      this.hud.banner('링크: ' + text, 6000);
+    }
+  }
+
+  leaveRoom() {
+    if (this.net) this.net.stop('leave');
+    try {
+      history.replaceState({}, '', window.location.pathname);
+    } catch (e) { /* noop */ }
+    window.location.reload();
+  }
+
+  // 직업 카드를 눌렀을 때: 혼자면 바로, 함께면 방을 먼저 연다
+  requestStart(classId) {
     if (!CLASSES[classId]) return;
+    if (this.mpMode === 'solo' || (this.net && this.net.active)) {
+      this.startClass(classId);
+      return;
+    }
+    if (this.pendingStart) return;
+    this.pendingStart = classId;
+    this.tryStartMultiplayer(classId).finally(() => { this.pendingStart = null; });
+  }
+
+  async tryStartMultiplayer(classId) {
+    const nick = this.readNick();
+    this.nick = nick;
+    try {
+      if (this.mpMode === 'host') {
+        this.mpNote('방을 만드는 중…');
+        const code = await this.net.host(classId, nick, (s) => this.mpNote(s));
+        this.startClass(classId);
+        this.hud.showRoom({ code, count: 1, players: playerListForHud(this.net, this.player) });
+        this.hud.banner('방 코드 ' + code + ' · 초대 링크를 보내 보세요', 3200);
+      } else {
+        const code = normalizeRoomCode(this.mpDom.code ? this.mpDom.code.value : '');
+        if (!isValidRoomCode(code)) {
+          this.mpNote('방 코드를 확인해 주세요 (예: K7TQ)', 'err');
+          return;
+        }
+        this.mpNote('방에 들어가는 중…');
+        const data = await this.net.join(code, classId, nick, (s) => this.mpNote(s));
+        this.startClass(classId, { spawn: data.spawn });
+        this.hud.showRoom({ code, count: this.net.playerCount, players: playerListForHud(this.net, this.player) });
+      }
+      this.mpNote('함께 플레이 중 · 지도는 <b>M</b> 키로 접을 수 있어요', 'ok');
+    } catch (err) {
+      if (this.net) this.net.stop();
+      this.mpNote((err && err.message) || '접속에 실패했습니다', 'err');
+    }
+  }
+
+  combatTargets() {
+    const list = [];
+    const p = this.player;
+    if (p && p.alive) {
+      list.push({ local: true, alive: true, radius: p.radius, position: p.position });
+    }
+    if (this.net && this.net.active && this.net.isHost) {
+      const extra = this.net.hostTargets();
+      for (let i = 0; i < extra.length; i++) list.push(extra[i]);
+    }
+    return list;
+  }
+
+  /* ------------------------------ 게임 시작 ------------------------------ */
+  startClass(classId, opts) {
+    if (!CLASSES[classId]) return;
+    const o = opts || {};
     if (this.player) {
       this.scene.remove(this.player.root);
       this.combat.clear();
@@ -514,6 +755,8 @@ class Game {
     } else {
       spawn = BIOMES[biomeId].center;
     }
+    // 함께 하기: 초대받은 사람은 호스트가 알려 준 자리에서 시작한다
+    if (o.spawn) spawn = { x: o.spawn.x, z: o.spawn.z };
     this.player.spawnAt(spawn.x, spawn.z);
     if (biomeId === 'village' && !this.debugSpawn) this.player.facing = Math.PI;
     this.gold = START_GOLD;
@@ -527,6 +770,11 @@ class Game {
     this.victoryTimer = -1;
     this.deathTimer = -1;
     this.hud.onStart(this.player);
+    // 멀티플레이 연결을 이 시점에 붙인다 (호스트: 몹 스냅샷 송신 시작, 게스트: 몹 미러 준비)
+    if (this.net && this.net.role && !this.net.active) {
+      if (this.net.isHost) this.net.spawn = { x: spawn.x, z: spawn.z };
+      this.net.attach();
+    }
     this.hud.hideEnd();
     this.sfx.init();
     this.hud.banner(CLASSES[classId].name + ' · ' + BIOMES[regionAt(spawn.x, spawn.z)].name, 2400);
@@ -726,6 +974,7 @@ class Game {
       this.placeCamera(false, dt);
       this.updateEnvironment(dt);
       this.hud.update(dt);
+      if (this.net && this.net.active) this.net.update(dt);
       updateVillage(this.world, dt, this.elapsed);
       return;
     }
@@ -740,6 +989,20 @@ class Game {
       this.mobManager.update(dt);
       this.combat.update(dt);
       this.effects.update(dt);
+    }
+
+    // 멀티플레이 동기화 (원격 캐릭터 · 몹 스냅샷 · 방 정보)
+    if (this.net && this.net.active) {
+      this.net.update(dt);
+      this._roomAcc += dt;
+      if (this._roomAcc > 0.4) {
+        this._roomAcc = 0;
+        this.hud.updateRoom({
+          code: this.net.roomCode,
+          count: this.net.playerCount,
+          players: playerListForHud(this.net, this.player),
+        });
+      }
     }
 
     this.placeCamera(false, dt);

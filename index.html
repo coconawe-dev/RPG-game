@@ -64,6 +64,16 @@
         <div class="buff-row" id="buff-row"></div>
       </section>
 
+      <section class="panel room-panel hidden" id="room-panel">
+        <div class="rp-head">
+          <span class="rp-count" id="rp-count">👥 1명 접속 중</span>
+          <button class="mini" id="rp-leave" type="button">나가기</button>
+        </div>
+        <div class="rp-code">방 코드 <b id="rp-code">····</b></div>
+        <button class="mini rp-copy" id="rp-copy" type="button">🔗 초대 링크 복사</button>
+        <div class="rp-players" id="rp-players"></div>
+      </section>
+
       <section class="region-panel">
         <div class="region-name" id="region-name">쾌적한 숲</div>
         <div class="region-en" id="region-en">Pleasant Forest</div>
@@ -77,11 +87,20 @@
         </div>
       </section>
 
-      <section class="panel map-panel">
-        <canvas id="minimap" width="208" height="208"></canvas>
-        <div class="compass" id="compass"></div>
-        <button class="mode-toggle" id="mode-toggle" type="button">📱 터치 모드</button>
-      </section>
+      <div class="hud-right">
+        <div class="hud-tools">
+          <button class="tool-btn hidden" id="map-open-btn" type="button">🗺️ 지도</button>
+          <button class="mode-toggle" id="mode-toggle" type="button">📱 터치 모드</button>
+        </div>
+        <section class="panel map-panel" id="map-panel">
+          <div class="map-head">
+            <span class="map-title">지도</span>
+            <button class="mini" id="map-close" type="button">접기 ×</button>
+          </div>
+          <canvas id="minimap" width="208" height="208"></canvas>
+          <div class="compass" id="compass"></div>
+        </section>
+      </div>
     </div>
 
     <div class="banner" id="banner"></div>
@@ -100,6 +119,7 @@
           <li><kbd>Q</kbd> <span id="ctrl-q">스킬 1</span></li>
           <li><kbd>E</kbd> <span id="ctrl-e">스킬 2</span></li>
           <li><kbd>F</kbd> <span>상점 열기 (상점 앞)</span></li>
+          <li><kbd>M</kbd> <span>지도 열기 / 접기</span></li>
           <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> <span>포션 사용</span></li>
           <li><kbd>Esc</kbd> <span>마우스 고정 해제</span></li>
         </ul>
@@ -148,6 +168,22 @@
       <p class="eyebrow">WEB 3D RPG · THREE.JS</p>
       <h1>정글 사원의 <span>고대 골렘</span></h1>
       <p class="lead">태초마을에서 무기와 포션을 장만하고, 쾌적한 숲을 지나 정글 사원 깊은 곳에 잠든 고대 골렘을 쓰러뜨리세요.</p>
+      <div class="mp-panel" id="mp-panel">
+        <div class="mp-row">
+          <span class="mp-label">닉네임</span>
+          <input class="mp-input" id="mp-nick" type="text" maxlength="10" placeholder="모험가" autocomplete="off" autocapitalize="off" spellcheck="false" />
+        </div>
+        <div class="mp-modes" id="mp-modes">
+          <button class="mp-mode on" id="mp-mode-solo" type="button" data-mode="solo">🧍 혼자 하기</button>
+          <button class="mp-mode" id="mp-mode-host" type="button" data-mode="host">🏕 방 만들기</button>
+          <button class="mp-mode" id="mp-mode-join" type="button" data-mode="join">🔑 방 참가</button>
+        </div>
+        <div class="mp-join-row">
+          <input class="mp-input code" id="mp-code" type="text" maxlength="8" placeholder="방 코드 (예: K7TQ)" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+          <button class="mp-go" id="mp-join-go" type="button">참가</button>
+        </div>
+        <p class="mp-note" id="mp-note">혼자 하기는 바로 시작합니다 · 친구·가족과 함께하려면 방을 만들거나 초대 링크를 여세요.</p>
+      </div>
       <div class="class-grid" id="class-grid"></div>
       <p class="tip">직업을 선택하면 태초마을에서 시작됩니다 · 직업마다 무기·공격 모션·<b>Q / E 스킬</b>이 모두 다릅니다.</p>
     </div>

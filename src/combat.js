@@ -48,6 +48,11 @@ export class Combat {
   /* --------------------------- 데미지 적용 --------------------------- */
   applyDamage(mob, amount, opts) {
     const o = opts || {};
+    const net = this.game.net;
+    // 게스트: 피해 계산을 호스트에게 맡긴다 (호스트 권한)
+    if (net && net.active && net.isGuest) {
+      return net.requestDamage(mob, amount, o);
+    }
     const crit = Math.random() < (o.critChance || 0);
     const dmg = amount * (crit ? (o.critMul || 1.9) : 1) * rand(0.94, 1.06);
     mob.takeDamage(dmg, {

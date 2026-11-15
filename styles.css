@@ -212,6 +212,62 @@ html, body {
 .target-bar .bar-fill { background: linear-gradient(90deg, #8a3a1f, #e08a4f); }
 
 .map-panel { width: 232px; padding: 10px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.map-panel.collapsed { display: none; }
+
+.map-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.map-title { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
+
+.hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.hud-tools { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+
+.tool-btn {
+  pointer-events: auto;
+  touch-action: manipulation;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold-soft);
+  background: rgba(12, 15, 20, 0.72);
+  border: 1px solid rgba(232, 194, 106, 0.35);
+  border-radius: 999px;
+  padding: 5px 11px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.tool-btn:active { transform: scale(0.97); }
+
+/* ---------- 방 정보 패널 (멀티플레이) ---------- */
+.room-panel {
+  width: 176px;
+  padding: 9px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+}
+.rp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.rp-count { font-weight: 800; color: var(--gold-soft); font-size: 11.5px; }
+.rp-code { color: var(--ink-dim); font-size: 10.5px; letter-spacing: 0.06em; }
+.rp-code b { color: var(--gold); font-size: 13px; letter-spacing: 0.16em; }
+.rp-copy { width: 100%; padding: 4px 6px; font-size: 10.5px; color: var(--gold-soft); border-color: rgba(232, 194, 106, 0.4); }
+.rp-copy.done { color: #b8f0a8; border-color: rgba(140, 230, 138, 0.5); }
+.rp-players { display: flex; flex-direction: column; gap: 2px; max-height: 96px; overflow: hidden; }
+.rp-player { display: flex; align-items: center; gap: 5px; color: var(--ink-dim); font-size: 10px; }
+.rp-player b { color: var(--ink); font-weight: 700; font-size: 10.5px; }
+.rp-player.me b { color: var(--gold-soft); }
+.rp-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex: none; }
+.rp-dot.dead { background: var(--red); }
 
 #minimap {
   width: 208px;
@@ -398,6 +454,12 @@ kbd {
 .nameplate .np-fill { height: 100%; background: linear-gradient(90deg, #b3352b, #ef6a55); }
 .nameplate.boss .np-name { color: #ffb3a6; font-size: 12px; }
 .nameplate.boss { width: 150px; }
+
+/* 함께 플레이하는 친구 이름표 */
+.nameplate.player { width: 104px; }
+.nameplate.player .np-name { color: #bfe0ff; }
+.nameplate.player .np-fill { background: linear-gradient(90deg, #2f6f8f, #6fa8dc 70%, #a9d6f5); }
+.nameplate.player.dead { opacity: 0.5; }
 
 .crosshair {
   position: absolute;
@@ -611,21 +673,114 @@ body.touch-mode .touch-hint { display: block; }
 .mode-toggle {
   pointer-events: auto;
   touch-action: manipulation;
-  width: 100%;
-  margin-top: 2px;
   font-family: var(--font);
   font-size: 10.5px;
   font-weight: 700;
   color: var(--gold-soft);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(232, 194, 106, 0.35);
-  border-radius: 8px;
-  padding: 5px 8px;
+  border-radius: 999px;
+  padding: 5px 10px;
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ---------- 멀티플레이: 시작 화면 설정 ---------- */
+.mp-panel {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  margin: 0 auto 20px;
+  padding: 13px 16px;
+  width: min(560px, 100%);
+  border-radius: 14px;
+  background: rgba(10, 13, 18, 0.62);
+  border: 1px solid rgba(232, 194, 106, 0.24);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.mp-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+.mp-label { font-size: 11px; color: var(--gold); letter-spacing: 0.1em; flex: none; }
+.mp-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9px;
+  padding: 7px 10px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.mp-input::placeholder { color: rgba(244, 241, 232, 0.35); }
+.mp-input:focus { border-color: rgba(232, 194, 106, 0.7); }
+.mp-input.code { text-transform: uppercase; letter-spacing: 0.16em; font-weight: 700; }
+.mp-input.code.highlight {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(232, 194, 106, 0.22);
+  animation: mpPulse 1.1s ease-in-out 3;
+}
+@keyframes mpPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(232, 194, 106, 0.14); }
+  50% { box-shadow: 0 0 0 6px rgba(232, 194, 106, 0.34); }
+}
+.mp-modes { display: flex; gap: 6px; width: 100%; }
+.mp-mode {
+  flex: 1;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-dim);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 8px 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mp-mode.on {
+  color: #201a08;
+  background: linear-gradient(180deg, #ffe9b6, #d5a94a);
+  border-color: #f7e4b4;
+}
+.mp-join-row { display: flex; gap: 6px; width: 100%; display: none; }
+.mp-join-row.on { display: flex; }
+.mp-go {
+  flex: none;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 800;
+  color: #201a08;
+  background: linear-gradient(180deg, #ffe9b6, #d5a94a);
+  border: 1px solid #f7e4b4;
+  border-radius: 9px;
+  padding: 7px 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mp-note { margin: 0; font-size: 11px; line-height: 1.5; color: var(--ink-dim); text-align: center; min-height: 16px; }
+.mp-note.err { color: #ff9b8f; }
+.mp-note.ok { color: #b8f0a8; }
+.mp-panel .mp-note b { color: var(--gold-soft); }
+.class-grid.mp-flash .class-card { animation: mpCardPulse 0.9s ease 2; }
+@keyframes mpCardPulse {
+  0%, 100% { border-color: rgba(232, 194, 106, 0.22); }
+  50% { border-color: rgba(232, 194, 106, 0.9); box-shadow: 0 0 24px rgba(232, 194, 106, 0.28); }
+}
+
+@media (max-width: 1100px) {
+  .room-panel { width: 156px; }
+  .hud-tools { order: 2; }
+}
+
 .mode-toggle:active { transform: scale(0.98); }
 .touch-hint { display: none; }
 

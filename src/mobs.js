@@ -293,6 +293,15 @@ export class Mob {
     this.bossIntroDone = false;
     this.stompCd = 4;
 
+    // 멀티플레이: netId 가 있으면 호스트 권한 몹, remote=true 면 친구 화면에서 보는 미러
+    this.netId = undefined;
+    this.remote = false;
+    this.targetPos = this.position.clone();
+    this.remoteChase = false;
+    this.remoteAtk = 0;
+    this.lastSeen = 0;
+    this.targetRef = null;
+
     const built = BUILDERS[typeId]();
     this.model = built;
     this.root = built.root;
@@ -310,7 +319,7 @@ export class Mob {
 
   /* ------------------------------ 피해 ------------------------------ */
   takeDamage(amount, opts) {
-    if (this.dead) return;
+    if (this.dead || this.remote) return;
     const o = opts || {};
     const dmg = Math.max(1, Math.round(amount));
     this.hp -= dmg;
@@ -334,14 +343,19 @@ export class Mob {
     this.aggro = false;
     this.state = 'dead';
     const p = this.game.player;
-    if (p && p.alive) {
+    const net = this.game.net;
+    const multiplayerHost = !!(net && net.active && net.isHost);
+    if (multiplayerHost) {
+      // 함께 하는 모두가 경험치 · 골드를 받는다 (호스트가 알려 준다)
+      net.onMobDeath(this);
+    } else if (p && p.alive) {
       p.gainXp(this.type.xp);
       p.kills++;
       this.game.hud.floater('+' + this.type.xp + ' XP', new THREE.Vector3(this.position.x, this.position.y + this.height, this.position.z), 'xp', 1.5);
     }
     // 골드 드랍 (상점에서 무기 · 포션 구매)
     const gold = this.type.gold || 0;
-    if (gold > 0 && typeof this.game.addGold === 'function') {
+    if (gold > 0 && !multiplayerHost && typeof this.game.addGold === 'function') {
       this.game.addGold(gold, this.position);
     }
     this.game.effects.burst(new THREE.Vector3(this.position.x, this.position.y + this.height * 0.5, this.position.z), this.type.boss ? 0x9fe8ff : 0xffcf8a, this.type.boss ? 40 : 14, { power: this.type.boss ? 60 : 26, size: this.type.boss ? 2.2 : 0.8 });
@@ -394,9 +408,14 @@ export class Mob {
     }
 
     this.time += dt;
-    const player = this.game.player;
-    const dx = player.position.x - this.position.x;
-    const dz = player.position.z - this.position.z;
+    const target = this.pickTarget();
+    if (!target) {
+      this.root.position.copy(this.position);
+      return;
+    }
+    this.targetRef = target;
+    const dx = target.position.x - this.position.x;
+    const dz = target.position.z - this.position.z;
     const dist = Math.hypot(dx, dz);
     const distSpawn = Math.hypot(this.position.x - this.spawnPoint.x, this.position.z - this.spawnPoint.z);
     this.attackCd = Math.max(0, this.attackCd - dt);
@@ -404,7 +423,7 @@ export class Mob {
     if (this.type.boss) this.stompCd = Math.max(0, this.stompCd - dt);
 
     // 어그로
-    if (player.alive && dist < this.type.aggro && distSpawn < this.type.leash * 1.25) {
+    if (target.alive && dist < this.type.aggro && distSpawn < this.type.leash * 1.25) {
       if (!this.aggro) {
         this.aggro = true;
         if (this.type.boss && !this.bossIntroDone) {
@@ -429,9 +448,9 @@ export class Mob {
         this.resolveAttack(dist);
       }
       speedMul = 0.1;
-    } else if (this.aggro && player.alive) {
+    } else if (this.aggro && target.alive) {
       if (dist > this.type.attackRange * 0.92) {
-        moveTarget = player.position;
+        moveTarget = target.position;
         this.state = 'chase';
       } else if (this.attackCd <= 0) {
         this.startAttack();
@@ -439,7 +458,7 @@ export class Mob {
       } else {
         this.state = 'idle';
         // 공격 대기 중에도 살짝 접근
-        if (dist > this.type.attackRange * 0.75) moveTarget = player.position;
+        if (dist > this.type.attackRange * 0.75) moveTarget = target.position;
         speedMul = 0.45;
       }
     } else {
@@ -513,6 +532,24 @@ export class Mob {
     this.animate(dt, dist);
   }
 
+  // 가장 가까운 플레이어(나 또는 함께 하는 친구)를 노린다
+  pickTarget() {
+    const list = this.game.combatTargets ? this.game.combatTargets() : null;
+    if (!list) {
+      const p = this.game.player;
+      return p && p.alive ? { local: true, alive: true, radius: p.radius || 4.6, position: p.position } : null;
+    }
+    let best = null;
+    let bd = Infinity;
+    for (let i = 0; i < list.length; i++) {
+      const t = list[i];
+      if (!t || !t.alive) continue;
+      const d = Math.hypot(t.position.x - this.position.x, t.position.z - this.position.z);
+      if (d < bd) { bd = d; best = t; }
+    }
+    return best;
+  }
+
   startAttack() {
     this.attackT = this.attackDur;
     this.attackHit = false;
@@ -521,11 +558,17 @@ export class Mob {
   }
 
   resolveAttack(dist) {
-    const player = this.game.player;
-    if (!player.alive) return;
-    const reach = this.type.attackRange + player.radius;
+    const target = this.targetRef;
+    if (!target || !target.alive) return;
+    const reach = this.type.attackRange + (target.radius || 4.6);
     if (dist > reach) return;
-    player.takeDamage(this.type.damage * rand(0.9, 1.1), this.position);
+    const dmg = this.type.damage * rand(0.9, 1.1);
+    if (target.remote) {
+      if (this.game.net) this.game.net.hitGuest(target.pid, dmg, this.position);
+    } else {
+      const player = this.game.player;
+      if (player && player.alive) player.takeDamage(dmg, this.position);
+    }
     if (this.type.boss) {
       this.game.effects.ring(this.position, 0x9fe8ff, 130, { duration: 0.7, thickness: 0.05 });
       this.game.effects.burst(new THREE.Vector3(this.position.x, this.position.y + 4, this.position.z), 0x9fe8ff, 18, { power: 34 });
@@ -632,6 +675,68 @@ export class Mob {
     }
   }
 
+  /* --------------------------- 멀티플레이 미러 --------------------------- */
+  // 호스트가 보낸 위치로 부드럽게 따라가며 모션만 재생한다 (AI 없음)
+  updateRemote(dt) {
+    this.time += dt;
+    if (this.dead) {
+      this.deadT += dt;
+      const p = clamp(this.deadT / 0.9, 0, 1);
+      this.root.scale.setScalar(Math.max(0.01, 1 - p));
+      this.root.position.y = this.position.y - p * 2;
+      this.root.rotation.z = p * 0.8;
+      if (p >= 1) this.root.visible = false;
+      return;
+    }
+    const dx = this.targetPos.x - this.position.x;
+    const dz = this.targetPos.z - this.position.z;
+    const dist = Math.hypot(dx, dz);
+    let traveled = 0;
+    if (dist > 320) {
+      this.position.x = this.targetPos.x;
+      this.position.z = this.targetPos.z;
+    } else if (dist > 0.05) {
+      const k = 1 - Math.exp(-13 * dt);
+      const stepX = dx * k;
+      const stepZ = dz * k;
+      this.position.x += stepX;
+      this.position.z += stepZ;
+      traveled = Math.hypot(stepX, stepZ);
+      this.facing = dampAngle(this.facing, Math.atan2(dx, dz), 9, dt);
+    }
+    this.position.y = terrainHeight(this.position.x, this.position.z);
+    this.root.position.copy(this.position);
+    this.root.rotation.y = this.facing;
+    if (traveled > 0.02) this.walkPhase += dt * (4.5 + Math.min(80, traveled / Math.max(dt, 1e-4) * 0.3));
+    this.state = this.remoteChase ? 'chase' : 'idle';
+    this.attackT = this.remoteAtk > 0 ? this.attackDur * (1 - this.remoteAtk / 100) : 0;
+    this.hurtT = Math.max(0, this.hurtT - dt);
+    const p = this.game.player;
+    const near = p ? Math.hypot(p.position.x - this.position.x, p.position.z - this.position.z) : 200;
+    this.animate(dt, near);
+  }
+
+  // 내가 가한 피해를 바로 보여 주기 (게스트 화면의 예상 표시)
+  applyPredictedDamage(amount, crit) {
+    if (this.dead) return;
+    const dmg = Math.max(1, Math.round(amount));
+    this.hp = Math.max(0, this.hp - dmg);
+    this.hurtT = 0.3;
+    this.game.hud.floater(
+      String(dmg),
+      new THREE.Vector3(this.position.x, this.position.y + this.height * 0.9, this.position.z),
+      crit ? 'crit' : 'dmg', 1.2
+    );
+    if (crit) this.game.sfx.crit(); else this.game.sfx.hit();
+    this.game.hud.setTarget(this);
+    if (this.hp <= 0) {
+      this.dead = true;
+      this.deadT = 0;
+      this.state = 'dead';
+      this.root.scale.setScalar(1);
+    }
+  }
+
   distTo(p) { return Math.hypot(p.x - this.position.x, p.z - this.position.z); }
 }
 
@@ -669,12 +774,17 @@ export class MobManager {
 
   spawn(typeId, pos, biomeId) {
     const mob = new Mob(this.game, typeId, pos, biomeId);
+    mob.netId = this.mobs.length;
     this.mobs.push(mob);
     return mob;
   }
 
   update(dt) {
-    for (let i = 0; i < this.mobs.length; i++) this.mobs[i].update(dt);
+    for (let i = 0; i < this.mobs.length; i++) {
+      const m = this.mobs[i];
+      if (m.remote) m.updateRemote(dt);
+      else m.update(dt);
+    }
   }
 
   nearest(pos, maxDist) {
@@ -700,6 +810,14 @@ export class MobManager {
   boss() {
     for (const m of this.mobs) if (m.type.boss) return m;
     return null;
+  }
+
+  // 모든 몹을 장면에서 제거한다 (멀티플레이 전환 · 복귀용)
+  clearAll() {
+    for (const m of this.mobs) {
+      if (m.root) this.game.scene.remove(m.root);
+    }
+    this.mobs.length = 0;
   }
 
   resetAggro() {
