@@ -1299,12 +1299,12 @@ function buildShop(scene, opts) {
   const s = o.shop || BIOMES.village.shop;
   const forge = o.style === 'forge';
   const g = new THREE.Group();
-  const woodMat = propMat(forge ? 0x4a3a3f : 0x7c5433, { roughness: 0.92 });
-  const woodDark = propMat(forge ? 0x2c2126 : 0x53341f, { roughness: 0.95 });
-  const stoneMat = propMat(forge ? 0x6e6a72 : 0xb9b2a2, { roughness: 1 });
-  const stripeA = propMat(forge ? 0x4a3f7a : 0xc0493c, { roughness: 0.85 });
-  const stripeB = propMat(forge ? 0xd8ccff : 0xf0e6d2, { roughness: 0.85 });
-  const shelfMat = propMat(forge ? 0x3a2c31 : 0x5c3b23, { roughness: 0.95 });
+  const woodMat = propMat(forge ? 0x5b4652 : 0x7c5433, { roughness: 0.92 });
+  const woodDark = propMat(forge ? 0x33262e : 0x53341f, { roughness: 0.95 });
+  const stoneMat = propMat(forge ? 0x8b8794 : 0xb9b2a2, { roughness: 1 });
+  const stripeA = propMat(forge ? 0x5b4d92 : 0xc0493c, { roughness: 0.85 });
+  const stripeB = propMat(forge ? 0xe4daff : 0xf0e6d2, { roughness: 0.85 });
+  const shelfMat = propMat(forge ? 0x46353b : 0x5c3b23, { roughness: 0.95 });
 
   const base = new THREE.Mesh(new THREE.BoxGeometry(128, 3, 96), stoneMat);
   base.position.y = 1.5;
@@ -1429,6 +1429,20 @@ function buildShop(scene, opts) {
     const anvilGlow = glowHalo(0xff8a3c, 12, 0.12);
     anvilGlow.position.set(52, 12, 62);
     g.add(anvilGlow);
+    // 안쪽 화로 — 대장간의 불빛 (점광원 없이 발광 판 + 후광)
+    const hearthMat = new THREE.MeshStandardMaterial({
+      color: 0xffb066, emissive: 0xff6a1e, emissiveIntensity: 2.1, roughness: 0.55,
+    });
+    const hearth = new THREE.Mesh(new THREE.BoxGeometry(26, 16, 9), hearthMat);
+    hearth.position.set(-42, 11, -24);
+    g.add(hearth);
+    const hearthHood = new THREE.Mesh(new THREE.ConeGeometry(14, 16, 4), propMat(0x2a2330, { roughness: 0.7, metalness: 0.5 }));
+    hearthHood.position.set(-42, 27, -24);
+    hearthHood.rotation.y = Math.PI / 4;
+    g.add(hearthHood);
+    const hearthGlow = glowHalo(0xff8a3c, 30, 0.16, 0.8);
+    hearthGlow.position.set(-42, 14, -20);
+    g.add(hearthGlow);
   }
 
   // 상점 주인 NPC
