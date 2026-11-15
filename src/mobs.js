@@ -646,9 +646,9 @@ function buildDarkMage() {
   const body = new THREE.Group();
   root.add(body);
   const mats = [];
-  const robeMat = stdMat(0x241a33, { roughness: 0.95 });
-  const robeDark = stdMat(0x140f1e, { roughness: 1 });
-  const trimMat = stdMat(0x7a3fbf, { roughness: 0.5, metalness: 0.4, emissive: 0x3a1a6a, emissiveIntensity: 0.8 });
+  const robeMat = stdMat(0x2f2244, { roughness: 0.9, emissive: 0x1a0c30, emissiveIntensity: 0.55 });
+  const robeDark = stdMat(0x1b1428, { roughness: 1, emissive: 0x120a22, emissiveIntensity: 0.4 });
+  const trimMat = stdMat(0x7a3fbf, { roughness: 0.5, metalness: 0.4, emissive: 0x5a24a0, emissiveIntensity: 1.1 });
   const skinMat = stdMat(0x9c8f9e, { roughness: 0.9 });
   const staffMat = stdMat(0x2c1f36, { roughness: 0.8 });
   const orbMat = new THREE.MeshStandardMaterial({
@@ -701,10 +701,10 @@ function buildDarkMage() {
   const staff = new THREE.Group();
   staff.position.set(0, -5.6, 0.6);
   staff.add(mkMesh(new THREE.CylinderGeometry(0.36, 0.44, 22, 8), staffMat, 0, 6, 0).rotateX(0));
-  const orb = mkMesh(new THREE.SphereGeometry(2.5, 14, 10), orbMat, 0, 18.4, 0);
+  const orb = mkMesh(new THREE.SphereGeometry(2.9, 14, 10), orbMat, 0, 18.4, 0);
   staff.add(orb);
-  const orbHalo = mkMesh(new THREE.SphereGeometry(4.0, 12, 9), new THREE.MeshBasicMaterial({
-    color: 0xb07aff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false,
+  const orbHalo = mkMesh(new THREE.SphereGeometry(5.0, 12, 9), new THREE.MeshBasicMaterial({
+    color: 0xb07aff, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false,
   }), 0, 18.4, 0);
   staff.add(orbHalo);
   // 지팡이 끝 갈라진 가지
@@ -733,8 +733,16 @@ function buildDarkMage() {
   halo.rotation.x = Math.PI / 2;
   body.add(halo);
 
+  // 발치의 어둠 안개 (어두운 바닥에서도 보스가 한눈에 띄게)
+  const baseGlow = new THREE.Mesh(new THREE.SphereGeometry(26, 14, 10), new THREE.MeshBasicMaterial({
+    color: 0x8a3aff, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  baseGlow.scale.set(1, 0.22, 1);
+  baseGlow.position.y = 3;
+  body.add(baseGlow);
+
   return {
-    root, body, torso, head, armL, armR, staff, orb, orbMat, orbHalo, runeRing, halo, eyeMat, mats,
+    root, body, torso, head, armL, armR, staff, orb, orbMat, orbHalo, runeRing, halo, baseGlow, eyeMat, mats,
     height: 40,
   };
 }
@@ -1505,6 +1513,7 @@ export class Mob {
       const pulse = 1 + Math.sin(t * (this.enraged ? 7 : 3.6)) * 0.14;
       if (m.orb) m.orb.scale.setScalar(pulse * (1 + swing * 0.5));
       if (m.orbHalo) m.orbHalo.scale.setScalar(pulse * 1.2 + swing * 0.6);
+      if (m.baseGlow) m.baseGlow.material.opacity = (this.enraged ? 0.16 : 0.11) + Math.sin(t * 2.1) * 0.035;
       if (this.enraged && m.orbMat) {
         m.orbMat.color.setHex(0xff8ad0);
         m.orbMat.emissive.setHex(0xff2a8a);

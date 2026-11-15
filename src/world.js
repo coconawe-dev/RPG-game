@@ -1886,11 +1886,16 @@ function buildDarkRealm(scene) {
     color: 0xff5a8a, emissive: 0xd01a5a, emissiveIntensity: 2.2, roughness: 0.3, transparent: true, opacity: 0.9,
   });
 
-  // 흑요석 기둥 — 투기장을 둘러싼다
+  // 흑요석 기둥 — 투기장을 둘러싼다 (남쪽 진입로는 비워 둔다)
   const pillars = [];
   const rnd = mulberry32(9501);
   for (let i = 0; i < 22; i++) {
     const a = (i / 22) * Math.PI * 2 + 0.08;
+    // 남쪽(+z) 방향은 문처럼 틔워 둔다
+    let da = a - Math.PI / 2;
+    while (da > Math.PI) da -= Math.PI * 2;
+    while (da < -Math.PI) da += Math.PI * 2;
+    if (Math.abs(da) < 0.45) continue;
     const r = 300 + rnd() * 130;
     const x = Math.cos(a) * r;
     const z = W2 + Math.sin(a) * r;
