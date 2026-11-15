@@ -867,9 +867,6 @@ function buildVillageGate(scene) {
   const sign = new THREE.Mesh(new THREE.BoxGeometry(2.6, 22, 76), signMaterial('태초마을', 'STARTER VILLAGE'));
   sign.position.set(-1520, y + 40, 0);
   scene.add(sign);
-  const sign2 = new THREE.Mesh(new THREE.BoxGeometry(36, 14, 2.2), signMaterial('쾌적한 숲 →', ''));
-  sign2.position.set(-1526, y + 44, 60);
-  scene.add(sign2);
 }
 
 // 무기 · 포션 상점 건물 + 상점 주인 NPC
@@ -1055,12 +1052,12 @@ function buildVillage(scene) {
 
   // 마을 표지판 (동쪽 길)
   const postMat = propMat(0x6b4a2f, { roughness: 0.95 });
-  const postX = -1750, postZ = 46;
+  const postX = -1735, postZ = 96;
   const post = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2, 26, 7), postMat);
   post.position.set(postX, terrainHeight(postX, postZ) + 13, postZ);
   post.castShadow = true;
   scene.add(post);
-  const board = new THREE.Mesh(new THREE.BoxGeometry(46, 14, 2), signMaterial('→ 쾌적한 숲', 'PLEASANT FOREST', 0x4a2e18));
+  const board = new THREE.Mesh(new THREE.BoxGeometry(40, 12, 2), signMaterial('→ 쾌적한 숲', 'PLEASANT FOREST', 0x4a2e18));
   board.position.set(postX, terrainHeight(postX, postZ) + 26, postZ);
   scene.add(board);
 
