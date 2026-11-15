@@ -1,7 +1,10 @@
 // 게임 진입점: 렌더러 · 월드 · 입력 · 카메라 · 상태 관리
 import * as THREE from 'three';
-import { BIOMES, BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD } from './config.js';
-import { buildWorld, updateSun, updateVillage, updateOldVillage, updateBiomeCulling, applyWorldQuality } from './world.js';
+import {
+  BIOMES, BIOME_ORDER, ALL_BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD, WORLD2, WORLD2_ARRIVAL,
+} from './config.js';
+import { buildWorld, updateSun, updateVillage, updateOldVillage, updateWorld2, updateBiomeCulling, applyWorldQuality } from './world.js';
+import { Portals, handleBossDefeated, travelPlayer } from './portals.js';
 import { Player } from './player.js';
 import { MobManager } from './mobs.js';
 import { Combat } from './combat.js';
@@ -13,7 +16,7 @@ import { Shop } from './shop.js';
 import {
   Net, normalizeRoomCode, isValidRoomCode, playerListForHud, MAX_PLAYERS,
 } from './net.js';
-import { terrainHeight, clamp, damp, lerp, biomeWeights, regionAt } from './utils.js';
+import { terrainHeight, clamp, damp, lerp, biomeWeights, regionAt, worldAt } from './utils.js';
 
 // 터치 목록에서 identifier가 같은 손가락을 찾는다.
 // (멀티터치에서 손가락마다 다른 일을 시키기 위한 추적용 — 조이스틱과 시점 회전이 서로를 방해하지 않게 한다)
@@ -41,6 +44,12 @@ class Game {
     this.elapsed = 0;
     this.player = null;
     this.gold = START_GOLD;
+    // 어느 세계에 있는지 (1 | 2) · 고대 골렘을 잡으면 2번째 세계가 열린다
+    this.worldId = 1;
+    this.world2Unlocked = false;
+    this.nearPortal = false;
+    this.portals = null;
+    this.victoryKind = null;
     this.mpMode = 'solo';
     this.nick = '';
     this.net = null;
@@ -73,7 +82,7 @@ class Game {
       colorD: new THREE.Color(),
       colorE: new THREE.Color(),
     };
-    for (const id of BIOME_ORDER) {
+    for (const id of ALL_BIOME_ORDER) {
       const b = BIOMES[id];
       this.biomeCenters[id] = b.center;
       this.biomeColors[id] = {
@@ -120,6 +129,7 @@ class Game {
     this.camera.position.set(-1050, 70, 160);
 
     this.world = buildWorld(this.scene, { low: this.quality === 'low' });
+    this.portals = new Portals(this);
     this.effects = new Effects(this.scene);
     if (this.quality === 'low') this.effects.maxParticles = 24;
     this.combat = new Combat(this);
@@ -141,10 +151,12 @@ class Game {
     this.setupMultiplayer();
     this.resize();
 
-    // 디버그용: ?class=warrior&biome=temple 로 바로 시작, ?x=&z= 로 위치 지정
+    // 디버그용: ?class=warrior&biome=temple 로 바로 시작, ?x=&z= 로 위치 지정, ?world=2 로 2번째 세계부터
     const qp = new URLSearchParams(window.location.search);
     this.startBiome = qp.get('biome');
     this.autoClass = qp.get('class');
+    const qw = parseInt(qp.get('world'), 10);
+    this.startWorld = qw === 2 ? 2 : 1;
     const qx = parseFloat(qp.get('x'));
     const qz = parseFloat(qp.get('z'));
     // 점검용: 인위적으로 프레임을 느리게 만들어 자동 화질 하향을 시험한다 (?perfdelay=800)
@@ -385,7 +397,8 @@ class Game {
       if (k === 'j') { if (this.state === 'playing' && this.player) this.player.attack(); }
       if (k === 'f') {
         if (this.state === 'playing' && this.player) {
-          if (this.nearShop) this.openShop();
+          if (this.nearPortal && this.portals) this.portals.enterNearest();
+          else if (this.nearShop) this.openShop();
           else this.player.attack();
         }
       }
@@ -719,6 +732,17 @@ class Game {
       prompt.addEventListener('click', openShop);
       prompt.addEventListener('touchstart', openShop, { passive: false });
     }
+
+    // 포털 안내도 버튼 — 누르면 바로 다른 세계로 넘어간다
+    const portalPrompt = document.getElementById('portal-prompt');
+    if (portalPrompt) {
+      const usePortal = (e) => {
+        if (e.cancelable) e.preventDefault();
+        if (this.state === 'playing' && this.player && this.portals) this.portals.enterNearest();
+      };
+      portalPrompt.addEventListener('click', usePortal);
+      portalPrompt.addEventListener('touchstart', usePortal, { passive: false });
+    }
   }
 
   resize() {
@@ -1009,8 +1033,11 @@ class Game {
       this.effects.clear();
     }
     this.player = new Player(this, classId);
-    // 기본 시작 지점은 태초마을 (디버그 ?biome= / ?x=&z= 로 바꿀 수 있다)
-    const biomeId = (this.startBiome && BIOMES[this.startBiome]) ? this.startBiome : 'village';
+    // 기본 시작 지점은 태초마을 (디버그 ?biome= / ?x=&z= / ?world=2 로 바꿀 수 있다)
+    let startWorld = this.startWorld === 2 ? 2 : 1;
+    let biomeId = (this.startBiome && BIOMES[this.startBiome]) ? this.startBiome : 'village';
+    if (startWorld === 1 && BIOMES[biomeId] && BIOMES[biomeId].world === 2) startWorld = 2;
+    if (startWorld === 2 && (!BIOMES[biomeId] || BIOMES[biomeId].world !== 2)) biomeId = 'goblin_forest';
     let spawn;
     let yaw = -Math.PI / 2 + 0.25;
     if (this.debugSpawn) {
@@ -1023,6 +1050,7 @@ class Game {
       yaw = 0; // 북쪽(광장 · 상점)을 바라보는 시점
     } else if (BIOMES[biomeId].spawn) {
       spawn = BIOMES[biomeId].spawn;
+      if (startWorld === 2) yaw = 0; // 북쪽(암흑지역)을 바라본다
     } else {
       spawn = BIOMES[biomeId].center;
     }
@@ -1030,6 +1058,11 @@ class Game {
     if (o.spawn) spawn = { x: o.spawn.x, z: o.spawn.z };
     this.player.spawnAt(spawn.x, spawn.z);
     if (biomeId === 'village' && !this.debugSpawn) this.player.facing = Math.PI;
+    this.setWorld(worldAt(spawn.x, spawn.z), { silent: true });
+    if (startWorld === 2) {
+      this.world2Unlocked = true;
+      if (this.mobManager) this.mobManager.spawnWorld(2);
+    }
     this.gold = START_GOLD;
     this.nearShop = false;
     this.camYaw = yaw;
@@ -1039,6 +1072,7 @@ class Game {
     this.state = 'playing';
     this.playTime = 0;
     this.victoryTimer = -1;
+    this.victoryKind = null;
     this.deathTimer = -1;
     this.hud.onStart(this.player);
     // 멀티플레이 연결을 이 시점에 붙인다 (호스트: 몹 스냅샷 송신 시작, 게스트: 몹 미러 준비)
@@ -1073,6 +1107,7 @@ class Game {
     this.player.facing = Math.PI;
     this.player.hp = this.player.maxHp;
     this.mobManager.resetAggro();
+    this.setWorld(1, { silent: true });
     this.hud.hideEnd();
     this.hud.refreshBars();
     this.hud.banner('태초마을에서 다시 일어났습니다', 2000);
@@ -1085,6 +1120,45 @@ class Game {
     else {
       this.hud.hideEnd();
       this.state = 'playing';
+    }
+  }
+
+  /* --------------------------- 세계 이동 (포털) --------------------------- */
+  // 지금 있는 세계를 기록하고, 그 세계의 몹 · 미니맵 · 나침반을 맞춘다
+  setWorld(worldId, opts) {
+    const id = worldId === 2 ? 2 : 1;
+    const changed = id !== this.worldId;
+    this.worldId = id;
+    if (id === 2) this.world2Unlocked = true;
+    if (this.mobManager) this.mobManager.spawnWorld(id);
+    if (this.hud && this.hud.setWorld) this.hud.setWorld(id);
+    if (changed && this.world && this.player) {
+      // 바로 다음 프레임부터 새 세계만 보이게 한다
+      const fogFar = this.scene.fog ? this.scene.fog.far : 1200;
+      const maxCut = this.quality === 'low' ? 1100 : 1280;
+      updateBiomeCulling(this.world, this.player.position, Math.min(maxCut, Math.max(720, fogFar)));
+    }
+    return id;
+  }
+
+  // 포털을 타고 다른 세계로 간다 — 체력 · 경험치는 그대로 두고 자리만 옮긴다
+  travelTo(target) {
+    return travelPlayer(this, target);
+  }
+
+  // 화면의 포털 안내 (상점 안내와 같은 자리에 하나만 뜨게 자리를 비운다)
+  setPortalPrompt(portal) {
+    const el = document.getElementById('portal-prompt');
+    const on = !!(portal && portal.open && this.state === 'playing');
+    this.nearPortal = on;
+    if (!el) return;
+    el.classList.toggle('on', on);
+    if (!on) return;
+    const name = portal.label;
+    if (this._portalLabel !== name) {
+      this._portalLabel = name;
+      const t = el.querySelector('.sp-text');
+      if (t) t.textContent = name + ' 타기';
     }
   }
 
@@ -1104,19 +1178,16 @@ class Game {
   onBossEngage(boss) {
     this.sfx.boss();
     this.shake(0.9);
-    this.hud.banner('고대 골렘 · 정글 사원의 주인', 2600);
+    const name = boss && boss.type ? boss.type.name : '보스';
+    const region = boss ? regionAt(boss.position.x, boss.position.z) : 'temple';
+    const where = BIOMES[region] ? BIOMES[region].name : '';
+    this.hud.banner(name + ' · ' + where + '의 주인', 2600);
     this.effects.ring(new THREE.Vector3(boss.position.x, boss.position.y + 1, boss.position.z), 0x9fe8ff, 220, { duration: 1.1, thickness: 0.03 });
   }
 
-  onBossDefeated() {
-    this.hud.banner('고대 골렘을 쓰러뜨렸습니다!', 3200);
-    this.sfx.victory();
-    this.shake(1.1);
-    const boss = this.mobManager.boss();
-    if (boss) {
-      this.effects.ring(new THREE.Vector3(boss.position.x, boss.position.y + 2, boss.position.z), 0xffe1a3, 320, { duration: 1.6, thickness: 0.02 });
-    }
-    this.victoryTimer = 2.6;
+  // 보스 처치 — 고대 골렘은 2번째 세계 포털을 열고, 흑마법사는 승리 화면
+  onBossDefeated(boss) {
+    return handleBossDefeated(this, boss);
   }
 
   onPlayerDeath() {
@@ -1292,6 +1363,11 @@ class Game {
       this.mobManager.update(dt);
       this.combat.update(dt);
       this.effects.update(dt);
+      // 포털: 가까우면 안내를 띄우고, 안으로 걸어 들어가면 넘어간다
+      if (this.portals) {
+        const nearPortal = this.portals.update(dt, this.elapsed);
+        this.setPortalPrompt(nearPortal);
+      }
     }
 
     // 멀티플레이 동기화 (원격 캐릭터 · 몹 스냅샷 · 방 정보)
@@ -1314,6 +1390,7 @@ class Game {
     this.updateShopProximity();
     updateVillage(this.world, dt, this.elapsed);
     updateOldVillage(this.world, dt, this.elapsed);
+    updateWorld2(this.world, dt, this.elapsed, p.position);
 
     // 타이머 상태 전환
     if (this.deathTimer > 0) {
@@ -1329,7 +1406,7 @@ class Game {
       if (this.victoryTimer <= 0) {
         this.victoryTimer = -1;
         this.state = 'victory';
-        this.hud.showEnd('victory', this.buildStats());
+        this.hud.showEnd('victory', this.buildStats(), { kind: this.victoryKind });
       }
     }
   }
@@ -1403,7 +1480,7 @@ class Game {
     let hgR = 0, hgG = 0, hgB = 0;
     let near = 0, far = 0, sunI = 0, hemiI = 0;
 
-    for (const id of BIOME_ORDER) {
+    for (const id of ALL_BIOME_ORDER) {
       const k = w[id] || 0;
       if (k <= 0.0001) continue;
       const c = this.biomeColors[id];
@@ -1445,6 +1522,9 @@ class Game {
   debugInfo() {
     return {
       state: this.state,
+      world: this.worldId,
+      world2Unlocked: !!this.world2Unlocked,
+      nearPortal: this.nearPortal ? (this.portals && this.portals.current ? this.portals.current.id : true) : false,
       frames: this.frames,
       drawCalls: this.renderer ? this.renderer.info.render.calls : 0,
       triangles: this.renderer ? this.renderer.info.render.triangles : 0,

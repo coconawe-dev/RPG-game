@@ -87,7 +87,35 @@ export const WORLD = {
   zMax: 1470,
 };
 
-export function terrainHeight(x, z) {
+/* ------------------------------------------------------------------
+   2번째 세계 (World 2)
+   1번째 세계와 완전히 떨어진 자리에 같은 십자 구조로 놓는다.
+   - z 를 originZ 만큼 밀어 두면 두 세계가 절대 겹치지 않고,
+     바이옴 컬링 · 미니맵 · 몹 시뮬레이션이 좌표만으로 갈린다.
+   - 안쪽 좌표는 local (z = 0 이 암흑지역 중심) 로 계산한다.
+     · 중앙: 암흑지역(z 0)        · 북: 불길한 동굴(z -1000)
+     · 남: 고블린 숲(z +1000)     · 서: 안개낀 평지(x -1000) · 동: 사쿠라(x +1000)
+------------------------------------------------------------------ */
+export const WORLD2 = {
+  id: 2,
+  name: '2번째 세계',
+  originZ: 8000,
+  zSplit: 4000,        // 이 z 보다 크면 2번째 세계 좌표
+  cell: 1000,
+  halfCell: 500,
+  xMin: -1470,
+  xMax: 1470,
+  zMin: 8000 - 1470,
+  zMax: 8000 + 1470,
+};
+
+// 어느 세계의 좌표인지 (1 | 2)
+export function worldAt(x, z) {
+  return (z > WORLD2.zSplit) ? 2 : 1;
+}
+
+/* 1번째 세계 지형 */
+function terrainHeight1(x, z) {
   let h = 0;
   h += Math.sin(x * 0.0042) * Math.cos(z * 0.0035) * 5.5;
   h += Math.sin((x + z) * 0.0085 + 1.7) * 2.8;
@@ -115,7 +143,42 @@ export function terrainHeight(x, z) {
   return h;
 }
 
+/* 2번째 세계 지형 — local 좌표(z = 0 이 암흑지역 중심) */
+function terrainHeight2Local(x, z) {
+  let h = 0;
+  h += Math.sin(x * 0.0048) * Math.cos(z * 0.0041) * 7.4;
+  h += Math.sin((x - z) * 0.0092 + 2.1) * 3.1;
+  h += Math.cos(x * 0.019 + 0.7) * Math.sin(z * 0.017) * 1.6;
+  h += Math.sin(x * 0.058 + z * 0.052) * 0.5;
+
+  // 암흑지역 보스 투기장은 평평하게
+  const dArena = Math.hypot(x, z);
+  h *= 1 - smoothstep(560, 320, dArena) * 0.96;
+
+  // 고블린 숲의 도착 광장(남쪽 끝)도 평평하게 — 도착하자마자 안전하게
+  const dArrive = Math.hypot(x, z - 1400);
+  h *= 1 - smoothstep(320, 170, dArrive) * 0.96;
+
+  // 세계 외곽은 완만하게 낮춤
+  const border = Math.min(x + 1500, 1500 - x, z + 1500, 1500 - z);
+  h *= smoothstep(0, 90, border);
+  return h;
+}
+
+export function terrainHeight(x, z) {
+  if (z > WORLD2.zSplit) return terrainHeight2Local(x, z - WORLD2.originZ);
+  return terrainHeight1(x, z);
+}
+
 export function regionAt(x, z) {
+  if (z > WORLD2.zSplit) {
+    const lz = z - WORLD2.originZ;
+    if (Math.abs(x) <= WORLD2.halfCell && Math.abs(lz) <= WORLD2.halfCell) return 'dark_realm';
+    if (lz < -WORLD2.halfCell) return 'ominous_cave';
+    if (lz > WORLD2.halfCell) return 'goblin_forest';
+    if (x > WORLD2.halfCell) return 'sakura';
+    return 'misty_plains';
+  }
   if (Math.abs(x) <= WORLD.halfCell && Math.abs(z) <= WORLD.halfCell) return 'temple';
   if (x < -WORLD.halfCell) return x < -1500 ? 'village' : 'forest';
   if (x > WORLD.halfCell) return x > 1500 ? 'old_village' : 'savanna';
@@ -124,8 +187,22 @@ export function regionAt(x, z) {
   return 'forest';
 }
 
-// 십자 형태의 통행 가능 영역으로 위치를 제한
-export function clampToWorld(p) {
+// 십자 형태의 통행 가능 영역으로 위치를 제한 (worldId 를 주면 그 세계 기준)
+export function clampToWorld(p, worldId) {
+  if (worldId === 2) {
+    p.x = clamp(p.x, WORLD2.xMin, WORLD2.xMax);
+    p.z = clamp(p.z, WORLD2.zMin, WORLD2.zMax);
+    const ax = Math.abs(p.x);
+    const lz = p.z - WORLD2.originZ;
+    if (ax > WORLD2.halfCell && Math.abs(lz) > WORLD2.halfCell) {
+      if (ax - WORLD2.halfCell < Math.abs(lz) - WORLD2.halfCell) {
+        p.x = Math.sign(p.x) * (WORLD2.halfCell - 4);
+      } else {
+        p.z = WORLD2.originZ + Math.sign(lz) * (WORLD2.halfCell - 4);
+      }
+    }
+    return p;
+  }
   p.x = clamp(p.x, WORLD.xMin, WORLD.xMax);
   p.z = clamp(p.z, WORLD.zMin, WORLD.zMax);
   const ax = Math.abs(p.x), az = Math.abs(p.z);
@@ -139,7 +216,11 @@ export function clampToWorld(p) {
   return p;
 }
 
-export function isInsideWorld(x, z) {
+export function isInsideWorld(x, z, worldId) {
+  if (worldId === 2) {
+    if (x < WORLD2.xMin || x > WORLD2.xMax || z < WORLD2.zMin || z > WORLD2.zMax) return false;
+    return Math.abs(x) <= WORLD2.halfCell || Math.abs(z - WORLD2.originZ) <= WORLD2.halfCell;
+  }
   if (x < WORLD.xMin || x > WORLD.xMax || z < WORLD.zMin || z > WORLD.zMax) return false;
   return Math.abs(x) <= WORLD.halfCell || Math.abs(z) <= WORLD.halfCell;
 }

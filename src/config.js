@@ -1,4 +1,7 @@
 // 월드 · 직업 · 스킬 정의
+import { WORLD2 } from './utils.js';
+
+export { WORLD2 };
 
 export const GROUND_Y = 0;
 
@@ -186,10 +189,180 @@ export const BIOMES = {
   },
 };
 
+/* ------------------------------------------------------------------
+   2번째 세계 — 고대 골렘을 쓰러뜨리면 열리는 땅
+   중앙 암흑지역(보스) + 네 방향(북 불길한 동굴 · 남 고블린 숲 · 서 안개낀 평지 · 동 사쿠라)
+   좌표는 1번째 세계와 겹치지 않게 WORLD2.originZ 만큼 밀어 둔 절대 좌표다.
+------------------------------------------------------------------ */
+const W2 = WORLD2.originZ;
+
+export const BIOMES_W2 = {
+  goblin_forest: {
+    id: 'goblin_forest',
+    world: 2,
+    name: '고블린 숲',
+    en: 'Goblin Forest',
+    short: '고블린 숲',
+    center: { x: 0, z: W2 + 1000 },
+    bounds: { x0: -500, x1: 500, z0: W2 + 500, z1: W2 + 1500 },
+    ground: 0x2f5a3a,
+    ground2: 0x21452b,
+    edge: 0x193824,
+    minimap: '#2f6a44',
+    sky: 0x35513f,
+    fog: 0x28422f,
+    fogNear: 150,
+    fogFar: 860,
+    sun: 0xbfdcaa,
+    sunIntensity: 1.15,
+    hemiSky: 0x8cbb98,
+    hemiGround: 0x122019,
+    hemiIntensity: 0.56,
+    mob: 'goblin',
+    mobCount: 16,
+    landmark: '고블린 토템',
+    landmarkPos: { x: 0, z: W2 + 900 },
+    spawn: { x: 0, z: W2 + 1400 },
+    arrival: true,
+  },
+  ominous_cave: {
+    id: 'ominous_cave',
+    world: 2,
+    name: '불길한 동굴',
+    en: 'Ominous Cave',
+    short: '동굴',
+    center: { x: 0, z: W2 - 1000 },
+    bounds: { x0: -500, x1: 500, z0: W2 - 1500, z1: W2 - 500 },
+    ground: 0x2b2329,
+    ground2: 0x1b161c,
+    edge: 0x120e13,
+    minimap: '#4b3240',
+    sky: 0x2b1c26,
+    fog: 0x35202c,
+    fogNear: 110,
+    fogFar: 640,
+    sun: 0xff9c7c,
+    sunIntensity: 0.9,
+    hemiSky: 0x7a4058,
+    hemiGround: 0x0c080e,
+    hemiIntensity: 0.52,
+    mob: 'iron_golem',
+    mobCount: 6,
+    landmark: '불타는 용광로',
+    landmarkPos: { x: 0, z: W2 - 1000 },
+  },
+  misty_plains: {
+    id: 'misty_plains',
+    world: 2,
+    name: '안개낀 평지',
+    en: 'Misty Plains',
+    short: '안개 평지',
+    center: { x: -1000, z: W2 },
+    bounds: { x0: -1500, x1: -500, z0: W2 - 500, z1: W2 + 500 },
+    ground: 0x8d8b84,
+    ground2: 0x73726c,
+    edge: 0x5e5d58,
+    minimap: '#9a9a96',
+    sky: 0xa9aeb2,
+    fog: 0xc4c9cc,
+    fogNear: 110,
+    fogFar: 660,
+    sun: 0xdfe4e6,
+    sunIntensity: 1.0,
+    hemiSky: 0xd6dadd,
+    hemiGround: 0x484845,
+    hemiIntensity: 0.78,
+    mob: 'skeleton',
+    mobCount: 14,
+    landmark: '부서진 석주',
+    landmarkPos: { x: -1000, z: W2 },
+  },
+  sakura: {
+    id: 'sakura',
+    world: 2,
+    name: '사쿠라',
+    en: 'Sakura Grove',
+    short: '사쿠라',
+    center: { x: 1000, z: W2 },
+    bounds: { x0: 500, x1: 1500, z0: W2 - 500, z1: W2 + 500 },
+    ground: 0x7d9463,
+    ground2: 0x667f4f,
+    edge: 0x546a42,
+    minimap: '#e0a0b8',
+    sky: 0xf3c9d8,
+    fog: 0xf0d3dd,
+    fogNear: 260,
+    fogFar: 1250,
+    sun: 0xffd9e4,
+    sunIntensity: 1.7,
+    hemiSky: 0xffe4ee,
+    hemiGround: 0x4d5c3c,
+    hemiIntensity: 0.8,
+    mob: 'samurai',
+    mobCount: 12,
+    landmark: '천 년 벚나무',
+    landmarkPos: { x: 1000, z: W2 },
+  },
+  dark_realm: {
+    id: 'dark_realm',
+    world: 2,
+    name: '암흑지역',
+    en: 'Dark Realm',
+    short: '암흑지역',
+    center: { x: 0, z: W2 },
+    bounds: { x0: -500, x1: 500, z0: W2 - 500, z1: W2 + 500 },
+    ground: 0x2a2438,
+    ground2: 0x1d1a29,
+    edge: 0x141120,
+    minimap: '#402a5e',
+    sky: 0x1a1020,
+    fog: 0x241428,
+    fogNear: 220,
+    fogFar: 1180,
+    sun: 0xb08cff,
+    sunIntensity: 1.0,
+    hemiSky: 0x7a52b0,
+    hemiGround: 0x0a0810,
+    hemiIntensity: 0.58,
+    mob: 'dark_mage',
+    mobCount: 1,
+    landmark: '흑마법사의 제단',
+    landmarkPos: { x: 0, z: W2 - 80 },
+  },
+};
+
+// 2번째 세계 지역 순서 (도착지인 고블린 숲이 먼저)
+export const BIOME_ORDER_W2 = ['goblin_forest', 'misty_plains', 'sakura', 'ominous_cave', 'dark_realm'];
+
+// 1번째 세계 지역 순서
 export const BIOME_ORDER = ['village', 'forest', 'graveyard', 'savanna', 'old_village', 'jungle', 'temple'];
+
+// 두 세계를 한 곳에서 찾을 수 있게 합쳐 둔다 (지역 이름 · 색 · 경계 조회용)
+Object.assign(BIOMES, BIOMES_W2);
+
+// 두 세계를 모두 포함한 목록 — 몹 스폰 · 바이옴 컬링 · 환경 색 계산용
+export const ALL_BIOME_ORDER = BIOME_ORDER.concat(BIOME_ORDER_W2);
+
+// 두 세계의 바이옴 정의를 한 곳에서 찾는다
+export function biomeById(id) {
+  return BIOMES[id] || null;
+}
+
+// 세계별 지역 목록
+export function biomeOrderFor(worldId) {
+  return worldId === 2 ? BIOME_ORDER_W2 : BIOME_ORDER;
+}
+
 
 // 미니맵 · 나침반에서 사용할 지역 목록 (사원 우선 표시)
 export const COMPASS_ORDER = ['temple', 'village', 'forest', 'graveyard', 'savanna', 'old_village', 'jungle'];
+
+// 2번째 세계 나침반 (보스가 있는 암흑지역을 맨 위에)
+export const COMPASS_ORDER_W2 = ['dark_realm', 'goblin_forest', 'misty_plains', 'sakura', 'ominous_cave'];
+
+export function compassOrderFor(worldId) {
+  return worldId === 2 ? COMPASS_ORDER_W2 : COMPASS_ORDER;
+}
 
 // 시작 골드
 export const START_GOLD = 100;
@@ -223,10 +396,50 @@ export const MOB_TYPES = {
   golem: {
     id: 'golem', name: '고대 골렘', hp: 3200, damage: 54, speed: 28, aggro: 340,
     attackRange: 82, attackCooldown: 2.1, xp: 2500, gold: 800, height: 48, radius: 18,
-    leash: 660, kind: 'golem', boss: true,
+    leash: 660, kind: 'golem', boss: true, level: 20,
     enrageAt: 0.5, slamEvery: 3, slamRadius: 200, slamWindup: 1.5, slamCooldown: 9,
   },
+
+  /* ---------------------- 2번째 세계의 몹 — 훨씬 강하다 ---------------------- */
+  goblin: {
+    id: 'goblin', name: '고블린', hp: 540, damage: 29, speed: 64, aggro: 210,
+    attackRange: 32, attackCooldown: 1.25, xp: 300, gold: 150, height: 17, radius: 6,
+    leash: 360, kind: 'goblin',
+  },
+  skeleton: {
+    id: 'skeleton', name: '스켈레톤', hp: 720, damage: 37, speed: 52, aggro: 220,
+    attackRange: 42, attackCooldown: 1.6, xp: 450, gold: 230, height: 19, radius: 6,
+    leash: 380, kind: 'skeleton',
+  },
+  samurai: {
+    id: 'samurai', name: '사무라이', hp: 1150, damage: 49, speed: 56, aggro: 240,
+    attackRange: 46, attackCooldown: 1.45, xp: 700, gold: 330, height: 21, radius: 7,
+    leash: 420, kind: 'samurai',
+  },
+  iron_golem: {
+    id: 'iron_golem', name: '아이언 골렘', hp: 1850, damage: 60, speed: 36, aggro: 280,
+    attackRange: 70, attackCooldown: 2.0, xp: 1200, gold: 620, height: 46, radius: 16,
+    leash: 600, kind: 'iron_golem',
+  },
+  dark_mage: {
+    id: 'dark_mage', name: '흑마법사', hp: 6800, damage: 78, speed: 32, aggro: 380,
+    attackRange: 170, attackCooldown: 2.3, xp: 6500, gold: 2600, height: 40, radius: 12,
+    leash: 640, kind: 'dark_mage', boss: true, level: 60,
+    enemyProjectile: 'dark_orb',
+    enrageAt: 0.55, slamEvery: 3, slamRadius: 230, slamWindup: 1.4, slamCooldown: 8,
+    slamLabel: '어둠의 충격파!',
+  },
 };
+
+// 2번째 세계 보스가 서는 자리 (암흑지역 제단 앞)
+export const BOSS2_POS = { x: 0, z: WORLD2.originZ + 130 };
+
+// 2번째 세계 도착 광장 · 고대 골렘을 잡으면 열리는 포털 자리
+export const WORLD2_ARRIVAL = { x: 0, z: WORLD2.originZ + 1400 };
+export const WORLD1_PORTAL_POS = { x: 0, z: 172 };
+// 1번째 세계로 돌아가는 귀환 포털 (도착 광장 옆)
+export const WORLD2_RETURN_POS = { x: 190, z: WORLD2.originZ + 1400 };
+
 
 export const CLASSES = {
   warrior: {

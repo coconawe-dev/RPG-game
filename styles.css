@@ -1069,6 +1069,18 @@ body.touch-mode .shop-prompt {
 }
 body.touch-mode .shop-prompt .sp-key { display: none; }
 
+/* 포털 안내 — 상점 안내와 같은 모양에 보랏빛만 다르다 (두 안내는 같은 자리에 겹쳐 뜨지 않는다) */
+.portal-prompt {
+  color: #ede2ff;
+  background: linear-gradient(180deg, #6a4aa8, #43286f);
+  border-color: #b79aff;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 24px rgba(164, 106, 255, 0.45);
+}
+.portal-prompt .sp-key {
+  color: #f0e6ff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
 /* 상점 모달 */
 .shop-overlay {
   position: absolute;

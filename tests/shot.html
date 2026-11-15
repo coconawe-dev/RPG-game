@@ -28,7 +28,7 @@
   frame.style.width = w + 'px';
   frame.style.height = h + 'px';
   const params = new URLSearchParams();
-  for (const key of ['class', 'biome', 'quality', 'touch', 'dpr', 'x', 'z', 'nick']) {
+  for (const key of ['class', 'biome', 'quality', 'touch', 'dpr', 'x', 'z', 'nick', 'world']) {
     const v = qp.get(key);
     if (v !== null && v !== '') params.set(key, v);
   }

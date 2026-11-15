@@ -6,11 +6,12 @@ import { Player } from '/workspace/RPG-game/src/player.js';
 import { Effects } from '/workspace/RPG-game/src/effects.js';
 import { Combat } from '/workspace/RPG-game/src/combat.js';
 import { castSkill } from '/workspace/RPG-game/src/skills.js';
-import { CLASS_ORDER, BIOMES, BIOME_ORDER, BOSS_POS, MOB_TYPES, SHOP, START_GOLD } from '/workspace/RPG-game/src/config.js';
-import { terrainHeight, regionAt, clampToWorld, WORLD } from '/workspace/RPG-game/src/utils.js';
+import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, ALL_BIOME_ORDER, BOSS_POS, BOSS2_POS, MOB_TYPES, SHOP, START_GOLD, WORLD2, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS } from '/workspace/RPG-game/src/config.js';
+import { terrainHeight, regionAt, clampToWorld, worldAt, WORLD } from '/workspace/RPG-game/src/utils.js';
+import { Portals, handleBossDefeated, travelPlayer } from '/workspace/RPG-game/src/portals.js';
 import { buyItem } from '/workspace/RPG-game/src/shop.js';
 import {
-  Net, encodeMsg, decodeMsg, packPlayer, unpackPlayer, packMob, unpackMob,
+  Net, encodeMsg, decodeMsg, packPlayer, unpackPlayer, packMob, unpackMob, MOB_CODES,
   makeRoomCode, normalizeRoomCode, isValidRoomCode, nearestDistance, ANIM_NAMES,
 } from '/workspace/RPG-game/src/net.js';
 
@@ -25,7 +26,7 @@ console.log('world children:', scene.children.length, 'meshes:', worldMeshes);
 check(worldMeshes > 20, 'world produced too few objects');
 
 // 바이옴 그룹: 멀리 있는 바이옴은 통째로 꺼진다 (그리기 호출 · 그림자 패스 절약)
-check(!!world.biomeGroups && Object.keys(world.biomeGroups).length === BIOME_ORDER.length, 'biome groups missing');
+check(!!world.biomeGroups && Object.keys(world.biomeGroups).length === ALL_BIOME_ORDER.length, 'biome groups missing');
 updateBiomeCulling(world, { x: -2000, z: 0 }, 1280);
 const inVillage = Object.keys(world.biomeGroups).filter((id) => world.biomeGroups[id].visible);
 check(inVillage.indexOf('village') >= 0, 'nearby biome must stay visible');
@@ -83,6 +84,111 @@ check(Math.abs(cl2.z) <= 500 && Math.abs(cl2.z) > 480, 'world clamp south failed
 const cl3 = clampToWorld({ x: -2000, z: 400 });
 check(cl3.x === -2000 && cl3.z === 400, 'clamp moved a valid village position');
 
+/* =====================================================================
+   2번째 세계 — 다섯 바이옴 · 몹 · 지형 · 경계
+   ===================================================================== */
+{
+  const W2 = WORLD2.originZ;
+  const expectMob = {
+    goblin_forest: 'goblin', misty_plains: 'skeleton', sakura: 'samurai',
+    ominous_cave: 'iron_golem', dark_realm: 'dark_mage',
+  };
+  check(BIOME_ORDER_W2.length === 5, 'world 2 must have 5 biomes, got ' + BIOME_ORDER_W2.length);
+  check(ALL_BIOME_ORDER.length === BIOME_ORDER.length + BIOME_ORDER_W2.length, 'ALL_BIOME_ORDER must cover both worlds');
+
+  for (const region of Object.keys(expectMob)) {
+    const b = BIOMES[region];
+    check(!!b, 'world 2 biome missing: ' + region);
+    if (!b) continue;
+    check(b.world === 2, region + ' must be tagged as world 2');
+    check(b.bounds.x1 - b.bounds.x0 === 1000 && b.bounds.z1 - b.bounds.z0 === 1000, region + ' must be 1000x1000');
+    check(b.mob === expectMob[region], region + ' must spawn ' + expectMob[region] + ', got ' + b.mob);
+    check(worldAt(b.center.x, b.center.z) === 2, region + ' must sit in world 2 coordinates');
+    check(regionAt(b.center.x, b.center.z) === region, region + ' region lookup wrong: ' + regionAt(b.center.x, b.center.z));
+    check(b.bounds.z0 > WORLD.zMax, region + ' must not overlap world 1');
+    check(!!b.landmark && !!b.landmarkPos, region + ' needs a landmark');
+    check(b.minimap && b.sky && b.fog, region + ' needs map/sky/fog colors');
+  }
+
+  // 2번째 세계는 1번째 세계와 완전히 떨어져 있다고 본다 (z > 4000)
+  check(worldAt(0, 0) === 1 && worldAt(-2000, 0) === 1 && worldAt(0, 1400) === 1, 'world 1 coordinates misclassified');
+  check(WORLD2.originZ > WORLD.zMax + 2000, 'world 2 must be far from world 1');
+
+  // 지형은 바이옴 경계에서 이어져야 한다
+  const w2Edges = [
+    [0, W2 + 500], [0, W2 - 500], [-500, W2], [500, W2],
+    [0, W2 + 1500], [0, W2 - 1500], [-1500, W2], [1500, W2],
+    [0, W2 + 1400], [-1000, W2], [1000, W2],
+  ];
+  for (const [x, z] of w2Edges) {
+    const a = terrainHeight(x - 0.01, z);
+    const b2 = terrainHeight(x + 0.01, z);
+    const c = terrainHeight(x, z - 0.01);
+    const d = terrainHeight(x, z + 0.01);
+    check(Math.abs(a - b2) < 0.05 && Math.abs(c - d) < 0.05, 'world 2 terrain discontinuity at ' + x + ',' + z);
+  }
+  // 도직 광장 · 보스 투기장은 평탄해야 한다
+  check(Math.abs(terrainHeight(WORLD2_ARRIVAL.x, WORLD2_ARRIVAL.z)) < 1.5, 'arrival plaza must be flat');
+  check(Math.abs(terrainHeight(0, W2)) < 3, 'boss arena must be fairly flat');
+
+  // 도직 지점은 안전한 고블린 숲 안
+  check(regionAt(WORLD2_ARRIVAL.x, WORLD2_ARRIVAL.z) === 'goblin_forest', 'world 2 arrival must be in goblin forest');
+  check(regionAt(WORLD2_RETURN_POS.x, WORLD2_RETURN_POS.z) === 'goblin_forest', 'return portal must stand in the arrival plaza');
+  check(Math.hypot(WORLD2_RETURN_POS.x - WORLD2_ARRIVAL.x, WORLD2_RETURN_POS.z - WORLD2_ARRIVAL.z) > 100, 'return portal must be far enough from the arrival spot');
+  check(regionAt(WORLD1_PORTAL_POS.x, WORLD1_PORTAL_POS.z) === 'temple', 'world 2 portal must open at the temple');
+  check(regionAt(BOSS2_POS.x, BOSS2_POS.z) === 'dark_realm', 'dark mage must stand in the dark realm');
+
+  /* ------------------- 컬링: 두 세계는 서로 안 보인다 ------------------- */
+  updateBiomeCulling(world, { x: -2000, z: 0 }, 1280);
+  const w2culled = BIOME_ORDER_W2.filter((id) => world.biomeGroups[id].visible);
+  check(w2culled.length === 0, 'world 2 biomes must be culled while in world 1: ' + w2culled.join(','));
+  updateBiomeCulling(world, { x: 0, z: W2 + 1400 }, 1280);
+  check(world.biomeGroups.goblin_forest.visible === true, 'goblin forest must show at the arrival plaza');
+  check(world.biomeGroups.dark_realm.visible === true, 'dark realm must be visible from the arrival plaza');
+  check(world.biomeGroups.village.visible === false, 'world 1 village must be culled while in world 2');
+  check(world.biomeGroups.temple.visible === false, 'world 1 temple must be culled while in world 2');
+
+  // 각 바이옴 그룹에 프롭이 실제로 만들어졌다
+  for (const region of Object.keys(expectMob)) {
+    let meshes = 0;
+    world.biomeGroups[region].traverse((o) => { if (o.isMesh || o.isInstancedMesh) meshes++; });
+    check(meshes > 6, region + ' has too few objects: ' + meshes);
+  }
+
+  // 십자 모양 경계 안에서만 움직일 수 있다 (clampToWorld 사용법은 그대로)
+  check(clampToWorld({ x: 9e9, z: W2 }, 2).x === WORLD2.xMax, 'world 2 east clamp failed');
+  check(clampToWorld({ x: -9e9, z: W2 }, 2).x === WORLD2.xMin, 'world 2 west clamp failed');
+  check(clampToWorld({ x: 0, z: W2 + 9e9 }, 2).z === WORLD2.zMax, 'world 2 south clamp failed');
+  const corner = clampToWorld({ x: 900, z: W2 + 900 }, 2);
+  check(Math.abs(corner.x) <= 500 || Math.abs(corner.z - W2) <= 500, 'world 2 cross clamp failed: ' + corner.x + ',' + corner.z);
+  const okSpot = clampToWorld({ x: 120, z: W2 + 1200 }, 2);
+  check(okSpot.x === 120 && okSpot.z === W2 + 1200, 'clamp moved a valid world 2 position');
+
+  /* ------------------------- 몹: 훨씬 강해진 수치 ------------------------- */
+  // (MOB_TYPES 에는 두 세계의 몹이 모두 들어 있으므로 1번째 세계 몹만 골라 본다)
+  const W1_MOBS = ['slime', 'zombie', 'hyena', 'gorilla', 'raider'];
+  const w1Strongest = Math.max(...W1_MOBS.map((id) => MOB_TYPES[id].hp));
+  check(w1Strongest === MOB_TYPES.gorilla.hp, 'strongest world 1 normal mob should be the gorilla');
+  check(MOB_TYPES.goblin.hp >= 450 && MOB_TYPES.goblin.hp <= 600, 'goblin hp out of range: ' + MOB_TYPES.goblin.hp);
+  check(MOB_TYPES.goblin.damage >= 25 && MOB_TYPES.goblin.damage <= 32, 'goblin damage out of range');
+  check(MOB_TYPES.skeleton.hp >= 650 && MOB_TYPES.skeleton.hp <= 800, 'skeleton hp out of range: ' + MOB_TYPES.skeleton.hp);
+  check(MOB_TYPES.skeleton.damage >= 33 && MOB_TYPES.skeleton.damage <= 40, 'skeleton damage out of range');
+  check(MOB_TYPES.samurai.hp >= 1000 && MOB_TYPES.samurai.hp <= 1200, 'samurai hp out of range: ' + MOB_TYPES.samurai.hp);
+  check(MOB_TYPES.samurai.damage >= 44 && MOB_TYPES.samurai.damage <= 52, 'samurai damage out of range');
+  check(MOB_TYPES.iron_golem.hp >= 1700 && MOB_TYPES.iron_golem.hp <= 2000, 'iron golem hp out of range: ' + MOB_TYPES.iron_golem.hp);
+  check(MOB_TYPES.iron_golem.damage >= 55 && MOB_TYPES.iron_golem.damage <= 65, 'iron golem damage out of range');
+  check(MOB_TYPES.dark_mage.hp >= 6500, 'dark mage hp must be at least 6500');
+  check(MOB_TYPES.dark_mage.damage >= 75, 'dark mage damage must be at least 75');
+  check(MOB_TYPES.dark_mage.boss === true, 'dark mage must be a boss');
+  check(MOB_TYPES.dark_mage.enemyProjectile === 'dark_orb', 'dark mage must throw dark orbs');
+  check(MOB_TYPES.dark_mage.slamRadius >= 200, 'dark mage needs a wide shockwave');
+  for (const id of ['goblin', 'skeleton', 'samurai', 'iron_golem']) {
+    check(MOB_TYPES[id].hp > w1Strongest, id + ' must be tougher than every world 1 normal mob');
+    check(MOB_TYPES[id].xp > MOB_TYPES.gorilla.xp && MOB_TYPES[id].gold > MOB_TYPES.gorilla.gold, id + ' rewards must beat world 1');
+  }
+  check(MOB_TYPES.dark_mage.xp > MOB_TYPES.golem.xp, 'dark mage must be worth more than the ancient golem');
+}
+
 let timers = [];
 const game = {
   scene,
@@ -99,15 +205,25 @@ const game = {
   camYaw: -Math.PI / 2,
   camPitch: 0.25,
   gold: START_GOLD,
+  // 세계 이동 (main.js 의 Game 과 같은 역할을 하는 최소 스텁)
+  worldId: 1,
+  world2Unlocked: false,
+  camera: { position: { copy() {} } },
 };
 game.addGold = (n) => { game.gold += n; };   // Game.addGold 의 핵심만 흔내기내기
 game.combat = new Combat(game);
 game.mobManager = new MobManager(game);
 game.castSkill = (k) => castSkill(game, k);
 game.onBossEngage = () => {};
-game.onBossDefeated = () => { game.victory = true; };
+// 본보스 처치 → 실제 처리기(포털 개방 · 승리)를 그대로 통과시킨다
+game.onBossDefeated = (boss) => { game.victory = true; return handleBossDefeated(game, boss); };
 game.onPlayerDeath = () => { game.dead = true; };
 game.terrainHeightAt = terrainHeight;
+game.setWorld = (id) => { game.worldId = id === 2 ? 2 : 1; if (game.worldId === 2) game.world2Unlocked = true; return game.worldId; };
+game.placeCamera = () => {};
+game.setPortalPrompt = () => {};
+game.travelTo = (target) => travelPlayer(game, target);
+game.portals = new Portals(game);
 
 console.log('mobs:', game.mobManager.mobs.length);
 const counts = {};
@@ -416,6 +532,157 @@ check(boss.dead, 'boss not dead');
 for (let i = 0; i < 1800; i++) stepAll(1 / 60);
 check(game.effects.items.length < 400, 'effect leak: ' + game.effects.items.length);
 check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.projectiles.length);
+
+/* =================== 2번째 세계: 포털 · 스폰 · 보스 =================== */
+{
+  const W2 = WORLD2.originZ;
+
+  // 1) 고대 골렘 처치 → 2번째 세계 포털이 열리고 그 몹들이 세워졌다
+  check(game.portals.world2Portal.open === true, 'world 2 portal did not open after the golem died');
+  check(game.portals.world2Portal.group.visible === true, 'open portal must be visible');
+  check(game.world2Unlocked === true, 'world 2 must stay unlocked in this session');
+
+  const w2mobs = game.mobManager.mobs.filter((m) => m.worldId === 2);
+  const c2 = {};
+  for (const m of w2mobs) c2[m.typeId] = (c2[m.typeId] || 0) + 1;
+  console.log('world 2 mob counts:', JSON.stringify(c2));
+  check((c2.goblin || 0) >= 12, 'goblin population missing: ' + c2.goblin);
+  check((c2.skeleton || 0) >= 10, 'skeleton population missing: ' + c2.skeleton);
+  check((c2.samurai || 0) >= 8, 'samurai population missing: ' + c2.samurai);
+  check((c2.iron_golem || 0) >= 4, 'iron golem population missing: ' + c2.iron_golem);
+  check(c2.dark_mage === 1, 'dark mage must spawn exactly once, got ' + c2.dark_mage);
+
+  // 몹은 자기 바이옴 안에서만 산다
+  const home = {
+    goblin: 'goblin_forest', skeleton: 'misty_plains', samurai: 'sakura',
+    iron_golem: 'ominous_cave', dark_mage: 'dark_realm',
+  };
+  for (const m of w2mobs) {
+    const r = regionAt(m.position.x, m.position.z);
+    check(r === home[m.typeId], m.typeId + ' spawned in ' + r + ' (expected ' + home[m.typeId] + ')');
+  }
+  check(!w2mobs.some((m) => m.position.z < WORLD.zMax + 500), 'world 2 mobs must not spawn in world 1');
+
+  const dm = w2mobs.find((m) => m.typeId === 'dark_mage');
+  check(!!dm, 'dark mage missing');
+  check(Math.abs(dm.position.x - BOSS2_POS.x) < 60 && Math.abs(dm.position.z - BOSS2_POS.z) < 60, 'dark mage not at the arena');
+  check(dm.level > MOB_TYPES.golem.level, 'dark mage must be a higher level than the golem');
+  const golemMob = game.mobManager.mobs.find((m) => m.typeId === 'golem');
+  check(!!golemMob && golemMob.dead, 'ancient golem should be dead here');
+  check(game.mobManager.nearestBoss({ x: dm.position.x, z: dm.position.z }, 520) === dm, 'nearestBoss must find the dark mage');
+
+  // 2) 포털 안내 → 걸어 들어가면 2번째 세계로
+  const hero = new Player(game, 'warrior');
+  game.player = hero;
+  game.state = 'playing';
+  hero.spawnAt(WORLD1_PORTAL_POS.x, WORLD1_PORTAL_POS.z + 70);
+  hero.hp = Math.round(hero.maxHp * 0.6);
+  hero.invuln = 0;
+  const hpBefore = Math.round(hero.hp);
+  game.worldId = 1;
+  game.portals.cooldown = 0;
+  game.portals.world2Portal.armed = true;
+  const near = game.portals.update(1 / 60, 1.0);
+  check(!!near && near.id === 'world2', 'portal prompt not detected near the portal');
+  check(game.worldId === 1, 'standing near the portal must not teleport');
+
+  hero.position.x = WORLD1_PORTAL_POS.x;
+  hero.position.z = WORLD1_PORTAL_POS.z + 20;
+  game.portals.update(1 / 60, 1.2);
+  check(game.worldId === 2, 'walking into the portal did not move the player to world 2');
+  check(regionAt(hero.position.x, hero.position.z) === 'goblin_forest', 'arrival must be the goblin forest, got ' + regionAt(hero.position.x, hero.position.z));
+  check(Math.round(hero.hp) === hpBefore, 'portal travel must not heal: ' + hero.hp + ' vs ' + hpBefore);
+  check(hero.alive === true, 'player died during portal travel');
+
+  // 3) 2번째 세계 → 1번째 세계 귀환 포털
+  game.portals.cooldown = 0;
+  game.portals.returnPortal.armed = true;
+  hero.position.x = WORLD2_RETURN_POS.x;
+  hero.position.z = WORLD2_RETURN_POS.z + 15;
+  game.portals.update(1 / 60, 2.0);
+  check(game.worldId === 1, 'return portal did not bring the player back to world 1');
+  check(regionAt(hero.position.x, hero.position.z) === 'temple', 'return must land at the jungle temple, got ' + regionAt(hero.position.x, hero.position.z));
+  check(game.world2Unlocked === true, 'returning must keep world 2 unlocked (portal stays open)');
+  check(game.portals.world2Portal.open === true, 'world 2 portal must stay open after returning');
+
+  // 포털을 다시 쓰려면 한 번 멀어졌다가 와야 한다 (연속 이동 방지)
+  check(game.portals.cooldown > 0, 'portal must cool down right after travel');
+
+  // 4) 모든 2번째 세계 몹의 3D 모델 · 애니메이션이 실제로 돈다 (모델 부품 누락 방지)
+  for (const id of ['goblin', 'skeleton', 'samurai', 'iron_golem', 'dark_mage']) {
+    const m = game.mobManager.mobs.find((x) => x.typeId === id && !x.dead);
+    check(!!m, id + ' model missing for animation check');
+    if (!m) continue;
+    let meshes = 0;
+    m.root.traverse((o) => { if (o.isMesh) meshes++; });
+    check(meshes >= 6, id + ' model has too few parts: ' + meshes);
+    m.attackT = m.attackDur;
+    m.attackHit = false;
+    for (let i = 0; i < 20; i++) {
+      m.time += 1 / 60;
+      m.hurtT = i < 3 ? 0.2 : 0;
+      m.animate(1 / 60, 40);
+    }
+    check(!!m.model && !!m.model.head, id + ' model head missing');
+  }
+
+  // 5) 흑마법사: 어둠 구체 원거리 공격
+  game.worldId = 2;
+  const mage = game.mobManager.mobs.find((m) => m.typeId === 'dark_mage' && !m.dead) || dm;
+  const target = new Player(game, 'tanker');
+  game.player = target;
+  target.spawnAt(mage.position.x, mage.position.z + 120);
+  target.invuln = 0;
+  const tHp = target.hp;
+  mage.aggro = true;
+  mage.targetRef = { local: true, alive: true, radius: target.radius, position: target.position };
+  mage.resolveAttack(120);
+  check(mage.bolts.length === 1, 'dark mage did not fire a dark orb');
+  for (let i = 0; i < 120 && mage.bolts.length; i++) {
+    mage.updateBolts(1 / 60);
+    target.invuln = 0;
+  }
+  check(target.hp < tHp, 'dark orb never damaged the player');
+  check(mage.bolts.length === 0, 'dark orb was not cleaned up');
+
+  // 6) 격노 · 어둠의 충격파 (기존 보스 메커니즘을 그대로 쓴다)
+  mage.hp = mage.maxHp * 0.5;
+  mage.aggro = true;
+  mage.slamCd = 0;
+  mage.attacksSinceSlam = 9;
+  target.maxHp = 999999;       // 격노·충격파를 보는 동안은 죽지 않게
+  target.hp = target.maxHp;
+  target.spawnAt(mage.position.x, mage.position.z + 90);
+  target.invuln = 0;
+  let slamStarted = false;
+  for (let i = 0; i < 1800; i++) {
+    target.update(1 / 60, input);
+    target.hp = target.maxHp;
+    mage.update(1 / 60);
+    if (mage.slamT > 0) { slamStarted = true; break; }
+  }
+  check(mage.enraged === true, 'dark mage did not enrage below its threshold');
+  check(slamStarted, 'dark mage never started its dark shockwave');
+
+  // 7) 흑마법사 처치 → 2번째 세계 승리 화면
+  const hpBeforeKill = target.hp;
+  mage.hp = 1;
+  target.invuln = 0;
+  mage.takeDamage(99999, {});
+  check(mage.dead, 'dark mage did not die');
+  check(game.victoryKind === 'world2', 'dark mage defeat must set the world-2 victory kind');
+  check(target.hp >= hpBeforeKill - 1, 'defeating the boss must not hurt the player');
+  check(mage.bolts.length === 0, 'orbs must be cleared when the boss dies');
+
+  // 8) 멀티플레이 직렬화에 새 몹이 실린다
+  const rec = packMob({ netId: 42, typeId: 'dark_mage', position: new THREE.Vector3(0, 0, W2), hp: 4200, maxHp: 6800, attackT: 0, attackDur: 1.15, state: 'chase' });
+  const un = unpackMob(rec);
+  check(un.typeId === 'dark_mage', 'dark mage type lost in sync: ' + un.typeId);
+  for (const id of ['goblin', 'skeleton', 'samurai', 'iron_golem', 'dark_mage']) {
+    check(MOB_CODES.indexOf(id) >= 0, 'mob code table missing ' + id);
+  }
+  mage.clearBolts();
+}
 
 /* ------------------- 멀티플레이: 직렬화 · 원격 처리 · 권한 ------------------- */
 {

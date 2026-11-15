@@ -31,8 +31,14 @@ export const ANIM_NAMES = [
 const ANIM_CODES = {};
 ANIM_NAMES.forEach((n, i) => { if (n) ANIM_CODES[n] = i; });
 
-export const MOB_CODES = ['slime', 'zombie', 'hyena', 'gorilla', 'raider', 'golem'];
-const BIOME_OF_TYPE = { slime: 'forest', zombie: 'graveyard', hyena: 'savanna', gorilla: 'jungle', raider: 'old_village', golem: 'temple' };
+export const MOB_CODES = [
+  'slime', 'zombie', 'hyena', 'gorilla', 'raider', 'golem',
+  'goblin', 'skeleton', 'samurai', 'iron_golem', 'dark_mage',
+];
+const BIOME_OF_TYPE = {
+  slime: 'forest', zombie: 'graveyard', hyena: 'savanna', gorilla: 'jungle', raider: 'old_village', golem: 'temple',
+  goblin: 'goblin_forest', skeleton: 'misty_plains', samurai: 'sakura', iron_golem: 'ominous_cave', dark_mage: 'dark_realm',
+};
 
 // 스냅샷 주기
 const STATE_HZ = 15;       // 내 캐릭터 상태 → 호스트
@@ -671,6 +677,12 @@ export class Net {
     rec.x = Number(p.x) || 0;
     rec.z = Number(p.z) || 0;
     rec.yaw = Number(p.yaw) || 0;
+    // 친구가 다른 세계로 넘어갔으면 그 모습은 그 세계에서만 보인다
+    const w = Number(p.w) === 2 ? 2 : 1;
+    if (w !== rec.world) {
+      rec.world = w;
+      if (rec.rig) rec.rig.root.visible = (w === (this.game.worldId || 1));
+    }
     rec.anim = typeof p.anim === 'string' ? p.anim : (ANIM_NAMES[p.anim] || '');
     rec.animDur = (Number(p.ad) || 0) / 10 || 0;
     rec.hp = Number(p.hp) || 0;
@@ -808,7 +820,7 @@ export class Net {
       mob.type.boss ? 40 : 14,
       { power: mob.type.boss ? 60 : 26, size: mob.type.boss ? 2.2 : 0.8 }
     );
-    if (mob.type.boss) this.game.onBossDefeated();
+    if (mob.type.boss) this.game.onBossDefeated(mob);
   }
 
   _applyReward(p) {
@@ -950,7 +962,7 @@ export class Net {
       anim: ANIM_CODES[p.anim.name || ''] || 0,
       ad: Math.round((p.anim.duration || 0) * 10),
       hp: p.hp, maxHp: p.maxHp, lvl: p.level, wt: p.weaponTier, at: p.armorTier || 0,
-      spd: p.speedNow, alive: p.alive,
+      spd: p.speedNow, alive: p.alive, w: this.game.worldId || 1,
     }));
   }
 

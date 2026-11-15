@@ -1032,7 +1032,8 @@ export class Player {
       if (this.anim.name) this.aimLock = 0;
     }
 
-    clampToWorld(this.position);
+    // 지금 있는 세계의 통행 영역으로 제한한다 (1번째 세계 십자 · 2번째 세계 십자)
+    clampToWorld(this.position, this.game.worldId);
     const groundY = terrainHeight(this.position.x, this.position.z);
     if (this.position.y <= groundY) {
       this.position.y = groundY;

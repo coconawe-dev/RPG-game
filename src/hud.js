@@ -1,6 +1,6 @@
 // HUD: 상태창 · 지역 표시 · 미니맵 · 나침반 · 스킬바 · 네임플레이트 · 데미지 숫자
 import * as THREE from 'three';
-import { CLASSES, CLASS_ORDER, BIOMES, COMPASS_ORDER, BIOME_ORDER, SHOP } from './config.js';
+import { CLASSES, CLASS_ORDER, BIOMES, COMPASS_ORDER, BIOME_ORDER, SHOP, compassOrderFor, biomeOrderFor } from './config.js';
 import { regionAt } from './utils.js';
 
 const $ = (id) => document.getElementById(id);
@@ -75,6 +75,7 @@ export class HUD {
     this.targetTime = 0;
     this.bannerTimer = 0;
     this.lastRegion = null;
+    this.worldId = 1;
     this.lastHp = -1;
     this.skillSlots = {};
 
@@ -322,10 +323,12 @@ export class HUD {
   /* ----------------------------- 나침반 ----------------------------- */
   buildCompass() {
     const box = this.dom.compass;
+    if (!box) return;
     box.innerHTML = '';
     this.compSide = {};
-    for (const id of COMPASS_ORDER) {
+    for (const id of compassOrderFor(this.worldId)) {
       const b = BIOMES[id];
+      if (!b) continue;
       const row = document.createElement('div');
       row.className = 'compass-row';
       let html = '<span class="compass-arrow">▲</span><span class="compass-name">' + b.name + '</span><span class="compass-dist">-</span>';
@@ -337,6 +340,16 @@ export class HUD {
         dist: row.querySelector('.compass-dist'),
       };
     }
+  }
+
+  // 세계가 바뀌면 미니맵 · 나침반을 그 세계 것으로 다시 그린다
+  setWorld(worldId) {
+    const id = worldId === 2 ? 2 : 1;
+    if (id === this.worldId) return id;
+    this.worldId = id;
+    this.lastRegion = null;
+    this.buildCompass();
+    return id;
   }
 
   /* ------------------------------ 갱신 ------------------------------ */
@@ -427,13 +440,18 @@ export class HUD {
       this.lastRegion = region;
     }
 
-    // 보스 바
-    const boss = g.mobManager ? g.mobManager.boss() : null;
-    const bossNear = boss && !boss.dead && Math.hypot(boss.position.x - p.position.x, boss.position.z - p.position.z) < 520;
+    // 보스 바 — 가까운 보스를 따라간다 (1번째 세계 고대 골렘 · 2번째 세계 흑마법사)
+    const boss = g.mobManager ? (g.mobManager.nearestBoss ? g.mobManager.nearestBoss(p.position, 520) : g.mobManager.boss()) : null;
+    const bossNear = boss && !boss.dead;
     this.dom.bossWrap.classList.toggle('on', !!bossNear);
     if (bossNear) {
       const bp = Math.ceil(Math.max(0, boss.hp));
-      if (this._bossHp !== bp) {
+      if (this._bossName !== boss.type.name) {
+        this._bossName = boss.type.name;
+        if (this.dom.bossName) this.dom.bossName.textContent = boss.type.name;
+      }
+      if (this._bossHp !== bp || this._bossId !== boss.netId) {
+        this._bossId = boss.netId;
         this._bossHp = bp;
         this.dom.bossFill.style.width = (Math.max(0, boss.hp / boss.maxHp) * 100).toFixed(1) + '%';
         this.dom.bossHpText.textContent = bp + ' / ' + boss.maxHp;
@@ -533,12 +551,24 @@ export class HUD {
     const ctx = this.minimapCtx;
     const W = this.dom.minimap.width;
     const H = this.dom.minimap.height;
-    // 세계는 동 · 서로 태초마을 · 낡은 마을만큼 더 넓다 (x -2500 ~ 2500, z -1500 ~ 1500)
-    const scale = Math.min(W / 5000, H / 3000);
-    const offX = (W - 5000 * scale) / 2;
-    const offY = (H - 3000 * scale) / 2;
-    const toPx = (x) => offX + (x + 2500) * scale;
-    const toPy = (z) => offY + (z + 1500) * scale;
+    // 지금 세계의 지역 경계로 지도 전체 범위를 정한다
+    // (1번째 세계는 x -2500~2500 · z -1500~1500, 2번째 세계는 3000x3000)
+    const order = biomeOrderFor(this.worldId);
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const id of order) {
+      const b = BIOMES[id];
+      if (!b) continue;
+      x0 = Math.min(x0, b.bounds.x0); x1 = Math.max(x1, b.bounds.x1);
+      z0 = Math.min(z0, b.bounds.z0); z1 = Math.max(z1, b.bounds.z1);
+    }
+    if (!isFinite(x0)) { x0 = -2500; x1 = 2500; z0 = -1500; z1 = 1500; }
+    const spanX = Math.max(1, x1 - x0);
+    const spanZ = Math.max(1, z1 - z0);
+    const scale = Math.min(W / spanX, H / spanZ) * 0.98;
+    const offX = (W - spanX * scale) / 2;
+    const offY = (H - spanZ * scale) / 2;
+    const toPx = (x) => offX + (x - x0) * scale;
+    const toPy = (z) => offY + (z - z0) * scale;
     ctx.clearRect(0, 0, W, H);
 
     // 배경
@@ -546,8 +576,9 @@ export class HUD {
     ctx.fillRect(0, 0, W, H);
 
     // 바이옴 사각형
-    for (const id of BIOME_ORDER) {
+    for (const id of order) {
       const b = BIOMES[id];
+      if (!b) continue;
       const x = toPx(b.bounds.x0);
       const y = toPy(b.bounds.z0);
       const w = (b.bounds.x1 - b.bounds.x0) * scale;
@@ -562,9 +593,10 @@ export class HUD {
     }
 
     // 랜드마크
-    for (const id of BIOME_ORDER) {
+    for (const id of order) {
       const b = BIOMES[id];
-      ctx.fillStyle = id === 'temple' ? '#ffe9a8' : 'rgba(255,255,255,0.55)';
+      if (!b) continue;
+      ctx.fillStyle = (id === 'temple' || id === 'dark_realm') ? '#ffe9a8' : 'rgba(255,255,255,0.55)';
       const lx = toPx(b.landmarkPos.x);
       const ly = toPy(b.landmarkPos.z);
       ctx.beginPath();
@@ -637,8 +669,9 @@ export class HUD {
 
   updateCompass(p) {
     const camForward = this.game.camYaw + Math.PI;
-    for (const id of COMPASS_ORDER) {
+    for (const id of compassOrderFor(this.worldId)) {
       const b = BIOMES[id];
+      if (!b) continue;
       const c = this.compSide[id];
       if (!c) continue;
       const dx = b.center.x - p.position.x;
@@ -787,14 +820,22 @@ export class HUD {
   }
 
   /* ----------------------------- 오버레이 ----------------------------- */
-  showEnd(kind, stats) {
+  showEnd(kind, stats, opts) {
     const d = this.dom;
+    const o = opts || {};
     d.endOverlay.classList.remove('hidden');
     if (kind === 'victory') {
-      d.endEyebrow.textContent = 'VICTORY · 정글 사원';
-      d.endTitle.textContent = '고대 골렘을 쓰러뜨렸습니다!';
-      d.endLead.textContent = '잠들어 있던 사원의 주인이 무너졌습니다. 이제 다섯 지역은 다시 평화를 되찾았습니다.';
-      d.endPrimary.textContent = '계속 탐험하기';
+      if (o.kind === 'world2') {
+        d.endEyebrow.textContent = 'VICTORY · 흑마법사';
+        d.endTitle.textContent = '흑마법사를 쓰러뜨렸습니다!';
+        d.endLead.textContent = '두 세계를 모두 구했습니다. 2번째 세계의 어둠이 걷혔으니, 원하는 만큼 더 돌아다니며 즐겨 보세요. 포털로 두 세계를 오갈 수 있습니다.';
+        d.endPrimary.textContent = '계속 탐험하기';
+      } else {
+        d.endEyebrow.textContent = 'VICTORY · 정글 사원';
+        d.endTitle.textContent = '고대 골렘을 쓰러뜨렸습니다!';
+        d.endLead.textContent = '잠들어 있던 사원의 주인이 무너졌습니다. 이제 다섯 지역은 다시 평화를 되찾았습니다.';
+        d.endPrimary.textContent = '계속 탐험하기';
+      }
     } else {
       d.endEyebrow.textContent = 'DEFEATED';
       d.endTitle.textContent = '쓰러졌습니다…';

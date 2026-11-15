@@ -1,8 +1,10 @@
 // 월드 생성: 지형(5개 바이옴), 프롭, 랜드마크, 사원 구조물, 조명, 하늘
 import * as THREE from 'three';
-import { BIOMES, BIOME_ORDER } from './config.js';
 import {
-  WORLD, terrainHeight, valueNoise, fbm, mulberry32, clamp, smoothstep, makeInstanced, lerp,
+  BIOMES, BIOME_ORDER, BIOME_ORDER_W2, ALL_BIOME_ORDER, compassOrderFor,
+} from './config.js';
+import {
+  WORLD, WORLD2, terrainHeight, valueNoise, fbm, mulberry32, clamp, smoothstep, makeInstanced, lerp,
 } from './utils.js';
 
 const NEIGHBORS = {
@@ -17,6 +19,17 @@ const NEIGHBORS = {
     { side: 'west', id: 'forest' },
     { side: 'north', id: 'graveyard' },
     { side: 'south', id: 'jungle' },
+  ],
+  // 2번째 세계 — 중앙 암흑지역을 네 방향이 감싼다
+  goblin_forest: [{ side: 'north', id: 'dark_realm' }],
+  misty_plains: [{ side: 'east', id: 'dark_realm' }],
+  sakura: [{ side: 'west', id: 'dark_realm' }],
+  ominous_cave: [{ side: 'south', id: 'dark_realm' }],
+  dark_realm: [
+    { side: 'north', id: 'ominous_cave' },
+    { side: 'south', id: 'goblin_forest' },
+    { side: 'east', id: 'sakura' },
+    { side: 'west', id: 'misty_plains' },
   ],
 };
 
@@ -129,6 +142,47 @@ function buildGround(scene, biome) {
       const cgz = Math.abs(((lz + 500) % 46) - 23) / 23;
       const crack = Math.max(cgx, cgz);
       tmp.lerp(C(0x413a30), smoothstep(0.9, 1, crack) * 0.45);
+    }
+
+    /* ---------------------- 2번째 세계 바닥 결 ---------------------- */
+    // 고블린 숲: 이끼 마당 · 젖은 흙길
+    if (biome.id === 'goblin_forest') {
+      const moss = fbm(wx * 0.012, wz * 0.012, 3);
+      tmp.lerp(C(0x3d7a4a), clamp(0.35 + moss * 0.8, 0, 1) * 0.45);
+      const trail = Math.abs(wx) / 34 + Math.sin(wz * 0.021) * 0.5;
+      tmp.lerp(C(0x2a3d26), clamp(1 - trail, 0, 1) * 0.4);
+    }
+    // 불길한 동굴: 거친 흑암 · 용암이 드러난 갈라진 틈
+    if (biome.id === 'ominous_cave') {
+      const rock = fbm(wx * 0.03, wz * 0.03, 2);
+      tmp.lerp(C(0x120e14), clamp(0.35 - rock * 0.6, 0, 0.4));
+      const veins = fbm(wx * 0.008, wz * 0.008, 2);
+      const lava = smoothstep(0.46, 0.56, Math.abs(veins)) * (1 - Math.abs(veins) * 0.4);
+      tmp.lerp(C(0xff5a1c), clamp(lava, 0, 1) * 0.75);
+    }
+    // 안개낀 평지: 재빛 마른 땅 · 하얗게 마른 갈라진 쩍
+    if (biome.id === 'misty_plains') {
+      const ash = fbm(wx * 0.011, wz * 0.011, 3);
+      tmp.lerp(C(0xb1afa6), clamp(0.4 + ash * 0.9, 0, 1) * 0.4);
+      const crack = fbm(wx * 0.05, wz * 0.05, 2);
+      tmp.lerp(C(0x6a6963), smoothstep(0.28, 0.38, Math.abs(crack)) * 0.3);
+    }
+    // 사쿠라: 꽃잎이 깔린 연둣빛 풀밭
+    if (biome.id === 'sakura') {
+      const grass = fbm(wx * 0.013, wz * 0.013, 3);
+      tmp.lerp(C(0x93ab6e), clamp(0.4 + grass * 0.8, 0, 1) * 0.45);
+      const petals = fbm(wx * 0.045 + 11, wz * 0.045 - 7, 2);
+      tmp.lerp(C(0xe9a8bd), smoothstep(0.34, 0.5, petals) * 0.55);
+    }
+    // 암흑지역: 흑요석 판 · 제단을 감싼 자줏빛 룬 미늘
+    if (biome.id === 'dark_realm') {
+      const shard = fbm(wx * 0.026, wz * 0.026, 2);
+      tmp.lerp(C(0x141020), clamp(0.4 - shard * 0.7, 0, 0.45));
+      const r = Math.hypot(lx, lz);
+      const runeA = Math.abs(Math.sin(r * 0.045));
+      tmp.lerp(C(0x7a3fbf), smoothstep(0.965, 1, runeA) * 0.55);
+      const runeB = Math.abs(Math.sin(Math.atan2(lz, lx) * 6));
+      tmp.lerp(C(0xc23a6a), smoothstep(0.985, 1, runeB) * (r > 90 && r < 330 ? 0.5 : 0));
     }
 
     // 인접 바이옴과의 경계 색 블렌딩 (울퉁불퉁한 경계)
@@ -261,6 +315,17 @@ const KEEP_OUTS = {
   ],
   jungle: [{ x: 0, z: 1000, r: 130 }, { x: 0, z: 500, r: 120 }],
   temple: [{ x: 0, z: 0, r: 260 }, { x: 0, z: -500, r: 90 }, { x: 0, z: 500, r: 90 }, { x: -500, z: 0, r: 90 }, { x: 500, z: 0, r: 90 }],
+  // 2번째 세계 — 도착 광장 · 랜드마크 · 보스 투기장을 비워 둔다
+  goblin_forest: [
+    { x: 0, z: WORLD2.originZ + 1400, r: 250 },
+    { x: 190, z: WORLD2.originZ + 1400, r: 110 },
+    { x: 0, z: WORLD2.originZ + 900, r: 130 },
+    { x: 0, z: WORLD2.originZ + 500, r: 90 },
+  ],
+  ominous_cave: [{ x: 0, z: WORLD2.originZ - 1000, r: 170 }, { x: 0, z: WORLD2.originZ - 500, r: 100 }],
+  misty_plains: [{ x: -1000, z: WORLD2.originZ, r: 160 }, { x: -500, z: WORLD2.originZ, r: 100 }],
+  sakura: [{ x: 1000, z: WORLD2.originZ, r: 180 }, { x: 500, z: WORLD2.originZ, r: 100 }],
+  dark_realm: [{ x: 0, z: WORLD2.originZ, r: 320 }],
 };
 
 /* ------------------------------ 바이옴별 프롭 ------------------------------ */
@@ -1426,6 +1491,569 @@ function buildBoundary(scene) {
   ], list);
 }
 
+/* =====================================================================
+   2번째 세계 — 고블린 숲 · 불길한 동굴 · 안개낀 평지 · 사쿠라 · 암흑지역
+   모든 프롭은 인스턴싱으로 묶고, 조명은 발광 재질 + 가산 후광으로 대신한다.
+   ===================================================================== */
+
+// 평평한 원형 대지 (도착 광장 · 제단)
+function flatPad(scene, x, z, radius, color, yOff) {
+  return buildDisc(scene, x, z, radius, color, yOff);
+}
+
+/* ------------------------------ 고블린 숲 ------------------------------ */
+function buildGoblinForest(scene) {
+  const biome = BIOMES.goblin_forest;
+  const W2 = WORLD2.originZ;
+  const trunkMat = propMat(0x3c2f22, { roughness: 1 });
+  const barkDark = propMat(0x2a2018, { roughness: 1 });
+  const leafMat = propMat(0x24512f, { roughness: 0.95 });
+  const leafMat2 = propMat(0x2f6a3a, { roughness: 0.95 });
+  const mossMat = propMat(0x3f7a45, { roughness: 1 });
+
+  // 비틀린 나무 — 줄기가 기울어 자란다
+  const trees = scatter(9101, biome, 260, KEEP_OUTS.goblin_forest, { margin: 40, minScale: 0.85, maxScale: 1.7 });
+  const trunkGeo = new THREE.CylinderGeometry(0.9, 1.9, 22, 6);
+  const leafGeo = new THREE.IcosahedronGeometry(7.4, 1);
+  buildInstancedSet(scene, [
+    { geo: trunkGeo, mat: trunkMat, pos: [0, 11, 0], rot: [0.07, 0, 0.1], castShadow: true },
+    { geo: trunkGeo, mat: barkDark, pos: [1.6, 15, 0.8], rot: [-0.18, 0, 0.24], scale: 0.6 },
+    { geo: leafGeo, mat: leafMat, pos: [0, 24, 0], scale: [1.15, 0.8, 1.15], castShadow: true },
+    { geo: leafGeo, mat: leafMat2, pos: [3.4, 21, -1.8], scale: 0.7 },
+  ], trees);
+
+  // 이끼 덮인 돌무더기
+  const rocks = scatter(9102, biome, 110, KEEP_OUTS.goblin_forest, { margin: 40, minScale: 0.5, maxScale: 1.5 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.DodecahedronGeometry(3.6, 0), mat: propMat(0x4a5a44, { roughness: 1 }), pos: [0, 1.8, 0], scale: [1.25, 0.65, 1.05], castShadow: true },
+    { geo: new THREE.SphereGeometry(2.0, 8, 6), mat: mossMat, pos: [0.4, 1.0, 0.6], scale: [1.2, 0.4, 1.2] },
+  ], rocks);
+
+  // 독버섯 무리 — 갓만 옅게 빛난다
+  const shrooms = scatter(9103, biome, 130, KEEP_OUTS.goblin_forest, { margin: 35, minScale: 0.6, maxScale: 1.5 });
+  const stemMat = propMat(0xd8d2b4, { roughness: 0.9 });
+  const capMat = new THREE.MeshStandardMaterial({
+    color: 0x9a4ad0, emissive: 0x5a1fa0, emissiveIntensity: 0.9, roughness: 0.5,
+  });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(0.5, 0.7, 3.2, 6), mat: stemMat, pos: [0, 1.6, 0] },
+    { geo: new THREE.SphereGeometry(1.9, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.6), mat: capMat, pos: [0, 3.2, 0], scale: [1, 0.8, 1] },
+  ], shrooms);
+
+  // 뾰족 말뚝 · 해골 토템 (고블린 진영 표시)
+  const totems = scatter(9104, biome, 26, KEEP_OUTS.goblin_forest, { margin: 90, minScale: 0.9, maxScale: 1.4 });
+  const boneMat = propMat(0xd8cfae, { roughness: 0.8 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(0.8, 1.1, 16, 6), mat: barkDark, pos: [0, 8, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(2.0, 4.0, 2.4), mat: boneMat, pos: [0, 17, 0.2] },
+    { geo: new THREE.ConeGeometry(0.6, 5.0, 4), mat: barkDark, pos: [1.6, 12, 0], rot: [0, 0, -0.5] },
+  ], totems);
+
+  // 풀더미 · 덩굴
+  const grass = scatter(9105, biome, 700, null, { margin: 20, minScale: 0.7, maxScale: 1.7 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.ConeGeometry(1.3, 4.6, 4), mat: mossMat, pos: [0, 2.3, 0] },
+  ], grass);
+
+  // 도착 광장 — 길게 깔린 돌길과 울타리
+  buildRoad(scene, 0, W2 + 1470, 0, W2 + 560, 46, 0x4a4436);
+  flatPad(scene, 0, W2 + 1400, 150, 0x5c5647, 0.3);
+  flatPad(scene, 0, W2 + 1400, 118, 0x6a6353, 0.42);
+  // 도착 광장을 감싸는 횟불 기둥 한 쌍
+  for (const sx of [-78, 78]) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3, 34, 7), barkDark);
+    pole.position.set(sx, terrainHeight(sx, W2 + 1300) + 17, W2 + 1300);
+    pole.castShadow = true;
+    scene.add(pole);
+    const flame = new THREE.Mesh(new THREE.SphereGeometry(3.4, 9, 7), new THREE.MeshBasicMaterial({ color: 0x8ad0ff }));
+    flame.position.set(sx, terrainHeight(sx, W2 + 1300) + 36, W2 + 1300);
+    scene.add(flame);
+    const glow = glowHalo(0x7fc4ff, 14, 0.16);
+    glow.position.copy(flame.position);
+    scene.add(glow);
+  }
+
+  // 랜드마크: 고블린 토템
+  const g = new THREE.Group();
+  const tMat = propMat(0x33281d, { roughness: 1 });
+  for (let i = 0; i < 3; i++) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(2.4 - i * 0.4, 3.2 - i * 0.5, 26, 7), tMat);
+    pole.position.set((i - 1) * 15, 13 + i, (i - 1) * 6);
+    pole.rotation.z = (i - 1) * 0.06;
+    pole.castShadow = true;
+    g.add(pole);
+  }
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(9, 12, 9), boneMat);
+  skull.position.set(0, 34, 0);
+  skull.scale.set(1, 1.05, 1.1);
+  skull.castShadow = true;
+  g.add(skull);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(10, 3.4, 7), boneMat);
+  jaw.position.set(0, 28.6, 2.2);
+  g.add(jaw);
+  const tEye = new THREE.MeshBasicMaterial({ color: 0xff5a3c });
+  for (const sx of [-3.4, 3.4]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(2.1, 9, 7), tEye);
+    eye.position.set(sx, 35, 7.4);
+    g.add(eye);
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(1.1, 8, 4), boneMat);
+    spike.position.set(Math.cos(a) * 12, 22, Math.sin(a) * 12);
+    spike.rotation.set(Math.cos(a) * 0.5, 0, -Math.sin(a) * 0.5);
+    g.add(spike);
+  }
+  const tGlow = glowHalo(0xff7a4a, 20, 0.12);
+  tGlow.position.set(0, 34, 6);
+  g.add(tGlow);
+  g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
+  scene.add(g);
+
+  return { totem: g, totemGlow: tGlow };
+}
+
+/* ------------------------------ 불길한 동굴 ------------------------------ */
+function buildOminousCave(scene) {
+  const biome = BIOMES.ominous_cave;
+  const W2 = WORLD2.originZ;
+  const rockMat = propMat(0x201a22, { roughness: 1 });
+  const rockMat2 = propMat(0x2c2430, { roughness: 0.95 });
+  const emberMat = new THREE.MeshStandardMaterial({ color: 0xff7a3c, emissive: 0xff4a14, emissiveIntensity: 1.8, roughness: 0.6 });
+  const crystalMat = new THREE.MeshStandardMaterial({
+    color: 0xb07aff, emissive: 0x7a2fd0, emissiveIntensity: 2.2, roughness: 0.25, metalness: 0.2, transparent: true, opacity: 0.94,
+  });
+  const crystalMat2 = new THREE.MeshStandardMaterial({
+    color: 0x6ad0ff, emissive: 0x2a8ad0, emissiveIntensity: 2.0, roughness: 0.25, transparent: true, opacity: 0.94,
+  });
+
+  // 뾰족한 흑암 기둥
+  const spires = scatter(9201, biome, 170, KEEP_OUTS.ominous_cave, { margin: 30, minScale: 0.7, maxScale: 2.0 });
+  const spireGeo = new THREE.ConeGeometry(4.2, 26, 5);
+  buildInstancedSet(scene, [
+    { geo: spireGeo, mat: rockMat, pos: [0, 13, 0], castShadow: true },
+    { geo: new THREE.ConeGeometry(2.4, 14, 5), mat: rockMat2, pos: [3.4, 7, 2.2], scale: 0.9, castShadow: true },
+    { geo: new THREE.ConeGeometry(1.8, 9, 5), mat: rockMat2, pos: [-3.2, 4.5, -2.4], scale: 0.8 },
+  ], spires);
+
+  // 천장에서 흘러내린 종유석 (뒤집힌 원뿔을 허공에)
+  const stalactites = scatter(9202, biome, 120, KEEP_OUTS.ominous_cave, { margin: 40, minScale: 0.6, maxScale: 1.6 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.ConeGeometry(2.6, 16, 5), mat: rockMat, pos: [0, 40, 0], rot: [Math.PI, 0, 0] },
+  ], stalactites);
+
+  // 빛나는 수정 (보랏빛 · 푸른빛)
+  const crystals = scatter(9203, biome, 90, KEEP_OUTS.ominous_cave, { margin: 45, minScale: 0.8, maxScale: 2.0 });
+  const crystalGeo = new THREE.OctahedronGeometry(3.2, 0);
+  buildInstancedSet(scene, [
+    { geo: crystalGeo, mat: crystalMat, pos: [0, 4.4, 0], scale: [0.7, 1.6, 0.7], castShadow: true },
+    { geo: crystalGeo, mat: crystalMat2, pos: [3.0, 2.6, 1.4], scale: [0.5, 1.1, 0.5], rot: [0, 0.6, 0.2] },
+  ], crystals);
+
+  // 갈라진 틈에서 새어 나온 용암 (지면에 붙은 발광 판)
+  const lavaSpots = scatter(9204, biome, 60, KEEP_OUTS.ominous_cave, { margin: 60, minScale: 0.7, maxScale: 1.8 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CircleGeometry(6.4, 10), mat: emberMat, pos: [0, 0.6, 0], rot: [-Math.PI / 2, 0, 0] },
+  ], lavaSpots);
+
+  // 잿더미 · 검은 자갈
+  const gravel = scatter(9205, biome, 420, null, { margin: 20, minScale: 0.6, maxScale: 1.6 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.DodecahedronGeometry(1.6, 0), mat: propMat(0x1a151d, { roughness: 1 }), pos: [0, 0.6, 0], scale: [1.2, 0.6, 1.1] },
+  ], gravel);
+
+  // 랜드마크: 불타는 용광로 (거대한 용암 구명이)
+  const g = new THREE.Group();
+  const ringMat = propMat(0x2a222c, { roughness: 1 });
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2;
+    const block = new THREE.Mesh(new THREE.BoxGeometry(18, 16 + Math.sin(i * 2.1) * 6, 14), ringMat);
+    block.position.set(Math.cos(a) * 56, 8, Math.sin(a) * 56);
+    block.rotation.y = -a;
+    block.castShadow = true;
+    g.add(block);
+  }
+  const pool = new THREE.Mesh(
+    new THREE.CircleGeometry(48, 28),
+    new THREE.MeshStandardMaterial({ color: 0xff7a2a, emissive: 0xff5a10, emissiveIntensity: 2.4, roughness: 0.3 })
+  );
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.y = 1.2;
+  g.add(pool);
+  const forgeGlow = glowHalo(0xff7a2a, 92, 0.12, 0.4);
+  forgeGlow.position.y = 12;
+  g.add(forgeGlow);
+  // 용광로를 감싼 거대한 쇠사슬 기둥
+  for (const s of [-1, 1]) {
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(6, 8, 76, 8), rockMat2);
+    pillar.position.set(s * 90, 38, -40);
+    pillar.castShadow = true;
+    g.add(pillar);
+  }
+  g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
+  scene.add(g);
+
+  return { forge: g, forgePool: pool, forgeGlow };
+}
+
+/* ------------------------------ 안개낀 평지 ------------------------------ */
+function buildMistyPlains(scene) {
+  const biome = BIOMES.misty_plains;
+  const woodMat = propMat(0x4a4640, { roughness: 1 });
+  const woodDark = propMat(0x2f2c28, { roughness: 1 });
+  const stoneMat = propMat(0x8a8981, { roughness: 1 });
+  const stoneDark = propMat(0x6a6963, { roughness: 1 });
+
+  // 마른 나무
+  const deadTrees = scatter(9301, biome, 90, KEEP_OUTS.misty_plains, { margin: 60, minScale: 0.8, maxScale: 1.7 });
+  const branchGeo = new THREE.CylinderGeometry(0.3, 0.7, 9, 5);
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(0.8, 1.6, 20, 6), mat: woodMat, pos: [0, 10, 0], castShadow: true },
+    { geo: branchGeo, mat: woodDark, pos: [3, 16, 0], rot: [0, 0, -0.95], castShadow: true },
+    { geo: branchGeo, mat: woodDark, pos: [-2.6, 18, 1.2], rot: [0.2, 0, 1.0] },
+    { geo: branchGeo, mat: woodDark, pos: [0.6, 15, -3], rot: [1.0, 0, 0.1] },
+  ], deadTrees);
+
+  // 무너진 석주 · 묘비
+  const pillars = scatter(9302, biome, 70, KEEP_OUTS.misty_plains, { margin: 55, minScale: 0.7, maxScale: 1.6 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(3.4, 4.2, 26, 8), mat: stoneMat, pos: [0, 13, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(9, 2.4, 9), mat: stoneDark, pos: [0, 26.6, 0], castShadow: true },
+  ], pillars);
+  const brokenPillars = scatter(9303, biome, 46, KEEP_OUTS.misty_plains, { margin: 70, minScale: 0.8, maxScale: 1.5 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(3.2, 3.6, 12, 7), mat: stoneMat, pos: [0, 6, 0], rot: [0, 0, 0.34], castShadow: true },
+  ], brokenPillars);
+  const graves = scatter(9304, biome, 110, KEEP_OUTS.misty_plains, { margin: 50, minScale: 0.6, maxScale: 1.4 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.BoxGeometry(4.2, 6.4, 1.2), mat: stoneMat, pos: [0, 2.8, 0], rot: [0, 0, 0.04], castShadow: true },
+    { geo: new THREE.BoxGeometry(3.0, 1.0, 1.0), mat: stoneDark, pos: [0, 1.4, 0.2] },
+  ], graves);
+
+  // 마른 풀 · 재더미
+  const grass = scatter(9305, biome, 620, null, { margin: 20, minScale: 0.6, maxScale: 1.6 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.ConeGeometry(1.0, 3.4, 3), mat: propMat(0x8f8b74, { roughness: 1 }), pos: [0, 1.7, 0] },
+  ], grass);
+
+  // 지면을 기는 안개 띠 (가까울수록 옅게 깔린다)
+  const fogMat = new THREE.MeshBasicMaterial({ color: 0xdfe3e4, transparent: true, opacity: 0.07, depthWrite: false });
+  const banks = scatter(9306, biome, 16, null, { margin: 110, minScale: 0.8, maxScale: 1.8 });
+  for (const b of banks) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(96, 14, 10), fogMat);
+    m.position.set(b.x, terrainHeight(b.x, b.z) + 12, b.z);
+    m.scale.set(1, 0.15, 1);
+    scene.add(m);
+  }
+
+  // 랜드마크: 부서진 석주 — 하늘을 향해 기울어진 거대 기둥
+  const g = new THREE.Group();
+  for (let i = 0; i < 3; i++) {
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(7 - i, 9 - i, 58 + i * 24, 9), i % 2 ? stoneMat : stoneDark);
+    pillar.position.set((i - 1) * 26, (58 + i * 24) / 2, (i - 1) * 14);
+    pillar.rotation.set((i - 1) * 0.05, 0, (i - 1) * -0.05);
+    pillar.castShadow = true;
+    g.add(pillar);
+  }
+  const capstone = new THREE.Mesh(new THREE.BoxGeometry(46, 9, 40), stoneMat);
+  capstone.position.set(0, 76, 0);
+  capstone.rotation.set(0.06, 0.2, 0.1);
+  capstone.castShadow = true;
+  g.add(capstone);
+  g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
+  scene.add(g);
+
+  return { landmark: g };
+}
+
+/* -------------------------------- 사쿠라 -------------------------------- */
+function buildSakura(scene) {
+  const biome = BIOMES.sakura;
+  const trunkMat = propMat(0x4a3230, { roughness: 1 });
+  const barkDark = propMat(0x35221f, { roughness: 1 });
+  const pinkA = propMat(0xf2adc4, { roughness: 0.9 });
+  const pinkB = propMat(0xe58caa, { roughness: 0.9 });
+  const pinkC = propMat(0xffe4ee, { roughness: 0.9 });
+  const stoneMat = propMat(0xb0a89a, { roughness: 1 });
+
+  // 벚나무 — 줄기 + 분홍 잎
+  const trees = scatter(9401, biome, 300, KEEP_OUTS.sakura, { margin: 35, minScale: 0.85, maxScale: 1.6 });
+  const trunkGeo = new THREE.CylinderGeometry(1.0, 1.9, 18, 6);
+  const canopyGeo = new THREE.IcosahedronGeometry(7.2, 1);
+  buildInstancedSet(scene, [
+    { geo: trunkGeo, mat: trunkMat, pos: [0, 9, 0], rot: [0.06, 0, -0.08], castShadow: true },
+    { geo: new THREE.CylinderGeometry(0.55, 0.9, 10, 5), mat: barkDark, pos: [2.2, 13, 0.8], rot: [0, 0, 0.6], castShadow: true },
+    { geo: canopyGeo, mat: pinkA, pos: [0, 20, 0], scale: [1.2, 0.78, 1.2], castShadow: true },
+    { geo: canopyGeo, mat: pinkB, pos: [3.6, 17, -2], scale: 0.72, castShadow: true },
+    { geo: canopyGeo, mat: pinkC, pos: [-3.0, 21.5, 1.6], scale: 0.6 },
+  ], trees);
+
+  // 석등 (돌로 만든 등롱) — 불을 밝힌 창만 발광 재질
+  const lanternMat = new THREE.MeshStandardMaterial({
+    color: 0xfff0c8, emissive: 0xffc46a, emissiveIntensity: 1.7, roughness: 0.5,
+  });
+  const lanterns = scatter(9402, biome, 44, KEEP_OUTS.sakura, { margin: 60, minScale: 0.9, maxScale: 1.3 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(1.6, 2.2, 12, 8), mat: stoneMat, pos: [0, 6, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(5.0, 4.2, 5.0), mat: stoneMat, pos: [0, 14, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(3.4, 3.0, 3.4), mat: lanternMat, pos: [0, 14, 0] },
+    { geo: new THREE.ConeGeometry(4.4, 3.2, 4), mat: stoneMat, pos: [0, 17.6, 0], rot: [0, Math.PI / 4, 0] },
+  ], lanterns);
+
+  // 도리이 문 (붉은 기둥)
+  const toriiMat = propMat(0xc0442f, { roughness: 0.85 });
+  const toriiDark = propMat(0x7a2a1c, { roughness: 0.9 });
+  const toriiSpots = [
+    { x: 610, z: WORLD2.originZ }, { x: 1390, z: WORLD2.originZ },
+    { x: 1000, z: WORLD2.originZ - 420 }, { x: 1000, z: WORLD2.originZ + 420 },
+  ].map((p) => ({ x: p.x, z: p.z, y: terrainHeight(p.x, p.z), ry: (p.x === 1000 ? Math.PI / 2 : 0), s: 1 }));
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(2.0, 2.4, 34, 8), mat: toriiMat, pos: [-16, 17, 0], castShadow: true },
+    { geo: new THREE.CylinderGeometry(2.0, 2.4, 34, 8), mat: toriiMat, pos: [16, 17, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(48, 2.6, 5), mat: toriiMat, pos: [0, 32, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(56, 2.0, 7), mat: toriiDark, pos: [0, 37, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(40, 1.6, 4), mat: toriiDark, pos: [0, 26, 0] },
+  ], toriiSpots);
+
+  // 바닥에 흩어진 꽃잎
+  const petals = scatter(9403, biome, 520, null, { margin: 20, minScale: 0.5, maxScale: 1.2 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CircleGeometry(1.6, 6), mat: new THREE.MeshBasicMaterial({ color: 0xffcfe0, transparent: true, opacity: 0.72, depthWrite: false }), pos: [0, 0.45, 0], rot: [-Math.PI / 2, 0, 0] },
+  ], petals);
+
+  // 랜드마크: 천 년 벚나무
+  const g = new THREE.Group();
+  const bigTrunk = new THREE.Mesh(new THREE.CylinderGeometry(6, 11, 62, 9), trunkMat);
+  bigTrunk.position.y = 31;
+  bigTrunk.castShadow = true;
+  g.add(bigTrunk);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const limb = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 3.4, 26, 6), barkDark);
+    limb.position.set(Math.cos(a) * 12, 46, Math.sin(a) * 12);
+    limb.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6);
+    limb.castShadow = true;
+    g.add(limb);
+    const blossom = new THREE.Mesh(new THREE.IcosahedronGeometry(17, 1), i % 2 ? pinkA : pinkB);
+    blossom.position.set(Math.cos(a) * 26, 58 + Math.sin(i) * 6, Math.sin(a) * 26);
+    blossom.scale.set(1.1, 0.75, 1.1);
+    blossom.castShadow = true;
+    g.add(blossom);
+  }
+  const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(24, 1), pinkC);
+  crown.position.y = 74;
+  crown.scale.set(1.1, 0.7, 1.1);
+  g.add(crown);
+  g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
+  scene.add(g);
+
+  // 떠다니는 꽃잎 (아주 옅은 한 덩어리 — updateWorld2 에서 천천히 돈다)
+  const driftGeo = new THREE.BufferGeometry();
+  const N = 90;
+  const arr = new Float32Array(N * 3);
+  const rnd = mulberry32(9411);
+  for (let i = 0; i < N; i++) {
+    arr[i * 3] = (rnd() - 0.5) * 620;
+    arr[i * 3 + 1] = 12 + rnd() * 46;
+    arr[i * 3 + 2] = (rnd() - 0.5) * 620;
+  }
+  driftGeo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const drift = new THREE.Points(driftGeo, new THREE.PointsMaterial({
+    color: 0xffd0e2, size: 2.6, transparent: true, opacity: 0.7, depthWrite: false, sizeAttenuation: true,
+  }));
+  drift.position.set(biome.center.x, terrainHeight(biome.center.x, biome.center.z), biome.center.z);
+  drift.frustumCulled = true;
+  scene.add(drift);
+
+  return { landmark: g, drift };
+}
+
+/* ------------------------------ 암흑지역 ------------------------------ */
+function buildDarkRealm(scene) {
+  const biome = BIOMES.dark_realm;
+  const W2 = WORLD2.originZ;
+  const obsidian = propMat(0x191323, { roughness: 0.55, metalness: 0.35 });
+  const obsidian2 = propMat(0x241b32, { roughness: 0.5, metalness: 0.4 });
+  const runeMat = new THREE.MeshStandardMaterial({
+    color: 0xb07aff, emissive: 0x8a2fd0, emissiveIntensity: 2.4, roughness: 0.3, transparent: true, opacity: 0.9,
+  });
+  const crimsonMat = new THREE.MeshStandardMaterial({
+    color: 0xff5a8a, emissive: 0xd01a5a, emissiveIntensity: 2.2, roughness: 0.3, transparent: true, opacity: 0.9,
+  });
+
+  // 흑요석 기둥 — 투기장을 둘러싼다
+  const pillars = [];
+  const rnd = mulberry32(9501);
+  for (let i = 0; i < 22; i++) {
+    const a = (i / 22) * Math.PI * 2 + 0.08;
+    const r = 300 + rnd() * 130;
+    const x = Math.cos(a) * r;
+    const z = W2 + Math.sin(a) * r;
+    pillars.push({ x, z, y: terrainHeight(x, z), ry: a, s: 0.85 + rnd() * 0.6 });
+  }
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(4.4, 6.0, 54, 6), mat: obsidian, pos: [0, 27, 0], castShadow: true },
+    { geo: new THREE.ConeGeometry(5.6, 14, 6), mat: obsidian2, pos: [0, 61, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(13, 2.6, 13), mat: obsidian2, pos: [0, 1.3, 0] },
+  ], pillars);
+
+  // 제단 둘레의 뾰족한 조각들
+  const shards = scatter(9502, biome, 150, KEEP_OUTS.dark_realm, { margin: 40, minScale: 0.6, maxScale: 1.8 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.ConeGeometry(2.6, 18, 4), mat: obsidian2, pos: [0, 9, 0], rot: [0, 0, 0.12], castShadow: true },
+    { geo: new THREE.ConeGeometry(1.4, 9, 4), mat: obsidian, pos: [3.2, 4.5, 1.6], rot: [0, 0.6, -0.2] },
+  ], shards);
+
+  // 바닥 룬 고리 (제단을 감싸는 두 겹)
+  const arenaDisc = new THREE.Mesh(
+    new THREE.CircleGeometry(300, 64),
+    new THREE.MeshStandardMaterial({ color: 0x1d1629, roughness: 0.7, metalness: 0.25 })
+  );
+  arenaDisc.rotation.x = -Math.PI / 2;
+  arenaDisc.position.set(0, terrainHeight(0, W2) + 0.35, W2);
+  arenaDisc.receiveShadow = true;
+  scene.add(arenaDisc);
+
+  const runeRings = new THREE.Group();
+  for (let k = 0; k < 2; k++) {
+    const rr = 150 + k * 90;
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 8), k === 0 ? runeMat : crimsonMat);
+      m.position.set(Math.cos(a) * rr, 0.7, W2 + Math.sin(a) * rr);
+      m.rotation.y = -a;
+      runeRings.add(m);
+    }
+  }
+  scene.add(runeRings);
+
+  // 떠 있는 룬석
+  const floaters = new THREE.Group();
+  const rnd2 = mulberry32(9503);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const r = 120 + rnd2() * 150;
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(3.0, 0), i % 3 ? runeMat : crimsonMat);
+    m.position.set(Math.cos(a) * r, 22 + rnd2() * 40, W2 + Math.sin(a) * r);
+    floaters.add(m);
+  }
+  scene.add(floaters);
+
+  // 랜드마크: 흑마법사의 제단
+  const g = new THREE.Group();
+  for (let i = 0; i < 4; i++) {
+    const step = new THREE.Mesh(new THREE.CylinderGeometry(64 - i * 12, 70 - i * 12, 2.6, 28), i % 2 ? obsidian : obsidian2);
+    step.position.y = i * 2.6 + 1.3;
+    step.receiveShadow = true;
+    g.add(step);
+  }
+  const altar = new THREE.Mesh(new THREE.BoxGeometry(34, 12, 34), obsidian2);
+  altar.position.y = 10.4 + 6;
+  altar.castShadow = true;
+  g.add(altar);
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(6.2, 16, 12), runeMat);
+  orb.position.y = 30;
+  g.add(orb);
+  const orbGlow = glowHalo(0xa46aff, 26, 0.16);
+  orbGlow.position.y = 30;
+  g.add(orbGlow);
+  // 제단을 감싼 뾰족한 흑요석 조각
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(2.2, 16, 4), obsidian);
+    spike.position.set(Math.cos(a) * 40, 14, Math.sin(a) * 40);
+    spike.rotation.set(Math.sin(a) * 0.2, 0, -Math.cos(a) * 0.2);
+    g.add(spike);
+  }
+  g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
+  scene.add(g);
+
+  return { landmark: g, orb, orbGlow, runeRings, floaters, arenaDisc };
+}
+
+/* --------------------- 2번째 세계 외곽 경계 암벽 --------------------- */
+function buildWorld2Boundary(scene) {
+  const rockMat = propMat(0x1e1a24, { roughness: 1 });
+  const W2 = WORLD2.originZ;
+  const edges = [
+    { x0: -1500, z0: W2 + 500, x1: -500, z1: W2 + 500 },
+    { x0: 500, z0: W2 + 500, x1: 1500, z1: W2 + 500 },
+    { x0: -1500, z0: W2 - 500, x1: -500, z1: W2 - 500 },
+    { x0: 500, z0: W2 - 500, x1: 1500, z1: W2 - 500 },
+    { x0: -1500, z0: W2 - 500, x1: -1500, z1: W2 + 500 },
+    { x0: 1500, z0: W2 - 500, x1: 1500, z1: W2 + 500 },
+    { x0: -500, z0: W2 - 1500, x1: 500, z1: W2 - 1500 },
+    { x0: -500, z0: W2 + 1500, x1: 500, z1: W2 + 1500 },
+  ];
+  const rnd = mulberry32(9601);
+  const list = [];
+  for (const e of edges) {
+    const len = Math.hypot(e.x1 - e.x0, e.z1 - e.z0);
+    const steps = Math.floor(len / 52);
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const jitter = (rnd() - 0.5) * 28;
+      const nx = (e.z1 - e.z0) / len;
+      const nz = -(e.x1 - e.x0) / len;
+      const x = lerp(e.x0, e.x1, t) + nx * jitter;
+      const z = lerp(e.z0, e.z1, t) + nz * jitter;
+      list.push({ x, z, y: terrainHeight(x, z) + rnd() * 2, ry: rnd() * Math.PI * 2, s: 1.0 + rnd() * 1.7 });
+    }
+  }
+  buildInstancedSet(scene, [
+    { geo: new THREE.ConeGeometry(8, 26, 5), mat: rockMat, pos: [0, 10, 0], castShadow: true },
+    { geo: new THREE.IcosahedronGeometry(6, 0), mat: rockMat, pos: [6, 4, 4], scale: 0.8 },
+  ], list);
+}
+
+// 2번째 세계 전체를 조립한다 (바이옴 그룹별로 담아 컬링한다)
+export function buildWorld2(scene, groups) {
+  const out = {};
+  out.goblinForest = buildGoblinForest(groups.goblin_forest);
+  out.mistyPlains = buildMistyPlains(groups.misty_plains);
+  out.sakura = buildSakura(groups.sakura);
+  out.ominousCave = buildOminousCave(groups.ominous_cave);
+  out.darkRealm = buildDarkRealm(groups.dark_realm);
+  buildWorld2Boundary(groups.dark_realm);
+  return out;
+}
+
+// 2번째 세계의 생동감: 벚꽃 · 룬 · 용광로 불빛
+// (색은 바이옴별 거리 가중치로 어차피 섞이므로, 여기서는 확실히 가까울 때만 움직인다)
+export function updateWorld2(world, dt, t, pos) {
+  const w2 = world && world.world2;
+  if (!w2) return;
+  // 사쿠라: 꽃잎이 천천히 떠돈다
+  if (w2.sakura && w2.sakura.drift) {
+    const d = w2.sakura.drift;
+    d.rotation.y += dt * 0.06;
+    d.position.y += Math.sin(t * 0.6) * dt * 2.2;
+  }
+  // 암흑지역: 룬 고리가 돌고 룬석이 떠오른다
+  if (w2.darkRealm) {
+    const dr = w2.darkRealm;
+    if (dr.runeRings) dr.runeRings.rotation.y += dt * 0.12;
+    if (dr.floaters) dr.floaters.rotation.y -= dt * 0.08;
+    if (dr.orb) {
+      dr.orb.rotation.y += dt * 0.7;
+      dr.orb.position.y = 30 + Math.sin(t * 1.5) * 2.2;
+    }
+    if (dr.orbGlow) dr.orbGlow.material.opacity = 0.13 + Math.sin(t * 2.1) * 0.05;
+  }
+  // 불길한 동굴: 용광로가 끓어오른다
+  if (w2.ominousCave) {
+    const oc = w2.ominousCave;
+    if (oc.forgeGlow) oc.forgeGlow.material.opacity = 0.1 + Math.sin(t * 3.1) * 0.04;
+    if (oc.forgePool && oc.forgePool.material) {
+      oc.forgePool.material.emissiveIntensity = 2.2 + Math.sin(t * 2.4) * 0.6;
+    }
+  }
+  // 고블린 숲: 토템 눈빛이 약하게 깜박인다
+  if (w2.goblinForest && w2.goblinForest.totemGlow) {
+    w2.goblinForest.totemGlow.material.opacity = 0.1 + Math.sin(t * 1.9) * 0.04;
+  }
+}
+
 /* -------------------------------- 하늘 -------------------------------- */
 function buildSky(scene) {
   const uniforms = {
@@ -1511,14 +2139,14 @@ export function buildWorld(scene, opts) {
   // 바이옴마다 하나의 그룹에 담는다 — 멀리 있는 바이옴은 통째로 visible=false 로 꺼서
   // 그리기 호출과 그림자 패스를 아예 건너뛴다 (아래 updateBiomeCulling).
   const biomeGroups = {};
-  for (const id of BIOME_ORDER) {
+  for (const id of ALL_BIOME_ORDER) {
     const g = new THREE.Group();
     g.name = 'biome-' + id;
     scene.add(g);
     biomeGroups[id] = g;
   }
 
-  for (const id of BIOME_ORDER) buildGround(biomeGroups[id], BIOMES[id]);
+  for (const id of ALL_BIOME_ORDER) buildGround(biomeGroups[id], BIOMES[id]);
 
   const village = buildVillage(biomeGroups.village);
   buildForest(biomeGroups.forest);
@@ -1528,6 +2156,9 @@ export function buildWorld(scene, opts) {
   buildJungle(biomeGroups.jungle);
   buildTemple(biomeGroups.temple);
   buildBoundary(scene);
+
+  // 2번째 세계 — 처음에는 전부 멀리 있어 컬링으로 꺼지지만, 월드 자체는 미리 만들어 둔다
+  const world2 = buildWorld2(scene, biomeGroups);
 
   const lights = buildLights(scene);
   const sky = buildSky(scene);
@@ -1541,6 +2172,7 @@ export function buildWorld(scene, opts) {
     biomeGroups,
     village,
     oldVillage,
+    world2,
   };
 }
 
@@ -1553,7 +2185,7 @@ export function updateBiomeCulling(world, pos, cut) {
   if (!groups || !pos) return;
   const hide = cut || 1280;
   const show = hide * 0.9;
-  for (const id of BIOME_ORDER) {
+  for (const id of ALL_BIOME_ORDER) {
     const g = groups[id];
     if (!g) continue;
     const b = BIOMES[id].bounds;
