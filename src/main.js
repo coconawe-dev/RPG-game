@@ -233,7 +233,7 @@ class Game {
   // 1초 단위 프레임 수를 재서 계속 느리면 품질을 한 단계 내린다
   measurePerf(rawDt) {
     const perf = this._perf;
-    if (document.hidden || rawDt > 0.25) { perf.acc = 0; perf.frames = 0; return; }
+    if (document.hidden || rawDt > 1.0) { perf.acc = 0; perf.frames = 0; return; }
     perf.acc += rawDt;
     perf.frames++;
     if (perf.acc < 1) return;
