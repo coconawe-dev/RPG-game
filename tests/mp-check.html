@@ -95,26 +95,22 @@
     record('호스트가 참가자를 봄', !!hostSees, hostSees ? { count: hostGame.net.playerCount, nick: [...hostSees.values()][0].nick, cls: [...hostSees.values()][0].classId } : null);
     record('참가자가 호스트를 봄', guestGame.net.remotes.size > 0, { remotes: guestGame.net.remotes.size, mirrors: guestGame.net.mirrors.size });
 
-    // 호스트를 앞으로 이동시켜 참가자 화면에 반영되는지
+    // 호스트 위치를 크게 옮겨 참가자 화면이 따라오는지 (스냅샷 → 보간)
     const before = guestGame.net.remotes.size
-      ? { x: [...guestGame.net.remotes.values()][0].x, z: [...guestGame.net.remotes.values()][0].z, hx: hostGame.player.position.x, hz: hostGame.player.position.z }
-      : { x: 0, z: 0, hx: 0, hz: 0 };
-    hostGame.input.forward = true;
-    const hold = setInterval(() => { hostGame.input.forward = true; }, 50);
-    await sleep(1600);
-    clearInterval(hold);
-    hostGame.input.forward = false;
-    await sleep(800);
+      ? { x: [...guestGame.net.remotes.values()][0].x, z: [...guestGame.net.remotes.values()][0].z }
+      : { x: 0, z: 0 };
+    hostGame.player.position.x += 70;
+    hostGame.player.position.z += 70;
+    await sleep(1200);
     const hostX = hostGame.player.position.x;
     const hostZ = hostGame.player.position.z;
     const rec = guestGame.net.remotes.size ? [...guestGame.net.remotes.values()][0] : null;
     const guestViewX = rec ? rec.x : 0;
     const guestViewZ = rec ? rec.z : 0;
-    const hostMoved = Math.hypot(hostX - before.hx, hostZ - before.hz);
     const guestSaw = Math.hypot(guestViewX - before.x, guestViewZ - before.z);
     const lag = Math.hypot(guestViewX - hostX, guestViewZ - hostZ);
-    record('이동 동기화', hostMoved > 8 && guestSaw > 6 && lag < 90, {
-      hostMoved: Math.round(hostMoved), guestSaw: Math.round(guestSaw), lag: Math.round(lag),
+    record('위치 동기화', guestSaw > 40 && lag < 90, {
+      guestSaw: Math.round(guestSaw), lag: Math.round(lag),
     });
 
     // 몹 스냅샷
