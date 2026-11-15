@@ -78,7 +78,7 @@ export function decodeMsg(raw) {
   let o;
   try { o = JSON.parse(raw); } catch (e) { return null; }
   if (!o || typeof o.t !== 'string') return null;
-  return { t: o.t, p: o.p === undefined ? null : o.p };
+  return { t: o.t, p: o.p === undefined ? null : o.p, f: o.f, s: o.s };
 }
 
 // 내 캐릭터 상태 → 컴팩트 배열
@@ -298,8 +298,13 @@ export class RelayClient {
     if (2 + tl > payload.length) return null;
     let topic = '';
     for (let i = 0; i < tl; i++) topic += String.fromCharCode(payload[2 + i]);
+    const bodyBytes = payload.subarray ? payload.subarray(2 + tl) : payload.slice(2 + tl);
     let body = '';
-    for (let j = 2 + tl; j < payload.length; j++) body += String.fromCharCode(payload[j]);
+    if (typeof TextDecoder !== 'undefined') {
+      body = new TextDecoder('utf-8').decode(bodyBytes);
+    } else {
+      for (let j = 0; j < bodyBytes.length; j++) body += String.fromCharCode(bodyBytes[j]);
+    }
     return { topic, body };
   }
 
@@ -389,7 +394,6 @@ export class Net {
     if (onStatus) onStatus('방을 찾는 중…');
     // 호스트가 어느 중계 서버에 있든 만날 수 있게, 연결되는 서버에 모두 붙는다
     await this._connectAll(onStatus);
-    const out = this._topic('h');
     const back = this._topic('g');
     for (const t of this.transports) {
       t.subscribe(back);
@@ -405,12 +409,12 @@ export class Net {
         }
       }, 9000);
     });
-    this.publish(out, encodeMsg('join', {
+    this.publish('h', encodeMsg('join', {
       pid: this.pid, nick: this.nick, class: classId, wt: 0,
     }));
     this._joinRetry = setInterval(() => {
       if (this.active) return;
-      this.publish(out, encodeMsg('join', { pid: this.pid, nick: this.nick, class: classId, wt: 0 }));
+      this.publish('h', encodeMsg('join', { pid: this.pid, nick: this.nick, class: classId, wt: 0 }));
     }, 2500);
     const data = await welcome;
     clearInterval(this._joinRetry);

@@ -270,6 +270,22 @@ check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.pr
   check(decodeMsg(undefined) === null, 'undefined message must decode to null');
   check(decodeMsg(JSON.stringify({ t: 'x', p: { a: 1 } })).p.a === 1, 'payload lost');
 
+  // 두 중계 서버에서 같은 메시지가 두 번 와도 한 번만 처리한다
+  {
+    const d1 = decodeMsg(encodeMsg('st', { pid: 'A' }));
+    d1.f = 'SENDER';
+    d1.s = 7;
+    const dup = JSON.stringify({ t: d1.t, p: d1.p, f: d1.f, s: d1.s });
+    const dn = new Net({ scene, hud: game.hud, mobManager: game.mobManager });
+    dn.role = 'guest';
+    let handled = 0;
+    dn._handleGuest = () => { handled++; };
+    dn._dispatch(dup);
+    dn._dispatch(dup);
+    check(handled === 1, 'duplicate relay message handled ' + handled + ' times');
+    check(decodeMsg(dup).f === 'SENDER' && decodeMsg(dup).s === 7, 'dedupe stamp lost in decode');
+  }
+
   // 2) 방 코드
   for (let i = 0; i < 20; i++) {
     const c = makeRoomCode();
