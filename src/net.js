@@ -870,6 +870,30 @@ export class Net {
       this.mirrors.clear();
     }
     this._tick = this._tick || 0;
+    // 탭이 백그라운드로 가면 requestAnimationFrame 이 멈춥니다.
+    // 그래도 연결은 살아 있길래, 숨겨진 동안에는 타이머로 최소한만 주고받게 한다.
+    if (!this._idleTimer) {
+      this._idleTimer = setInterval(() => {
+        if (!this.active) return;
+        const hidden = typeof document !== 'undefined' && document.hidden;
+        if (!hidden) return;
+        if (this.isHost) this._broadcastWorld(false);
+        else if (this.game.player) this._sendLocalState();
+      }, 400);
+    }
+  }
+
+  _sendLocalState() {
+    const p = this.game.player;
+    if (!p) return;
+    this.publish('h', encodeMsg('st', {
+      pid: this.pid,
+      x: p.position.x, z: p.position.z, yaw: p.facing,
+      anim: ANIM_CODES[p.anim.name || ''] || 0,
+      ad: Math.round((p.anim.duration || 0) * 10),
+      hp: p.hp, maxHp: p.maxHp, lvl: p.level, wt: p.weaponTier,
+      spd: p.speedNow, alive: p.alive,
+    }));
   }
 
   update(dt) {
@@ -881,15 +905,7 @@ export class Net {
       this._stateAcc += dt;
       if (this._stateAcc >= 1 / STATE_HZ) {
         this._stateAcc = 0;
-        const p = this.game.player;
-        this.publish('h', encodeMsg('st', {
-          pid: this.pid,
-          x: p.position.x, z: p.position.z, yaw: p.facing,
-          anim: ANIM_CODES[p.anim.name || ''] || 0,
-          ad: Math.round((p.anim.duration || 0) * 10),
-          hp: p.hp, maxHp: p.maxHp, lvl: p.level, wt: p.weaponTier,
-          spd: p.speedNow, alive: p.alive,
-        }));
+        this._sendLocalState();
       }
     }
 
@@ -938,9 +954,9 @@ export class Net {
     const now = Date.now();
     if (this.isHost) {
       for (const [pid, rec] of [...this.remotes]) {
-        if (now - rec.lastAt > 8000) this._dropRemote(pid);
+        if (now - rec.lastAt > 22000) this._dropRemote(pid);
       }
-    } else if (this.active && now - this.lastRecvAt > 9000) {
+    } else if (this.active && now - this.lastRecvAt > 25000) {
       this._hostGone();
     }
   }
@@ -994,6 +1010,7 @@ export class Net {
       } catch (e) { /* noop */ }
     }
     this.active = false;
+    if (this._idleTimer) { clearInterval(this._idleTimer); this._idleTimer = null; }
     if (this._joinRetry) { clearInterval(this._joinRetry); this._joinRetry = null; }
     for (const t of this.transports) {
       try { t.close(); } catch (e) { /* noop */ }
