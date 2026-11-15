@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>화질 점검</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #0a0d12; color: #e6edf3; font: 11px/1.45 ui-monospace, monospace; }
+  #wrap { display: flex; gap: 16px; padding: 10px; align-items: flex-start; }
+  .cell { position: relative; flex: none; }
+  .tag { position: absolute; left: 8px; top: 8px; z-index: 5; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.6); color: #ffd98a; font-weight: 700; pointer-events: none; }
+  iframe.device { display: block; border: 1px solid #2a3440; border-radius: 12px; background: #000; }
+  #result { position: fixed; left: 0; right: 0; bottom: 0; max-height: 34%; overflow: auto; margin: 0; padding: 8px 12px; background: rgba(4,7,10,.94); border-top: 1px solid #24303c; white-space: pre-wrap; }
+  .ok { color: #7ee787; }
+  .fail { color: #ff7b72; }
+</style>
+</head>
+<body>
+<!--
+  화질 점검 페이지.
+
+  휴대폰(390×844) 셋과 데스크톱(1280×800) 셋을 동시에 띄워
+  - 기본이 고화질('high')인지, 안티에일리어싱 · 픽셀 비율(최대 2배) · 부드러운 그림자(PCFSoft, 1536 맵)인지
+  - 성능 우선('low')으로 바꾸면 픽셀 비율 · 그림자 · 프롭 그림자가 실제로 가벼워지는지
+  - ✨ 고화질 / ⚡ 성능 우선 버튼이 390px 화면에서 지도 · 캐릭터 패널과 겹치지 않고 눌리는지
+  - 선택이 localStorage 에 남는지
+  를 확인한다. document.title 이 ALL PASS / FAIL 로 바뀐다.
+
+    tests/quality-check.html             휴대폰 고화질 · 휴대폰 성능 우선 · 데스크톱 고화질
+-->
+<div id="wrap">
+  <div class="cell"><span class="tag">휴대폰 · 고화질 · 390×844</span><iframe class="device" id="phone-high" title="휴대폰 고화질 화면" style="width:390px;height:844px"></iframe></div>
+  <div class="cell"><span class="tag">휴대폰 · 성능 우선 · 390×844</span><iframe class="device" id="phone-low" title="휴대폰 성능 우선 화면" style="width:390px;height:844px"></iframe></div>
+  <div class="cell"><span class="tag">데스크톱 · 고화질 · 1280×800</span><iframe class="device" id="desktop-high" title="데스크톱 고화질 화면" style="width:1280px;height:800px"></iframe></div>
+</div>
+<pre id="result">running…</pre>
+<script>
+(() => {
+  const out = document.getElementById('result');
+  const results = {};
+  const lines = [];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const record = (name, pass, detail) => {
+    results[name] = { pass: !!pass, detail: detail === undefined ? null : detail };
+    lines.push((pass ? 'PASS ' : 'FAIL ') + name + (detail === undefined ? '' : ' :: ' + JSON.stringify(detail)));
+    out.textContent = lines.join('\n') + '\n';
+  };
+  const game = (frame) => {
+    try { return frame.contentWindow.__GAME__ || null; } catch (e) { return null; }
+  };
+  const doc = (frame) => {
+    try { return frame.contentDocument; } catch (e) { return null; }
+  };
+  async function waitFor(fn, ms, step) {
+    const start = Date.now();
+    while (Date.now() - start < (ms || 20000)) {
+      let v = null;
+      try { v = fn(); } catch (e) { v = null; }
+      if (v) return v;
+      await sleep(step || 200);
+    }
+    return null;
+  }
+  const rectOf = (el) => {
+    if (!el) return null;
+    const b = el.getBoundingClientRect();
+    return { top: Math.round(b.top), bottom: Math.round(b.bottom), left: Math.round(b.left), right: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) };
+  };
+  const overlaps = (a, b) => !!a && !!b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const shadowCasters = (g) => {
+    let n = 0;
+    g.scene.traverse((o) => { if ((o.isMesh || o.isInstancedMesh) && o.castShadow) n++; });
+    return n;
+  };
+  const instancedCasters = (g) => {
+    let n = 0;
+    g.scene.traverse((o) => { if (o.isInstancedMesh && o.castShadow) n++; });
+    return n;
+  };
+  const report = (frame) => {
+    const g = game(frame);
+    const ctx = g && g.renderer ? g.renderer.getContext() : null;
+    const attrs = ctx && ctx.getContextAttributes ? ctx.getContextAttributes() : null;
+    return {
+      quality: g.quality,
+      level: g.qualityLevel,
+      pixelRatio: g.pixelRatio,
+      dpr: frame.contentWindow.devicePixelRatio,
+      antialias: attrs ? !!attrs.antialias : null,
+      shadowType: g.renderer ? g.renderer.shadowMap.type : null,
+      shadowMap: g.world && g.world.sun ? g.world.sun.shadow.mapSize.x : null,
+      shadowExt: g.world && g.world.sun ? Math.round(g.world.sun.shadow.camera.right) : null,
+      casters: g ? shadowCasters(g) : null,
+      instancedCasters: g ? instancedCasters(g) : null,
+      drawCalls: g && g.renderer ? g.renderer.info.render.calls : null,
+      fps: g ? g.lastFps : null,
+    };
+  };
+
+  window.__QUALITY_CHECK__ = { results, frames: {} };
+
+  window.addEventListener('load', async () => {
+    const qp = new URLSearchParams(location.search);
+    const prefix = qp.get('src') || '../index.html';
+    const v = 'v=' + Date.now();
+    const phoneHigh = document.getElementById('phone-high');
+    const phoneLow = document.getElementById('phone-low');
+    const deskHigh = document.getElementById('desktop-high');
+    window.__QUALITY_CHECK__.frames = { phoneHigh, phoneLow, deskHigh };
+
+    try { localStorage.removeItem('rpg.quality'); } catch (e) { /* 저장소를 못 쓰는 환경 */ }
+
+    const loaded = (frame) => new Promise((r) => frame.addEventListener('load', r, { once: true }));
+    const srcs = [
+      [phoneHigh, prefix + '?class=warrior&biome=forest&touch=1&' + v],
+      [phoneLow, prefix + '?class=warrior&biome=forest&touch=1&quality=low&' + v],
+      [deskHigh, prefix + '?class=warrior&biome=forest&' + v],
+    ];
+    const waits = srcs.map(async ([frame, src]) => {
+      const done = loaded(frame);
+      frame.src = src;
+      await done;
+    });
+    await Promise.all(waits);
+    const ready = await Promise.all(srcs.map(([frame]) => waitFor(() => {
+      const g = game(frame);
+      return g && g.firstFrameDone && g.state === 'playing' ? g : null;
+    }, 60000, 250)));
+    if (ready.some((g) => !g)) {
+      record('세 화면 모두 시작', false, ready.map((g) => !!g));
+      document.title = 'quality-check FAIL';
+      return;
+    }
+    record('세 화면 모두 시작', true);
+    await sleep(2500);
+
+    // ---------- 1) 기본값: 휴대폰도 고화질 ----------
+    const ph = report(phoneHigh);
+    const dk = report(deskHigh);
+    record('휴대폰 기본 화질 = high', ph.quality === 'high', ph);
+    record('휴대폰 안티에일리어싱 켜짐', ph.antialias === true, { antialias: ph.antialias });
+    record('휴대폰 픽셀 비율 = min(dpr, 2)', Math.abs(ph.pixelRatio - Math.min(ph.dpr, 2)) < 1e-6, ph.pixelRatio);
+    record('휴대폰 부드러운 그림자(PCFSoft)', ph.shadowType === 2, { type: ph.shadowType });
+    record('휴대폰 그림자 맵 1536', ph.shadowMap === 1536, ph.shadowMap);
+    record('휴대폰 프롭 그림자 켜짐', ph.instancedCasters > 0, { instancedCasters: ph.instancedCasters, total: ph.casters });
+    record('데스크톱 기본 화질 = high', dk.quality === 'high', dk);
+    record('데스크톱 픽셀 비율 = min(dpr, 2)', Math.abs(dk.pixelRatio - Math.min(dk.dpr, 2)) < 1e-6, dk.pixelRatio);
+
+    // ---------- 2) ?quality=low 는 그대로 성능 우선 ----------
+    const lo = report(phoneLow);
+    record('?quality=low 는 성능 우선', lo.quality === 'low', lo);
+    record('성능 우선 그림자 맵 · PCF', lo.shadowMap === 1024 && lo.shadowType === 1, { map: lo.shadowMap, type: lo.shadowType });
+    record('성능 우선은 프롭 그림자 없음', lo.instancedCasters === 0, { instancedCasters: lo.instancedCasters, total: lo.casters });
+    record('성능 우선 픽셀 비율 1.25 이하', lo.pixelRatio <= 1.25 + 1e-6, lo.pixelRatio);
+    record('성능 우선이 그리기를 덜 함', lo.drawCalls < ph.drawCalls, { low: lo.drawCalls, high: ph.drawCalls });
+
+    // ---------- 3) 화질 토글 버튼: 자리 · 표시 · 동작 ----------
+    const pd = doc(phoneHigh);
+    const g1 = game(phoneHigh);
+    const btn = pd.getElementById('quality-toggle');
+    const modeBtn = pd.getElementById('mode-toggle');
+    const mapPanel = pd.getElementById('map-panel');
+    const charPanel = pd.getElementById('char-panel');
+    const br = rectOf(btn);
+    const vw = phoneHigh.contentWindow.innerWidth;
+    const vh = phoneHigh.contentWindow.innerHeight;
+    record('화질 버튼이 있음', !!btn);
+    record('화질 버튼 표시 = ✨ 고화질', !!btn && btn.textContent.indexOf('고화질') >= 0, btn ? btn.textContent : null);
+    record('화질 버튼이 390px 화면 안', !!br && br.left >= 0 && br.right <= vw && br.top >= 0 && br.bottom <= vh, { btn: br, vw, vh });
+    record('화질 버튼이 지도 패널과 겹치지 않음', !overlaps(br, rectOf(mapPanel)), { btn: br, map: rectOf(mapPanel) });
+    record('화질 버튼이 캐릭터 패널과 겹치지 않음', !overlaps(br, rectOf(charPanel)), { btn: br, char: rectOf(charPanel) });
+    record('화질 버튼이 터치 모드 버튼과 겹치지 않음', !overlaps(br, rectOf(modeBtn)), { btn: br, mode: rectOf(modeBtn) });
+    const hit = br ? pd.elementFromPoint(br.left + Math.round(br.w / 2), br.top + Math.round(br.h / 2)) : null;
+    record('화질 버튼이 눌리는 자리에 있음', !!hit && (hit.id === 'quality-toggle' || !!(hit.closest && hit.closest('#quality-toggle'))), hit ? (hit.id || hit.className) : null);
+
+    btn.click();
+    await sleep(900);
+    const afterLow = report(phoneHigh);
+    record('탭하면 성능 우선으로 바뀜', afterLow.quality === 'low', afterLow);
+    record('탭하면 버튼 표시 = ⚡ 성능 우선', btn.textContent.indexOf('성능') >= 0, btn.textContent);
+    record('탭하면 그림자 · 해상도가 즉시 가벼워짐', afterLow.shadowMap === 1024 && afterLow.pixelRatio <= 1.25 + 1e-6, { map: afterLow.shadowMap, pr: afterLow.pixelRatio });
+    let saved = null;
+    try { saved = localStorage.getItem('rpg.quality'); } catch (e) { saved = 'blocked'; }
+    record('선택이 localStorage 에 저장됨', saved === 'low', saved);
+
+    btn.click();
+    await sleep(900);
+    const afterHigh = report(phoneHigh);
+    record('다시 탭하면 고화질로 돌아옴', afterHigh.quality === 'high', afterHigh);
+    record('고화질 복귀 시 그림자 맵 1536 · 프롭 그림자 복원', afterHigh.shadowMap === 1536 && afterHigh.instancedCasters > 0, { map: afterHigh.shadowMap, casters: afterHigh.instancedCasters });
+    record('고화질은 그리기 호출이 더 많음(프롭 그림자)', afterHigh.drawCalls >= lo.drawCalls, { high: afterHigh.drawCalls, low: lo.drawCalls });
+
+    // ---------- 4) Retina(dpr 3) 에서도 2배까지 그리는지 ----------
+    const w = phoneHigh.contentWindow;
+    const dprDesc = Object.getOwnPropertyDescriptor(w, 'devicePixelRatio');
+    try {
+      Object.defineProperty(w, 'devicePixelRatio', { configurable: true, get: () => 3 });
+      g1.setQuality('high', { persist: false });
+      const pr0 = g1.pixelRatio;
+      g1.applyQualityLevel(1);
+      const pr1 = g1.pixelRatio;
+      g1.applyQualityLevel(2);
+      const pr2 = g1.pixelRatio;
+      g1.setQuality('low', { persist: false });
+      const prLow = g1.pixelRatio;
+      record('dpr 3 · 고화질 → 2.0배', Math.abs(pr0 - 2) < 1e-6, pr0);
+      record('dpr 3 · 자동 하향은 1.75 → 1.5배까지만', Math.abs(pr1 - 1.75) < 1e-6 && Math.abs(pr2 - 1.5) < 1e-6, { l1: pr1, l2: pr2 });
+      record('고화질 자동 하향은 1.0배까지 내려가지 않음', pr2 > 1.0, pr2);
+      record('dpr 3 · 성능 우선 → 1.25배', Math.abs(prLow - 1.25) < 1e-6, prLow);
+    } finally {
+      if (dprDesc) Object.defineProperty(w, 'devicePixelRatio', dprDesc);
+      else delete w.devicePixelRatio;
+      g1.setQuality('high', { persist: false });
+      await sleep(400);
+    }
+
+    // 다른 점검 페이지에 영향이 없도록 저장값을 지운다 (지우면 다시 기본 고화질)
+    try { localStorage.removeItem('rpg.quality'); } catch (e) { /* 무시 */ }
+
+    const pass = Object.values(results).every((r) => r.pass);
+    out.textContent = lines.join('\n') + '\n\n' + (pass ? 'ALL PASS' : 'SOME FAILED');
+    document.title = pass ? 'quality-check ALL PASS' : 'quality-check FAIL';
+  });
+})();
+</script>
+</body>
+</html>

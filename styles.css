@@ -730,6 +730,19 @@ body.touch-mode .touch-hint { display: block; }
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+
+/* 화질 토글: 지금 고화질일 때는 금빛, 성능 우선일 때는 차분한 회색 */
+#quality-toggle.on {
+  color: #241c06;
+  background: linear-gradient(180deg, #ffeab6, #e0b95e);
+  border-color: #f7e4b4;
+}
+#quality-toggle:not(.on) {
+  color: var(--ink-dim);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* ---------- 멀티플레이: 시작 화면 설정 ---------- */
@@ -826,6 +839,12 @@ body.touch-mode .touch-hint { display: block; }
 @media (max-width: 1100px) {
   .room-panel { width: 156px; }
   .hud-tools { flex-wrap: wrap; justify-content: flex-end; }
+}
+
+/* 휴대폰: 상단 도구 버튼 둘이 지도 폭 안에서 한 줄에 들어가게 조금 줄인다 */
+@media (max-width: 720px) {
+  .hud-tools { gap: 5px; max-width: 100%; }
+  .mode-toggle { font-size: 9.5px; padding: 4px 8px; }
 }
 
 .mode-toggle:active { transform: scale(0.98); }

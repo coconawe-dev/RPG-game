@@ -27,9 +27,51 @@ const C = (hex) => new THREE.Color(hex);
    - low: 지형 정점 수를 줄이고, 프롭(나무·바위·풀)은 그림자를 드리우지 않는다
    - 두 경우 모두 장식용 점광원은 쓰지 않는다 (아래 glowHalo · 발광 재질로 대신한다)
 ------------------------------------------------------------------- */
-const QUALITY = { low: false, propShadows: true, groundSeg: 78 };
+const QUALITY = { low: false, propShadows: true, groundSeg: 78, shadowSets: [] };
+
+/* 그림자 설정 — 같은 1024 맵이라도 그림자 카메라를 플레이어 주변으로 좁게 잡으면
+   훨씬 또렷하다. 품질 토글은 이 값과 프롭 그림자만 바꾼다(지형은 다시 만들지 않는다). */
+const SHADOW = {
+  high: { mapSize: 1536, ext: 125, far: 620, normalBias: 0.4, bias: -0.0005 },
+  low: { mapSize: 1024, ext: 120, far: 520, normalBias: 0.6, bias: -0.0006 },
+};
 
 export function getWorldQuality() { return QUALITY; }
+
+/* 게임 중 품질 토글: 프롭 그림자를 켜고 끄고, 태양 그림자 맵의 크기 · 범위를 바꾼다.
+   (지형 정점 수처럼 메시를 다시 만들어야 하는 값은 시작할 때 정해진 그대로 둔다) */
+export function applyWorldQuality(world, opts) {
+  const low = !!(opts && opts.low);
+  QUALITY.low = low;
+  QUALITY.propShadows = !low;
+  for (const s of QUALITY.shadowSets) {
+    const want = !!(s.cast && QUALITY.propShadows);
+    if (s.mesh.castShadow !== want) s.mesh.castShadow = want;
+  }
+  const sun = world && world.sun;
+  if (!sun || !sun.shadow) return;
+  const cfg = low ? SHADOW.low : SHADOW.high;
+  const cam = sun.shadow.camera;
+  cam.near = 1;
+  cam.far = cfg.far;
+  cam.left = -cfg.ext;
+  cam.right = cfg.ext;
+  cam.top = cfg.ext;
+  cam.bottom = -cfg.ext;
+  cam.updateProjectionMatrix();
+  sun.shadow.bias = cfg.bias;
+  sun.shadow.normalBias = cfg.normalBias;
+  const size = sun.shadow.mapSize;
+  if (size.x !== cfg.mapSize || size.y !== cfg.mapSize) {
+    size.set(cfg.mapSize, cfg.mapSize);
+    // 크기가 바뀌면 쓰던 그림자 텍스처를 버리고 다음 프레임에 새로 만든다
+    if (sun.shadow.map) {
+      sun.shadow.map.dispose();
+      sun.shadow.map = null;
+    }
+  }
+  sun.shadow.needsUpdate = true;
+}
 
 // 값이 큰 장식 불빛은 실제 조명(점광원) 대신 가산 혼합 후광 메시로 표현한다.
 // 점광원 하나가 씬의 모든 MeshStandardMaterial 픽셀 비용을 끌어올리기 때문.
@@ -159,6 +201,8 @@ function buildInstancedSet(scene, parts, placements) {
     im.instanceMatrix.needsUpdate = true;
     im.castShadow = !!(part.castShadow && QUALITY.propShadows);
     im.receiveShadow = true;
+    // 나중에 품질 토글로 프롭 그림자만 껐다 켰다 할 수 있게 원래 성질을 기억해 둔다
+    QUALITY.shadowSets.push({ mesh: im, cast: !!part.castShadow });
     // 인스턴스 전체를 감싸는 경계 구를 계산해 두면 화면 밖으로 나갈 때 통째로 건너뛴다
     im.computeBoundingSphere();
     im.frustumCulled = true;
@@ -1432,19 +1476,18 @@ function buildLights(scene) {
   const sun = new THREE.DirectionalLight(0xfff4d6, 2.0);
   sun.position.set(-120, 240, 90);
   sun.castShadow = true;
-  // 그림자 맵은 1024면 충분하다 (2048은 모바일 GPU에서 비용만 두 배)
-  const shadowSize = QUALITY.low ? 1024 : 1024;
-  sun.shadow.mapSize.set(shadowSize, shadowSize);
+  // 고화질은 1536 맵을 플레이어 주변 좁은 범위(±125)에 촘촘히 맞춰 그림자가 또렷하다
+  const cfg = QUALITY.low ? SHADOW.low : SHADOW.high;
+  sun.shadow.mapSize.set(cfg.mapSize, cfg.mapSize);
   const cam = sun.shadow.camera;
   cam.near = 1;
-  cam.far = QUALITY.low ? 520 : 620;
-  const ext = QUALITY.low ? 120 : 150;
-  cam.left = -ext;
-  cam.right = ext;
-  cam.top = ext;
-  cam.bottom = -ext;
-  sun.shadow.bias = -0.0006;
-  sun.shadow.normalBias = 0.6;
+  cam.far = cfg.far;
+  cam.left = -cfg.ext;
+  cam.right = cfg.ext;
+  cam.top = cfg.ext;
+  cam.bottom = -cfg.ext;
+  sun.shadow.bias = cfg.bias;
+  sun.shadow.normalBias = cfg.normalBias;
   scene.add(sun);
   scene.add(sun.target);
 
@@ -1461,6 +1504,7 @@ export function buildWorld(scene, opts) {
   QUALITY.low = !!o.low;
   QUALITY.propShadows = !QUALITY.low;
   QUALITY.groundSeg = QUALITY.low ? 52 : 78;
+  QUALITY.shadowSets = [];
 
   scene.fog = new THREE.Fog(0xb5dbe4, 280, 1500);
 

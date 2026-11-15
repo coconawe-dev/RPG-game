@@ -21,8 +21,9 @@
   게임을 iframe 하나에 띄워 그리기 호출 수(draw calls) · 삼각형 수 · 조명 수 · 화면 품질 ·
   실제 프레임 수(FPS)를 재서 아래에 JSON 으로 보여 준다.
 
-    tests/perf-check.html?size=phone    390×844 · 휴대폰 품질(low)
-    tests/perf-check.html?size=desktop  1280×800 · 데스크톱 품질(high)
+    tests/perf-check.html?size=phone    390×844 · 휴대폰 기본값(고화질)
+    tests/perf-check.html?size=phone&quality=low  390×844 · 성능 우선
+    tests/perf-check.html?size=desktop  1280×800 · 데스크톱 기본값(고화질)
     tests/perf-check.html?size=phone&mi=120   인위적으로 120ms 마다 한 프레임(아주 느린 기기 흉내 → 자동 화질 하향 확인)
 
   document.title 이 PASS / FAIL 로 바뀐다.
@@ -44,11 +45,14 @@
   const size = qp.get('size') === 'desktop' ? 'desktop' : 'phone';
   const src = qp.get('src') || '../index.html';
   const mi = Number(qp.get('mi')) || 0; // 인위적 프레임 지연(ms) — 느린 기기 흉내
+  const forcedQuality = (qp.get('quality') || '').toLowerCase();   // 비우면 기기 기본값(고화질)
   const W = size === 'desktop' ? 1280 : 390;
   const H = size === 'desktop' ? 800 : 844;
   frame.style.width = W + 'px';
   frame.style.height = H + 'px';
-  tag.textContent = (size === 'desktop' ? '데스크톱 1280×800' : '휴대폰 390×844') + (mi ? ' · 느린 기기 흉내' : '');
+  tag.textContent = (size === 'desktop' ? '데스크톱 1280×800' : '휴대폰 390×844')
+    + (forcedQuality === 'low' || forcedQuality === 'high' ? ' · ' + forcedQuality : '')
+    + (mi ? ' · 느린 기기 흉내' : '');
 
   const results = {};
   window.__PERF_CHECK__ = results;
@@ -85,7 +89,8 @@
   }
 
   window.addEventListener('load', async () => {
-    const params = '?class=warrior&biome=forest&quality=' + (size === 'desktop' ? 'high' : 'low')
+    const params = '?class=warrior&biome=forest'
+      + (forcedQuality === 'low' || forcedQuality === 'high' ? '&quality=' + forcedQuality : '')
       + (mi ? '&perfdelay=' + mi : '') + '&v=' + Date.now();
     frame.src = src + params;
     const g = await waitFor(() => {

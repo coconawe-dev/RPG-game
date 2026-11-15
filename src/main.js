@@ -1,7 +1,7 @@
 // 게임 진입점: 렌더러 · 월드 · 입력 · 카메라 · 상태 관리
 import * as THREE from 'three';
 import { BIOMES, BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD } from './config.js';
-import { buildWorld, updateSun, updateVillage, updateOldVillage, updateBiomeCulling } from './world.js';
+import { buildWorld, updateSun, updateVillage, updateOldVillage, updateBiomeCulling, applyWorldQuality } from './world.js';
 import { Player } from './player.js';
 import { MobManager } from './mobs.js';
 import { Combat } from './combat.js';
@@ -58,9 +58,9 @@ class Game {
     this.lastPointer = { x: 0, y: 0 };
     this.biomeCenters = {};
     this.biomeColors = {};
-    // 화면 품질: 'high' | 'low' (휴대폰 · iPad 는 low 로 시작한다)
+    // 화면 품질: 'high' | 'low' — 기본은 모든 기기에서 고화질('high')이다
     this.quality = 'high';
-    this.qualityLevel = 0;      // 0 = 기본, 1·2 = 자동 하향 단계
+    this.qualityLevel = 0;      // 0 = 기본, 1·2 = 프레임이 느릴 때의 자동 하향 단계
     this.pixelRatio = 1;
     this._perf = { frames: 0, acc: 0, low: 0, samples: 0 };
     this._cullAcc = 0;
@@ -97,7 +97,7 @@ class Game {
     try {
       this.renderer = new THREE.WebGLRenderer({
         canvas,
-        antialias: this.quality === 'high', // 휴대폰은 픽셀 비율을 낮춰 안티에일리어싱 비용을 아낸다
+        antialias: this.quality === 'high', // 고화질은 계단 현상을 없앤다 (컨텍스트를 만들 때만 정할 수 있다)
         powerPreference: 'high-performance',
         stencil: false,
       });
@@ -137,6 +137,7 @@ class Game {
 
     this.bindInput();
     this.bindTouch();
+    this.bindQualityToggle();
     this.setupMultiplayer();
     this.resize();
 
@@ -192,13 +193,28 @@ class Game {
     return !!coarse;
   }
 
-  // ?quality=low|high 로 강제할 수 있다
+  // ?quality=low|high 로 강제 · 없으면 지난번 선택(localStorage) · 그것도 없으면 고화질
   chooseQuality() {
     const forced = (new URLSearchParams(window.location.search).get('quality') || '').toLowerCase();
     if (forced === 'low' || forced === 'high') return forced;
-    if (this.isTouch) return 'low';
-    const minSide = Math.min(window.innerWidth || 1024, window.innerHeight || 768);
-    return minSide <= 620 ? 'low' : 'high';
+    const saved = this.readQualityPreference();
+    if (saved === 'low' || saved === 'high') return saved;
+    // 휴대폰 · iPad 도 기본은 고화질이다 (Retina 화면에서 선명하게)
+    return 'high';
+  }
+
+  readQualityPreference() {
+    try {
+      return window.localStorage ? window.localStorage.getItem('rpg.quality') : null;
+    } catch (err) {
+      return null;   // 시크릿 모드 등 저장소를 막아 둔 브라우저
+    }
+  }
+
+  saveQualityPreference(quality) {
+    try {
+      if (window.localStorage) window.localStorage.setItem('rpg.quality', quality);
+    } catch (err) { /* 저장할 수 없으면 이번 세션에만 적용된다 */ }
   }
 
   targetPixelRatio() {
@@ -208,12 +224,12 @@ class Game {
       if (this.qualityLevel === 1) return Math.min(dpr, 1.1);
       return Math.min(dpr, 1.25);
     }
-    if (this.qualityLevel >= 2) return Math.min(dpr, 1);
-    if (this.qualityLevel === 1) return Math.min(dpr, 1.5);
+    if (this.qualityLevel >= 2) return Math.min(dpr, 1.5);
+    if (this.qualityLevel === 1) return Math.min(dpr, 1.75);
     return Math.min(dpr, 2);
   }
 
-  // 렉이 계속되면 단계적으로만 내린다 (0 → 1 → 2)
+  // 렉이 계속되면 단계적으로만 내린다 (0 → 1 → 2). 고화질에서는 해상도만 살짝 낮춘다.
   applyQualityLevel(level) {
     if (!this.renderer) return;
     const next = Math.max(this.qualityLevel, Math.min(2, level));
@@ -228,6 +244,80 @@ class Game {
       this.mobManager.cullRadius = next >= 1 ? 620 : 680;
       this.mobManager.animRadius = next >= 1 ? 340 : 380;
     }
+  }
+
+  // 화면 품질 토글: 'high' = ✨ 고화질 / 'low' = ⚡ 성능 우선
+  // 게임 중에도 바로 반영되고, 고른 값은 localStorage 에 남겨 다음 접속에 이어 쓴다.
+  setQuality(quality, opts) {
+    const q = quality === 'low' ? 'low' : 'high';
+    this.quality = q;
+    this.qualityLevel = 0;
+    this._perf.low = 0;
+    this.pixelRatio = this.targetPixelRatio();
+    if (this.renderer) {
+      this.renderer.setPixelRatio(this.pixelRatio);
+      const type = q === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+      if (this.renderer.shadowMap.type !== type) {
+        this.renderer.shadowMap.type = type;
+        // 그림자 종류는 셰이더에 박히므로 재질을 다시 컴파일하게 한다 (토글할 때만)
+        this.refreshMaterials();
+      }
+      this.renderer.shadowMap.needsUpdate = true;
+    }
+    if (this.world) applyWorldQuality(this.world, { low: q === 'low' });
+    if (this.effects) this.effects.maxParticles = q === 'low' ? 24 : 40;
+    if (this.mobManager) {
+      this.mobManager.cullRadius = q === 'low' ? 680 : 760;
+      this.mobManager.animRadius = q === 'low' ? 380 : 460;
+    }
+    this.updateQualityButton();
+    if (!opts || opts.persist !== false) this.saveQualityPreference(q);
+    return q;
+  }
+
+  toggleQuality() {
+    return this.setQuality(this.quality === 'high' ? 'low' : 'high');
+  }
+
+  updateQualityButton() {
+    const btn = document.getElementById('quality-toggle');
+    if (!btn) return;
+    const high = this.quality === 'high';
+    const label = high ? '✨ 고화질' : '⚡ 성능 우선';
+    if (btn.textContent !== label) btn.textContent = label;
+    btn.classList.toggle('on', high);
+    btn.setAttribute('aria-pressed', high ? 'false' : 'true');
+    btn.title = high
+      ? '지금 고화질 — 누르면 성능 우선(선명도 살짝 낮춤)으로 바꿉니다'
+      : '지금 성능 우선 — 누르면 고화질(선명하게)로 바꿉니다';
+  }
+
+  // 그림자 종류가 바뀌면 이미 쓰던 재질의 셰이더를 다시 컴파일해야 한다
+  refreshMaterials() {
+    if (!this.scene) return;
+    const seen = new Set();
+    this.scene.traverse((o) => {
+      const m = o.material;
+      if (!m) return;
+      const list = Array.isArray(m) ? m : [m];
+      for (const mat of list) {
+        if (!mat || seen.has(mat)) continue;
+        seen.add(mat);
+        mat.needsUpdate = true;
+      }
+    });
+  }
+
+  bindQualityToggle() {
+    const btn = document.getElementById('quality-toggle');
+    this.updateQualityButton();
+    if (!btn) return;
+    const flip = (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      this.toggleQuality();
+    };
+    btn.addEventListener('click', flip);
+    btn.addEventListener('touchstart', flip, { passive: false });
   }
 
   // 1초 단위 프레임 수를 재서 계속 느리면 품질을 한 단계 내린다
