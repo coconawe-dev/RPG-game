@@ -252,10 +252,90 @@ function buildGolem() {
       (Math.random() - 0.5) * 22, 27 + Math.random() * 12, (Math.random() - 0.5) * 12);
     body.add(m);
   }
-  return { root, body, head, armL, armR, legL, legR, core, coreMat, coreHalo, mats, height: 56 };
+  return { root, body, head, armL, armR, legL, legR, core, coreMat, coreHalo, eyeMat, mats, height: 56 };
 }
 
-const BUILDERS = { slime: buildSlime, zombie: buildZombie, hyena: buildHyena, gorilla: buildGorilla, golem: buildGolem };
+function buildRaider() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const mats = [];
+  const leatherMat = stdMat(0x6b4f33, { roughness: 0.95 });
+  const leatherDark = stdMat(0x4a3623, { roughness: 1 });
+  const ironMat = stdMat(0x5c5c58, { roughness: 0.45, metalness: 0.75 });
+  const hoodMat = stdMat(0x2b2620, { roughness: 1 });
+  const bandMat = stdMat(0x7a2a26, { roughness: 0.9 });
+  const skinMat = stdMat(0xb98d68, { roughness: 0.85 });
+  mats.push(leatherMat, leatherDark, ironMat, hoodMat, bandMat, skinMat);
+
+  // 다리 · 장화
+  const legL = new THREE.Group();
+  const legR = new THREE.Group();
+  legL.position.set(1.7, 9, 0);
+  legR.position.set(-1.7, 9, 0);
+  for (const leg of [legL, legR]) {
+    leg.add(mkMesh(new THREE.BoxGeometry(2.1, 6.4, 2.3), leatherDark, 0, -3.2, 0));
+    leg.add(mkMesh(new THREE.BoxGeometry(2.3, 2.4, 3.0), hoodMat, 0, -5.6, 0.4));
+    body.add(leg);
+  }
+
+  // 몸통 — 입은 가죽 조끼 + 덧댄 철판
+  const torso = new THREE.Group();
+  torso.position.y = 9;
+  body.add(torso);
+  torso.add(mkMesh(new THREE.BoxGeometry(5.4, 6.4, 3.1), leatherMat, 0, 3.3, 0));
+  torso.add(mkMesh(new THREE.BoxGeometry(3.4, 4.6, 0.6), ironMat, 0, 3.6, 1.6));
+  torso.add(mkMesh(new THREE.BoxGeometry(5.6, 1.2, 3.3), leatherDark, 0, 0.5, 0));
+  torso.add(mkMesh(new THREE.BoxGeometry(1.5, 1.4, 0.5), ironMat, 0, 0.5, 1.7));
+  // 어깨 가죽
+  for (const s of [-1, 1]) {
+    const pad = mkMesh(new THREE.BoxGeometry(2.4, 1.6, 3.0), leatherDark, s * 3.1, 6.2, 0);
+    pad.rotation.z = s * 0.25;
+    torso.add(pad);
+  }
+
+  // 머리 — 어두운 두건 + 얼굴 가리개
+  const head = new THREE.Group();
+  head.position.set(0, 7.0, 0.2);
+  torso.add(head);
+  head.add(mkMesh(new THREE.BoxGeometry(3.5, 3.5, 3.4), skinMat, 0, 1.9, 0));
+  const hood = mkMesh(new THREE.SphereGeometry(2.4, 10, 8), hoodMat, 0, 2.5, -0.35);
+  hood.scale.set(1.02, 0.92, 1.06);
+  head.add(hood);
+  head.add(mkMesh(new THREE.BoxGeometry(3.6, 1.3, 0.5), hoodMat, 0, 3.5, 1.7));
+  head.add(mkMesh(new THREE.BoxGeometry(3.3, 1.5, 0.6), bandMat, 0, 1.1, 1.75));
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffb060 });
+  for (const s of [-1, 1]) {
+    head.add(mkMesh(new THREE.BoxGeometry(0.5, 0.5, 0.3), eyeMat, s * 0.75, 2.3, 1.78));
+  }
+
+  // 팔 — 오른손에 도끼
+  const armL = new THREE.Group();
+  const armR = new THREE.Group();
+  armL.position.set(3.2, 5.8, 0);
+  armR.position.set(-3.2, 5.8, 0);
+  for (const arm of [armL, armR]) {
+    arm.add(mkMesh(new THREE.BoxGeometry(1.8, 4.6, 1.9), leatherMat, 0, -2.3, 0));
+    arm.add(mkMesh(new THREE.BoxGeometry(1.9, 1.4, 2.0), ironMat, 0, -4.6, 0));
+    arm.add(mkMesh(new THREE.BoxGeometry(1.7, 1.5, 1.8), skinMat, 0, -5.5, 0));
+    torso.add(arm);
+  }
+  const axe = new THREE.Group();
+  axe.position.set(0, -5.6, 0.4);
+  const handle = mkMesh(new THREE.CylinderGeometry(0.3, 0.34, 10, 6), leatherDark, 0, 0, 3.6);
+  handle.rotation.x = Math.PI / 2;
+  axe.add(handle);
+  const blade = mkMesh(new THREE.BoxGeometry(0.5, 3.6, 2.6), ironMat, 0.5, 0, 7.4);
+  axe.add(blade);
+  const edge = mkMesh(new THREE.ConeGeometry(1.5, 1.6, 4), ironMat, 0.5, 0, 9.2);
+  edge.rotation.x = Math.PI / 2;
+  axe.add(edge);
+  armR.add(axe);
+
+  return { root, body, torso, head, legL, legR, armL, armR, axe, eyeMat, mats, height: 20 };
+}
+
+const BUILDERS = { slime: buildSlime, zombie: buildZombie, hyena: buildHyena, gorilla: buildGorilla, raider: buildRaider, golem: buildGolem };
 
 /* -------------------------------- 몹 -------------------------------- */
 export class Mob {
@@ -292,6 +372,13 @@ export class Mob {
     this.didAlert = false;
     this.bossIntroDone = false;
     this.stompCd = 4;
+    // 보스(고대 곰렘) 격노 · 충격파 내려치기
+    this.enraged = false;
+    this.slamT = 0;
+    this.slamDur = (this.type.slamWindup || 1.5);
+    this.slamHit = false;
+    this.slamCd = 0;
+    this.attacksSinceSlam = 0;
 
     // 멀티플레이: netId 가 있으면 호스트 권한 몹, remote=true 면 친구 화면에서 보는 미러
     this.netId = undefined;
@@ -420,7 +507,12 @@ export class Mob {
     const distSpawn = Math.hypot(this.position.x - this.spawnPoint.x, this.position.z - this.spawnPoint.z);
     this.attackCd = Math.max(0, this.attackCd - dt);
     this.hurtT = Math.max(0, this.hurtT - dt);
-    if (this.type.boss) this.stompCd = Math.max(0, this.stompCd - dt);
+    if (this.type.boss) {
+      this.stompCd = Math.max(0, this.stompCd - dt);
+      this.slamCd = Math.max(0, this.slamCd - dt);
+      // 체력 50% 이하 → 격노
+      if (!this.enraged && this.hp <= this.maxHp * (this.type.enrageAt || 0.5)) this.enrage();
+    }
 
     // 어그로
     if (target.alive && dist < this.type.aggro && distSpawn < this.type.leash * 1.25) {
@@ -439,7 +531,18 @@ export class Mob {
     let moveTarget = null;
     let speedMul = 1;
 
-    if (this.attackT > 0) {
+    if (this.slamT > 0) {
+      // 내려치기 예고 → 내리치는 순간
+      this.slamT -= dt;
+      speedMul = 0;
+      this.state = 'chase';
+      if (target.alive) this.facing = dampAngle(this.facing, Math.atan2(dx, dz), 6, dt);
+      if (!this.slamHit && this.slamT <= this.slamDur * 0.3) {
+        this.slamHit = true;
+        this.resolveSlam();
+      }
+      if (this.slamT <= 0) this.slamT = 0;
+    } else if (this.attackT > 0) {
       // 공격 모션 진행
       this.attackT -= dt;
       const prog = 1 - this.attackT / this.attackDur;
@@ -449,7 +552,14 @@ export class Mob {
       }
       speedMul = 0.1;
     } else if (this.aggro && target.alive) {
-      if (dist > this.type.attackRange * 0.92) {
+      // 격노한 보스는 몇 대 때린 뒤 충격파를 내려친다
+      const canSlam = this.type.boss && this.enraged && this.slamCd <= 0
+        && dist < (this.type.slamRadius || 200) * 1.15
+        && this.attacksSinceSlam >= (this.type.slamEvery || 3);
+      if (canSlam) {
+        this.startSlam();
+        speedMul = 0;
+      } else if (dist > this.type.attackRange * 0.92) {
         moveTarget = target.position;
         this.state = 'chase';
       } else if (this.attackCd <= 0) {
@@ -553,8 +663,82 @@ export class Mob {
   startAttack() {
     this.attackT = this.attackDur;
     this.attackHit = false;
-    this.attackCd = this.type.attackCooldown * rand(0.9, 1.15);
+    this.attackCd = this.type.attackCooldown * (this.enraged ? 0.6 : 1) * rand(0.9, 1.15);
+    this.attacksSinceSlam++;
     if (this.type.boss) this.game.sfx.boss();
+  }
+
+  /* ------------------- 격노 · 충격파 내려치기 (보스) ------------------- */
+  enrage() {
+    if (this.enraged) return;
+    this.enraged = true;
+    const m = this.model;
+    if (m.coreMat) {
+      m.coreMat.color.setHex(0xffb066);
+      m.coreMat.emissive.setHex(0xff4a1c);
+      m.coreMat.emissiveIntensity = 4.2;
+    }
+    if (m.coreHalo && m.coreHalo.material) m.coreHalo.material.color.setHex(0xff8a4a);
+    if (m.eyeMat) m.eyeMat.color.setHex(0xffa050);
+    this.game.hud.banner('고대 곰렘 · 격노!', 1700);
+    this.game.shake(0.75);
+    this.game.sfx.boss();
+    if (this.game.effects) {
+      this.game.effects.ring(this.position, 0xff5a2a, 190, { duration: 0.9, thickness: 0.05 });
+      this.game.effects.burst(new THREE.Vector3(this.position.x, this.position.y + 30, this.position.z), 0xff7040, 26, { power: 40, size: 2 });
+    }
+    // 격노 직후 바로 내려치기를 예고한다 (조금 여유를 두고)
+    this.slamCd = 1.8;
+  }
+
+  startSlam() {
+    const radius = this.type.slamRadius || 200;
+    this.slamDur = this.type.slamWindup || 1.5;
+    this.slamT = this.slamDur;
+    this.slamHit = false;
+    this.slamCd = this.type.slamCooldown || 9;
+    this.attacksSinceSlam = 0;
+    this.attackT = 0;
+    this.attackHit = true;
+    this.game.sfx.boss();
+    this.game.hud.banner('충격파 내려치기!', 1100);
+    if (this.game.effects) {
+      // 바닥에 범위를 예고하는 고리 (점점 넓어지며 위험 범위를 보여 준다)
+      this.game.effects.ring(
+        new THREE.Vector3(this.position.x, this.position.y + 1.5, this.position.z),
+        0xff7a3c, radius, { duration: this.slamDur, thickness: 0.05, yOffset: 1.5 }
+      );
+      this.game.effects.ring(
+        new THREE.Vector3(this.position.x, this.position.y + 1.5, this.position.z),
+        0xffc46a, radius * 0.5, { duration: this.slamDur, thickness: 0.02, yOffset: 1.5 }
+      );
+    }
+  }
+
+  resolveSlam() {
+    const radius = this.type.slamRadius || 200;
+    const base = this.type.damage * 1.4;
+    const list = this.game.combatTargets ? this.game.combatTargets() : null;
+    const targets = list || (this.game.player ? [{ local: true, alive: this.game.player.alive, radius: 4.6, position: this.game.player.position }] : []);
+    for (const t of targets) {
+      if (!t || !t.alive) continue;
+      const d = Math.hypot(t.position.x - this.position.x, t.position.z - this.position.z);
+      if (d > radius + (t.radius || 4.6)) continue;
+      const falloff = clamp(1 - (d / radius) * 0.4, 0.6, 1);
+      const dmg = base * falloff;
+      if (t.remote) {
+        if (this.game.net) this.game.net.hitGuest(t.pid, dmg, this.position);
+      } else {
+        const p = this.game.player;
+        if (p && p.alive) p.takeDamage(dmg, this.position);
+      }
+    }
+    if (this.game.effects) {
+      this.game.effects.ring(this.position, 0xffb15c, radius * 1.1, { duration: 0.62, thickness: 0.07 });
+      this.game.effects.burst(new THREE.Vector3(this.position.x, this.position.y + 6, this.position.z), 0xffc46a, 34, { power: 78, size: 1.8 });
+      this.game.effects.crack(this.position, 0xff8a4a, radius * 0.8, 0.9);
+    }
+    this.game.shake(1.15);
   }
 
   resolveAttack(dist) {
@@ -650,27 +834,61 @@ export class Mob {
       m.head.rotation.x = swing * 0.3;
       if (hurt > 0) m.body.rotation.z = Math.sin(hurt * 26) * 0.1;
       else m.body.rotation.z = 0;
+    } else if (this.typeId === 'raider') {
+      const s = Math.sin(this.walkPhase);
+      m.legL.rotation.x = s * 0.72;
+      m.legR.rotation.x = -s * 0.72;
+      m.body.position.y = Math.abs(s) * 0.5;
+      m.torso.rotation.y = s * -0.12;
+      const swing = atkP >= 0 ? clamp(Math.sin(clamp(atkP, 0, 1) * Math.PI), 0, 1) : 0;
+      // 도끼를 머리 위로 들어 내려친다
+      m.armR.rotation.x = -0.3 - swing * 2.4;
+      m.armR.rotation.z = -0.18 - swing * 0.25;
+      m.armL.rotation.x = -0.2 + swing * 0.45;
+      m.armL.rotation.z = 0.24;
+      m.torso.rotation.x = swing * 0.22;
+      m.head.rotation.x = -swing * 0.16;
+      if (moving && this.state === 'chase') m.body.rotation.x = -0.05;
+      else m.body.rotation.x = 0;
+      if (hurt > 0) m.body.rotation.z = Math.sin(hurt * 24) * 0.1;
+      else m.body.rotation.z = 0;
     } else if (this.typeId === 'golem') {
       const s = Math.sin(this.walkPhase * 0.55);
       m.legL.rotation.x = s * 0.32;
       m.legR.rotation.x = -s * 0.32;
       m.body.position.y = Math.abs(Math.sin(this.walkPhase * 0.55)) * 1.2;
       const swing = atkP >= 0 ? Math.sin(clamp(atkP, 0, 1) * Math.PI) : 0;
-      // 오른팔 들어 내려찍기
-      m.armR.rotation.x = -2.2 * swing;
-      m.armR.rotation.z = -0.1 - swing * 0.15;
-      m.armL.rotation.x = -0.3 * swing;
-      m.body.rotation.x = swing * 0.12;
-      m.head.rotation.x = -swing * 0.12;
-      const pulse = 1 + Math.sin(t * 3) * 0.08;
+      const slamP = this.slamT > 0 ? clamp(1 - this.slamT / this.slamDur, 0, 1) : -1;
+      if (slamP >= 0) {
+        // 양팔을 머리 위로 들어 올렸다가 지면을 내려친다
+        const raise = slamP < 0.72 ? slamP / 0.72 : 1;
+        const fall = slamP < 0.72 ? 0 : clamp((slamP - 0.72) / 0.28, 0, 1);
+        const armX = -2.9 * raise + 3.9 * fall;
+        m.armR.rotation.x = armX;
+        m.armL.rotation.x = armX;
+        m.armR.rotation.z = -0.35 * raise;
+        m.armL.rotation.z = 0.35 * raise;
+        m.body.rotation.x = -0.12 * raise + 0.36 * fall;
+        m.head.rotation.x = 0.18 * raise - 0.3 * fall;
+      } else {
+        // 오른팔 들어 내려찍기
+        m.armR.rotation.x = -2.2 * swing;
+        m.armR.rotation.z = -0.1 - swing * 0.15;
+        m.armL.rotation.x = -0.3 * swing;
+        m.armL.rotation.z = 0;
+        m.body.rotation.x = swing * 0.12;
+        m.head.rotation.x = -swing * 0.12;
+      }
+      const pulse = 1 + Math.sin(t * (this.enraged ? 5.5 : 3)) * (this.enraged ? 0.14 : 0.08);
       m.core.scale.setScalar(pulse * (1 + swing * 0.25));
       m.coreHalo.scale.setScalar(pulse * 1.1 + swing * 0.3);
       if (hurt > 0) m.body.rotation.z = Math.sin(hurt * 22) * 0.05;
       else m.body.rotation.z = 0;
-      // 체력 40% 이하 격노
-      if (this.hp < this.maxHp * 0.4) {
-        m.coreMat.color.setHex(0xffb0a0);
-        m.coreMat.emissive.setHex(0xff5a3c);
+      // 격노(체력 50% 이하): 황금빛 룬 · 눈이 타오른다
+      if (this.enraged && m.coreMat) {
+        m.coreMat.emissiveIntensity = 3.2 + Math.sin(t * 7) * 1.5;
+        if (m.coreHalo && m.coreHalo.material) m.coreHalo.material.opacity = 0.28 + Math.sin(t * 7) * 0.1;
+        if (m.eyeMat) m.eyeMat.color.setHex(Math.sin(t * 7) > 0 ? 0xffc070 : 0xff5a24);
       }
     }
   }

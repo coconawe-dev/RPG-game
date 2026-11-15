@@ -72,16 +72,17 @@ export function fbm(x, y, octaves) {
    - 각 바이옴은 1000 x 1000 월드 단위
    - 중앙 정글 사원(0,0)을 네 방향이 감싸는 십자 구조
        서쪽: 쾌적한 숲(-1000) → 그 서쪽: 태초마을(-2000)
-       동쪽: 사바나 / 북쪽: 무덤 / 남쪽: 정글
-   - x축은 서쪽으로 한 칸 더 길다 (태초마을) → 비대칭 경계
+       동쪽: 사바나(1000) → 그 동쪽: 낡은 마을(2000)
+       북쪽: 무덤 / 남쪽: 정글
+   - x축은 동 · 서로 한 칸씩 더 길다 (태초마을 · 낡은 마을) → 비대칭 경계
 ------------------------------------------------------------------ */
 export const WORLD = {
   cell: 1000,
   halfCell: 500,
-  half: 2500,          // 가장 먼 x 거리(서쪽)
+  half: 2500,          // 가장 먼 x 거리(동 · 서)
   bound: 2470,
   xMin: -2470,
-  xMax: 1470,
+  xMax: 2470,
   zMin: -1470,
   zMax: 1470,
 };
@@ -103,8 +104,13 @@ export function terrainHeight(x, z) {
   const flatVillage = smoothstep(540, 300, dVillage);
   h *= 1 - flatVillage * 0.94;
 
-  // 세계 외곽(가장자리)은 완만하게 낮춤 — 태초마을이 서쪽으로 한 칸 더 넓다
-  const border = Math.min(x + 2500, 1500 - x, z + 1500, 1500 - z);
+  // 낡은 마을의 망루 터 · 폐가 골목도 평평하게
+  const dOld = Math.hypot(x - 2000, z);
+  const flatOld = smoothstep(520, 300, dOld);
+  h *= 1 - flatOld * 0.9;
+
+  // 세계 외곽(가장자리)은 완만하게 낮춤 — 태초마을 · 낡은 마을이 동 · 서로 한 칸씩 더 넓다
+  const border = Math.min(x + 2500, 2500 - x, z + 1500, 1500 - z);
   h *= smoothstep(0, 90, border);
   return h;
 }
@@ -112,7 +118,7 @@ export function terrainHeight(x, z) {
 export function regionAt(x, z) {
   if (Math.abs(x) <= WORLD.halfCell && Math.abs(z) <= WORLD.halfCell) return 'temple';
   if (x < -WORLD.halfCell) return x < -1500 ? 'village' : 'forest';
-  if (x > WORLD.halfCell) return 'savanna';
+  if (x > WORLD.halfCell) return x > 1500 ? 'old_village' : 'savanna';
   if (z < -WORLD.halfCell) return 'graveyard';
   if (z > WORLD.halfCell) return 'jungle';
   return 'forest';

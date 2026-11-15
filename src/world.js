@@ -8,7 +8,8 @@ import {
 const NEIGHBORS = {
   village: [{ side: 'east', id: 'forest' }],
   forest: [{ side: 'east', id: 'temple' }, { side: 'west', id: 'village' }],
-  savanna: [{ side: 'west', id: 'temple' }],
+  savanna: [{ side: 'west', id: 'temple' }, { side: 'east', id: 'old_village' }],
+  old_village: [{ side: 'west', id: 'savanna' }],
   graveyard: [{ side: 'south', id: 'temple' }],
   jungle: [{ side: 'north', id: 'temple' }],
   temple: [
@@ -53,6 +54,16 @@ function buildGround(scene, biome) {
       const pave = smoothstep(0.86, 1, line);
       tmp.lerp(C(0x4e4a40), pave * 0.55);
       tmp.lerp(C(0x8f8877), clamp(0.5 - n * 0.6, 0, 0.5));
+    }
+
+    // 낡은 마을은 흙바닥 + 부서진 조약돌 길
+    if (biome.id === 'old_village') {
+      const cob = fbm(wx * 0.045, wz * 0.045, 2);
+      tmp.lerp(C(0x5b5346), clamp(0.3 + cob * 0.55, 0, 1) * 0.5);
+      const cgx = Math.abs(((lx + 500) % 46) - 23) / 23;
+      const cgz = Math.abs(((lz + 500) % 46) - 23) / 23;
+      const crack = Math.max(cgx, cgz);
+      tmp.lerp(C(0x413a30), smoothstep(0.9, 1, crack) * 0.45);
     }
 
     // 인접 바이옴과의 경계 색 블렌딩 (울퉁불퉁한 경계)
@@ -173,6 +184,14 @@ const KEEP_OUTS = {
   forest: [{ x: -1160, z: 40, r: 120 }, { x: -1000, z: 0, r: 110 }, { x: -500, z: 0, r: 110 }],
   graveyard: [{ x: 0, z: -1000, r: 150 }, { x: 0, z: -500, r: 120 }],
   savanna: [{ x: 1000, z: 0, r: 140 }, { x: 500, z: 0, r: 110 }],
+  old_village: [
+    { x: 2000, z: 0, r: 150 }, { x: 1500, z: 0, r: 110 },
+    { x: 1860, z: -230, r: 80 }, { x: 2160, z: -215, r: 80 },
+    { x: 1845, z: 235, r: 80 }, { x: 2150, z: 250, r: 80 },
+    { x: 1740, z: -60, r: 78 }, { x: 2270, z: 20, r: 78 },
+    { x: 2000, z: -360, r: 78 }, { x: 2000, z: 360, r: 78 },
+    { x: 2050, z: 130, r: 60 },
+  ],
   jungle: [{ x: 0, z: 1000, r: 130 }, { x: 0, z: 500, r: 120 }],
   temple: [{ x: 0, z: 0, r: 260 }, { x: 0, z: -500, r: 90 }, { x: 0, z: 500, r: 90 }, { x: -500, z: 0, r: 90 }, { x: 500, z: 0, r: 90 }],
 };
@@ -371,6 +390,237 @@ function buildSavanna(scene) {
   bed.rotation.x = -Math.PI / 2;
   bed.position.set(700, terrainHeight(700, 0) + 0.4, 0);
   scene.add(bed);
+}
+
+/* ---------------------------- 낡은 마을 (폐촌) ---------------------------- */
+// 무너진 목조 가옥 · 부서진 울타리 · 통/상자 · 캠프파이어 · 망루 폐허
+const RUIN_WOOD = 0x4a3d31;
+const RUIN_WOOD_DARK = 0x352c24;
+const RUIN_STONE = 0x6b6558;
+
+function ruinedHouse(scene, x, z, ry, tilt, variant) {
+  const g = new THREE.Group();
+  const wood = propMat(RUIN_WOOD, { roughness: 1 });
+  const woodDark = propMat(RUIN_WOOD_DARK, { roughness: 1 });
+  const stone = propMat(RUIN_STONE, { roughness: 1 });
+  const roof = propMat(variant % 2 ? 0x3f3a33 : 0x51443a, { roughness: 0.95 });
+  const doorMat = propMat(0x241d17, { roughness: 1 });
+
+  const mk = (geo, mat, px, py, pz, rot) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(px, py, pz);
+    if (rot) m.rotation.set(rot[0] || 0, rot[1] || 0, rot[2] || 0);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    g.add(m);
+    return m;
+  };
+
+  // 돌 기단(허물어진 부분은 낮게)
+  mk(new THREE.BoxGeometry(72, 6, 58), stone, 0, 3, 0);
+  mk(new THREE.BoxGeometry(26, 4, 58), stone, -22, 3, 6, [0, 0, -0.06]);
+
+  // 벽 — 네 면 중 한 면은 무너져 내려 없다
+  const wallH = 24;
+  mk(new THREE.BoxGeometry(70, wallH, 4.5), wood, 0, 6 + wallH / 2, -27);
+  mk(new THREE.BoxGeometry(4.5, wallH * 0.82, 54), woodDark, -33, 6 + wallH * 0.41, 0);
+  if (variant % 3 !== 0) mk(new THREE.BoxGeometry(4.5, wallH * 0.6, 54), woodDark, 33, 6 + wallH * 0.3, 0, [0, 0, 0.04]);
+  // 앞면: 기둥 두 개 + 부서진 벽 조각
+  mk(new THREE.BoxGeometry(4.6, wallH, 4.6), woodDark, -31, 6 + wallH / 2, 26);
+  mk(new THREE.BoxGeometry(4.6, wallH * 0.55, 4.6), woodDark, 31, 6 + wallH * 0.28, 26, [0.05, 0, 0.05]);
+  mk(new THREE.BoxGeometry(20, 9, 3.4), wood, -17, 6 + wallH * 0.72, 26, [0, 0, -0.12]);
+  mk(new THREE.BoxGeometry(12, 14, 3), doorMat, 8, 6 + 7, 26.6, [0, 0, 0.09]);
+
+  // 들보 · 기둥 머리
+  mk(new THREE.BoxGeometry(74, 3.4, 60), woodDark, 0, 6 + wallH, 0, [0, 0, tilt * 0.5]);
+  for (const s of [-1, 1]) {
+    mk(new THREE.BoxGeometry(9, 4, 9), woodDark, s * 30, 6 + wallH * 0.62, 24, [0, 0, 0.2]);
+  }
+
+  // 지붕: 한쪽만 남은 부서진 판자 지붕
+  const roofSide = variant % 2 ? 1 : -1;
+  mk(new THREE.BoxGeometry(40, 3, 62), roof, roofSide * 17, 6 + wallH + 9, 0, [0, 0, -roofSide * 0.5]);
+  mk(new THREE.BoxGeometry(16, 2.4, 40), roof, -roofSide * 8, 6 + wallH + 13, -6, [0.12, 0.2, roofSide * 0.85]);
+  // 떨어져 나간 서까래
+  mk(new THREE.BoxGeometry(2.6, 22, 2.6), woodDark, roofSide * 22, 6 + wallH + 4, 27, [0.9, 0, roofSide * 0.3]);
+  mk(new THREE.BoxGeometry(2.6, 18, 2.6), woodDark, roofSide * 26, 6 + wallH + 2, -20, [-0.7, 0, roofSide * 0.5]);
+
+  // 무너진 잔해
+  mk(new THREE.BoxGeometry(16, 2.4, 5), woodDark, -8, 7.4, 32, [0, 0.4, 0.15]);
+  mk(new THREE.BoxGeometry(10, 2.2, 4), wood, 14, 7.2, -34, [0, -0.6, -0.1]);
+
+  g.position.set(x, terrainHeight(x, z), z);
+  g.rotation.set(0, ry, tilt);
+  scene.add(g);
+  return g;
+}
+
+function buildOldVillage(scene) {
+  const biome = BIOMES.old_village;
+
+  // 길 · 광장 (부서진 조약돌)
+  buildRoad(scene, 1500, 0, 2500, 0, 40, 0x6a6053);
+  buildDisc(scene, 2000, 0, 118, 0x6d6558, 0.35, 44);
+  buildDisc(scene, 2000, 0, 92, 0x615a4c, 0.5, 36);
+
+  // 폐가 8채 — 저마다 다른 각도로 기울어 서 있다
+  const houses = [
+    [1860, -230, 0.35, 0.05, 0], [2160, -215, -0.4, -0.07, 1],
+    [1845, 235, 2.6, 0.06, 2], [2150, 250, 3.4, -0.05, 3],
+    [1740, -60, 1.55, 0.09, 4], [2270, 20, -1.4, -0.08, 5],
+    [2010, -360, 0.1, 0.04, 6], [2000, 365, 3.1, -0.03, 7],
+  ];
+  for (const h of houses) ruinedHouse(scene, h[0], h[1], h[2], h[3], h[4]);
+
+  // 부서진 울타리 (기둥 · 쓰러진 판자)
+  const fence = scatter(701, biome, 120, KEEP_OUTS.old_village, { margin: 40, minScale: 0.7, maxScale: 1.3 });
+  const fenceMat = propMat(RUIN_WOOD, { roughness: 1 });
+  const fenceDark = propMat(RUIN_WOOD_DARK, { roughness: 1 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.BoxGeometry(2.2, 11, 2.2), mat: fenceDark, pos: [0, 5.5, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(11, 1.6, 1.4), mat: fenceMat, pos: [5, 8, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(11, 1.4, 1.3), mat: fenceMat, pos: [-6, 5.2, 1.4], rot: [0, 0.5, 0.22] },
+  ], fence);
+
+  // 통 · 상자
+  const barrels = scatter(702, biome, 70, KEEP_OUTS.old_village, { margin: 55, minScale: 0.8, maxScale: 1.5 });
+  const caskMat = propMat(0x5c4630, { roughness: 0.95 });
+  const ironMat = propMat(0x4b4a46, { roughness: 0.7, metalness: 0.5 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(4.2, 4.2, 10, 10), mat: caskMat, pos: [0, 5, 0], castShadow: true },
+    { geo: new THREE.CylinderGeometry(4.4, 4.4, 1.1, 10), mat: ironMat, pos: [0, 8.4, 0] },
+    { geo: new THREE.CylinderGeometry(4.4, 4.4, 1.1, 10), mat: ironMat, pos: [0, 2.2, 0] },
+  ], barrels);
+  const crates = scatter(703, biome, 60, KEEP_OUTS.old_village, { margin: 55, minScale: 0.8, maxScale: 1.4 });
+  const crateMat = propMat(0x6a5334, { roughness: 0.95 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.BoxGeometry(8.6, 8.6, 8.6), mat: crateMat, pos: [0, 4.3, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(9.2, 1.4, 1.4), mat: ironMat, pos: [0, 7.6, 0] },
+    // 쓰러진 상자
+    { geo: new THREE.BoxGeometry(8, 8, 8), mat: crateMat, pos: [9, 3.4, 3], rot: [0.9, 0, 0.2], castShadow: true },
+  ], crates);
+
+  // 마른 잡풀 · 돌무더기
+  const dryGrass = scatter(704, biome, 500, null, { margin: 20, minScale: 0.6, maxScale: 1.5 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.ConeGeometry(1.1, 3.8, 3), mat: propMat(0x6f6448, { roughness: 1 }), pos: [0, 1.9, 0] },
+  ], dryGrass);
+  const rubble = scatter(705, biome, 110, KEEP_OUTS.old_village, { margin: 40, minScale: 0.5, maxScale: 1.6 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.DodecahedronGeometry(3.6, 0), mat: propMat(RUIN_STONE, { roughness: 1 }), pos: [0, 1.6, 0], scale: [1.25, 0.7, 1.05], castShadow: true },
+  ], rubble);
+
+  // 흩어진 바퀴 · 수레 잔해
+  const carts = scatter(706, biome, 16, KEEP_OUTS.old_village, { margin: 80, minScale: 0.9, maxScale: 1.5 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.TorusGeometry(3.4, 0.7, 5, 12), mat: fenceDark, pos: [0, 3.4, 0], rot: [0, 0, 0] },
+    { geo: new THREE.BoxGeometry(12, 1.6, 7), mat: fenceMat, pos: [2, 8.4, 0], rot: [0, 0, 0.4], castShadow: true },
+  ], carts);
+
+  // 캠프파이어 (광장 북동쪽)
+  const fire = new THREE.Group();
+  const fx = 2050, fz = 130;
+  const logMat = propMat(0x2f2620, { roughness: 1 });
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.7, 14, 6), logMat);
+    log.position.set(Math.cos(a) * 5, 3.2, Math.sin(a) * 5);
+    log.rotation.set(Math.PI / 2 - 0.35, a, 0);
+    log.castShadow = true;
+    fire.add(log);
+  }
+  // 돌 테두리
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    const s = new THREE.Mesh(new THREE.DodecahedronGeometry(2.2, 0), propMat(RUIN_STONE, { roughness: 1 }));
+    s.position.set(Math.cos(a) * 13, 1.6, Math.sin(a) * 13);
+    s.scale.set(1, 0.7, 1);
+    fire.add(s);
+  }
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.85 });
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(4.2, 12, 8), flameMat);
+  flame.position.y = 8;
+  fire.add(flame);
+  const ember = new THREE.Mesh(
+    new THREE.SphereGeometry(2.6, 10, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffd08a })
+  );
+  ember.position.y = 4.4;
+  fire.add(ember);
+  const fireLight = new THREE.PointLight(0xffa040, 320, 360, 2);
+  fireLight.position.y = 12;
+  fire.add(fireLight);
+  fire.position.set(fx, terrainHeight(fx, fz), fz);
+  scene.add(fire);
+
+  // 랜드마크: 망루 폐허
+  const g = new THREE.Group();
+  const timber = propMat(0x3f342a, { roughness: 1 });
+  const timberLight = propMat(0x584635, { roughness: 1 });
+  const legH = 68;
+  for (const s of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(5.2, legH, 5.2), timber);
+    leg.position.set(s[0] * 13, legH / 2, s[1] * 13);
+    leg.rotation.set(s[1] * -0.06, 0, s[0] * 0.06);
+    leg.castShadow = true;
+    g.add(leg);
+  }
+  // 가로 버팀목
+  for (const h of [22, 44]) {
+    const brace = new THREE.Mesh(new THREE.BoxGeometry(31, 2.6, 2.6), timberLight);
+    brace.position.set(0, h, -13);
+    brace.rotation.z = 0.36;
+    g.add(brace);
+    const brace2 = new THREE.Mesh(new THREE.BoxGeometry(31, 2.6, 2.6), timberLight);
+    brace2.position.set(0, h, 13);
+    brace2.rotation.z = -0.36;
+    g.add(brace2);
+  }
+  // 부서진 상부 마루
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(42, 4, 40), timberLight);
+  deck.position.set(0, legH, 0);
+  deck.rotation.set(0.02, 0.1, 0.13);
+  deck.castShadow = true;
+  g.add(deck);
+  // 난간 (일부만 남음)
+  for (const p of [[-19, 0], [19, 0], [0, -18], [-9, 18]]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(2.4, 13, 2.4), timber);
+    post.position.set(p[0], legH + 8, p[1]);
+    post.rotation.z = 0.1;
+    g.add(post);
+  }
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(26, 1.8, 1.8), timber);
+  rail.position.set(-6, legH + 13, -18);
+  rail.rotation.z = 0.05;
+  g.add(rail);
+  // 부서진 지붕 조각
+  const roofPiece = new THREE.Mesh(new THREE.BoxGeometry(26, 2.2, 30), timberLight);
+  roofPiece.position.set(9, legH + 16, 6);
+  roofPiece.rotation.set(0.5, 0.2, -0.7);
+  g.add(roofPiece);
+  // 사다리
+  for (const s of [-3, 3]) {
+    const side = new THREE.Mesh(new THREE.BoxGeometry(1.8, legH, 1.8), timberLight);
+    side.position.set(s, legH / 2, 22);
+    side.rotation.x = -0.14;
+    g.add(side);
+  }
+  for (let i = 0; i < 10; i++) {
+    const rung = new THREE.Mesh(new THREE.BoxGeometry(7.6, 1.3, 1.4), timber);
+    rung.position.set(0, 5 + i * 6.4, 20.6 + i * 0.85);
+    g.add(rung);
+  }
+  // 찢어진 깃발
+  const flagMat = new THREE.MeshStandardMaterial({ color: 0x7a2f2a, roughness: 0.9, side: THREE.DoubleSide });
+  const flag = new THREE.Mesh(new THREE.BoxGeometry(1.2, 22, 26), flagMat);
+  flag.position.set(-20, legH - 6, 4);
+  flag.rotation.z = 0.06;
+  g.add(flag);
+  g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
+  g.rotation.y = -0.35;
+  scene.add(g);
+
+  return { fire, flame, fireLight, tower: g };
 }
 
 function buildJungle(scene) {
@@ -1068,16 +1318,16 @@ function buildVillage(scene) {
 function buildBoundary(scene) {
   const rockMat = propMat(0x4a4741, { roughness: 1 });
   const edges = [
-    // 태초마을이 서쪽으로 이어지므로 z=±500 경계는 x=-2500부터 시작한다
+    // 태초마을 · 낡은 마을이 동 · 서로 이어지므로 z=±500 경계는 x=-2500 ~ 2500 이다
     { x0: -2500, z0: -500, x1: -500, z1: -500 },
     { x0: -2500, z0: 500, x1: -500, z1: 500 },
     { x0: -2500, z0: -500, x1: -2500, z1: 500 },
     { x0: -500, z0: -1500, x1: 500, z1: -1500 },
     { x0: -500, z0: -1500, x1: -500, z1: -500 },
     { x0: 500, z0: -1500, x1: 500, z1: -500 },
-    { x0: 1500, z0: -500, x1: 1500, z1: 500 },
-    { x0: 500, z0: -500, x1: 1500, z1: -500 },
-    { x0: 500, z0: 500, x1: 1500, z1: 500 },
+    { x0: 2500, z0: -500, x1: 2500, z1: 500 },
+    { x0: 500, z0: -500, x1: 2500, z1: -500 },
+    { x0: 500, z0: 500, x1: 2500, z1: 500 },
     { x0: -500, z0: 1500, x1: 500, z1: 1500 },
     { x0: -500, z0: 500, x1: -500, z1: 1500 },
     { x0: 500, z0: 500, x1: 500, z1: 1500 },
@@ -1187,6 +1437,7 @@ export function buildWorld(scene) {
   buildForest(scene);
   buildGraveyard(scene);
   buildSavanna(scene);
+  const oldVillage = buildOldVillage(scene);
   buildJungle(scene);
   buildTemple(scene);
   buildBoundary(scene);
@@ -1201,7 +1452,22 @@ export function buildWorld(scene) {
     sky: sky.sky,
     skyUniforms: sky.uniforms,
     village,
+    oldVillage,
   };
+}
+
+/* 낡은 마을의 생동감: 캠프파이어 불길 */
+export function updateOldVillage(world, dt, t) {
+  const ov = world && world.oldVillage;
+  if (!ov || !ov.flame) return;
+  ov.flame.scale.set(
+    1 + Math.sin(t * 7.3) * 0.09,
+    1 + Math.sin(t * 9.1) * 0.13,
+    1 + Math.cos(t * 6.1) * 0.09
+  );
+  ov.flame.rotation.y += dt * 0.6;
+  if (ov.flame.material) ov.flame.material.opacity = 0.68 + Math.sin(t * 11.3) * 0.14;
+  if (ov.fireLight) ov.fireLight.intensity = 280 + Math.sin(t * 8.4) * 70;
 }
 
 /* 태초마을의 생동감: 상인 인사 · 상점 표식 · 분수 물결 */

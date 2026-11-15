@@ -1,7 +1,7 @@
 // 게임 진입점: 렌더러 · 월드 · 입력 · 카메라 · 상태 관리
 import * as THREE from 'three';
 import { BIOMES, BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD } from './config.js';
-import { buildWorld, updateSun, updateVillage } from './world.js';
+import { buildWorld, updateSun, updateVillage, updateOldVillage } from './world.js';
 import { Player } from './player.js';
 import { MobManager } from './mobs.js';
 import { Combat } from './combat.js';
@@ -958,6 +958,17 @@ class Game {
     this.hud.refreshPotions();
   }
 
+  onArmorBought(armor) {
+    this.hud.refreshBars();
+    this.hud.banner(armor.name + ' 장착! 최대 HP +' + armor.hp, 1800);
+    if (this.effects && this.player) {
+      this.effects.ring(this.player.position, armor.tier === 3 ? 0xffd24a : armor.tier === 2 ? 0xcfe4ff : 0xc9935a, 70, { duration: 0.8 });
+      this.effects.burst(new THREE.Vector3(this.player.position.x, this.player.position.y + 10, this.player.position.z), 0xffe1a3, 18, { power: 20, size: 0.6 });
+    }
+    // 장착한 갑옷이 함께 하는 친구에게도 바로 보이도록
+    if (this.net && this.net.active && this.net.isGuest) this.net._sendLocalState();
+  }
+
   /* ------------------------------- 루프 ------------------------------- */
   tick(now) {
     requestAnimationFrame((t) => this.tick(t));
@@ -991,6 +1002,7 @@ class Game {
       this.updateMenuCamera(dt);
       this.effects.update(dt);
       updateVillage(this.world, dt, this.elapsed);
+      updateOldVillage(this.world, dt, this.elapsed);
       return;
     }
 
@@ -1001,6 +1013,7 @@ class Game {
       this.hud.update(dt);
       if (this.net && this.net.active) this.net.update(dt);
       updateVillage(this.world, dt, this.elapsed);
+      updateOldVillage(this.world, dt, this.elapsed);
       return;
     }
 
@@ -1035,6 +1048,7 @@ class Game {
     this.hud.update(dt);
     this.updateShopProximity();
     updateVillage(this.world, dt, this.elapsed);
+    updateOldVillage(this.world, dt, this.elapsed);
 
     // 타이머 상태 전환
     if (this.deathTimer > 0) {

@@ -7,6 +7,10 @@ export function findWeapon(classId, itemId) {
   return shopWeaponsFor(classId).find((w) => w.id === itemId) || null;
 }
 
+export function findArmor(itemId) {
+  return SHOP.armors.find((a) => a.id === itemId) || null;
+}
+
 export function buyItem(game, itemId) {
   const player = game && game.player;
   if (!player) return { ok: false, msg: '지금은 상점을 이용할 수 없습니다' };
@@ -33,6 +37,25 @@ export function buyItem(game, itemId) {
     return { ok: true, msg: weapon.name + ' 장착 완료! 공격력 +' + weapon.damage, item: weapon };
   }
 
+  // 갑옷: 사면 바로 장착되고 최대 HP · 피해 감소가 붙는다
+  const armor = findArmor(itemId);
+  if (armor) {
+    if (player.armorTier >= armor.tier) {
+      return { ok: false, msg: player.armorTier === armor.tier ? '이미 장착한 갑옷입니다' : '더 좋은 갑옷을 입고 있습니다' };
+    }
+    if (gold < armor.price) {
+      return { ok: false, msg: '골드가 ' + (armor.price - gold) + 'G 부족합니다' };
+    }
+    game.gold = gold - armor.price;
+    player.equipArmorTier(armor.tier);
+    if (typeof game.onArmorBought === 'function') game.onArmorBought(armor);
+    return {
+      ok: true,
+      msg: armor.name + ' 장착 완료! 최대 HP +' + armor.hp + ' · 받는 피해 ' + Math.round(armor.defense * 100) + '% 감소',
+      item: armor,
+    };
+  }
+
   const potion = SHOP.potions.find((p) => p.id === itemId);
   if (potion) {
     if (gold < potion.price) {
@@ -56,6 +79,7 @@ export class Shop {
     this.root = $('shop-overlay');
     this.goldEl = $('shop-gold');
     this.weaponEl = $('shop-weapons');
+    this.armorEl = $('shop-armors');
     this.potionEl = $('shop-potions');
     this.toastEl = $('shop-toast');
     this.closeBtn = $('shop-close');
@@ -83,7 +107,7 @@ export class Shop {
       this.toast(res.msg, res.ok);
       if (res.ok) this.game.sfx.buy(); else this.game.sfx.tone({ freq: 220, to: 150, dur: 0.14, type: 'square', vol: 0.16 });
     };
-    for (const el of [this.weaponEl, this.potionEl]) {
+    for (const el of [this.weaponEl, this.armorEl, this.potionEl]) {
       if (!el) continue;
       el.addEventListener('click', buy);
       el.addEventListener('touchstart', (e) => {
@@ -142,6 +166,25 @@ export class Shop {
         + 'data-buy="' + w.id + '"' + (owned ? ' disabled' : '') + '>' + label + '</button>'
         + '</article>';
     }).join('');
+
+    if (this.armorEl) {
+      const armorNow = p.armorTier || 0;
+      this.armorEl.innerHTML = SHOP.armors.map((a) => {
+        const active = armorNow === a.tier;
+        const owned = armorNow >= a.tier;
+        const poor = !owned && gold < a.price;
+        const label = active ? '장착 중' : (owned ? '보유' : a.price + ' G');
+        return '<article class="shop-item' + (active ? ' equipped' : '') + '">'
+          + '<span class="si-ico">' + (a.tier === 1 ? '🦺' : a.tier === 2 ? '🛡' : '👑') + '</span>'
+          + '<div class="si-main">'
+          + '<div class="si-name">' + a.name + '<span class="si-tier">Tier ' + a.tier + '</span></div>'
+          + '<p class="si-desc">' + a.desc + '</p>'
+          + '</div>'
+          + '<button class="si-buy' + (owned ? ' owned' : '') + (poor ? ' poor' : '') + '" type="button" '
+          + 'data-buy="' + a.id + '"' + (owned ? ' disabled' : '') + '>' + label + '</button>'
+          + '</article>';
+      }).join('');
+    }
 
     this.potionEl.innerHTML = SHOP.potions.map((pt) => {
       const have = p.potionCount(pt.id);

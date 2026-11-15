@@ -362,7 +362,8 @@ export class HUD {
     this.dom.xpText.textContent = Math.floor(p.xp) + ' / ' + p.xpNext;
     this.dom.levelText.textContent = 'Lv.' + p.level;
     const bonus = p.weaponBonus > 0 ? ' (+' + p.weaponBonus + ')' : '';
-    this.dom.statRow.textContent = '공격력 ' + p.damage.toFixed(1) + bonus + ' · 이동속도 ' + Math.round(p.moveSpeed);
+    const defense = ' · 피해 감소 ' + Math.round((p.armorDefense || 0) * 100) + '%';
+    this.dom.statRow.textContent = '공격력 ' + p.damage.toFixed(1) + bonus + defense + ' · 이동속도 ' + Math.round(p.moveSpeed);
     this.updateGold();
     this.refreshPotions();
   }
@@ -481,9 +482,9 @@ export class HUD {
     const ctx = this.minimapCtx;
     const W = this.dom.minimap.width;
     const H = this.dom.minimap.height;
-    // 세계는 서쪽으로 태초마을만큼 더 넓다 (x -2500 ~ 1500, z -1500 ~ 1500)
-    const scale = Math.min(W / 4000, H / 3000);
-    const offX = (W - 4000 * scale) / 2;
+    // 세계는 동 · 서로 태초마을 · 낡은 마을만큼 더 넓다 (x -2500 ~ 2500, z -1500 ~ 1500)
+    const scale = Math.min(W / 5000, H / 3000);
+    const offX = (W - 5000 * scale) / 2;
     const offY = (H - 3000 * scale) / 2;
     const toPx = (x) => offX + (x + 2500) * scale;
     const toPy = (z) => offY + (z + 1500) * scale;

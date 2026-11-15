@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="format-detection" content="telephone=no" />
-<meta name="description" content="Three.js로 만든 웹 3D RPG. 5개 지역, 5개 직업, 각 직업의 고유 무기와 Q/E 스킬, 정글 사원의 고대 골렘 보스전." />
+<meta name="description" content="Three.js로 만든 웹 3D RPG. 7개 지역, 5개 직업, 각 직업의 고유 무기와 Q/E 스킬, 낡은 마을의 약탈자와 정글 사원의 고대 골렘 보스전." />
 <link rel="icon" href="data:," />
 <link rel="stylesheet" href="./styles.css" />
 <script>
@@ -78,7 +78,7 @@
         <div class="region-name" id="region-name">쾌적한 숲</div>
         <div class="region-en" id="region-en">Pleasant Forest</div>
         <div class="boss-wrap" id="boss-wrap">
-          <div class="boss-label"><span id="boss-name">고대 골렘</span><span id="boss-hp-text">1400 / 1400</span></div>
+          <div class="boss-label"><span id="boss-name">고대 골렘</span><span id="boss-hp-text">3200 / 3200</span></div>
           <div class="boss-bar"><i class="bar-fill" id="boss-fill"></i></div>
         </div>
         <div class="target-wrap" id="target-wrap">
@@ -208,7 +208,7 @@
       <header class="shop-head">
         <div class="shop-head-main">
           <p class="shop-eyebrow">태초마을 · 상점</p>
-          <h2 id="shop-title">무기 · 포션 상점</h2>
+          <h2 id="shop-title">무기 · 갑옷 · 포션 상점</h2>
           <p class="shop-keeper" id="shop-keeper">상점 주인 <b>도로시</b></p>
         </div>
         <div class="shop-gold"><span>🪙</span><b id="shop-gold">100 G</b></div>
@@ -217,6 +217,10 @@
         <section class="shop-sec">
           <h3>무기 <span class="shop-sub">직업 전용 · 사면 바로 장착됩니다</span></h3>
           <div class="shop-grid" id="shop-weapons"></div>
+        </section>
+        <section class="shop-sec">
+          <h3>갑옷 <span class="shop-sub">최대 HP · 피해 감소 · 입으면 바로 3D 갑옷이 보입니다</span></h3>
+          <div class="shop-grid" id="shop-armors"></div>
         </section>
         <section class="shop-sec">
           <h3>포션 <span class="shop-sub">숫자키 1 · 2 · 3 으로 바로 사용</span></h3>

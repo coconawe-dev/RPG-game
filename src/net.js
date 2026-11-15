@@ -27,8 +27,8 @@ export const ANIM_NAMES = [
 const ANIM_CODES = {};
 ANIM_NAMES.forEach((n, i) => { if (n) ANIM_CODES[n] = i; });
 
-export const MOB_CODES = ['slime', 'zombie', 'hyena', 'gorilla', 'golem'];
-const BIOME_OF_TYPE = { slime: 'forest', zombie: 'graveyard', hyena: 'savanna', gorilla: 'jungle', golem: 'temple' };
+export const MOB_CODES = ['slime', 'zombie', 'hyena', 'gorilla', 'raider', 'golem'];
+const BIOME_OF_TYPE = { slime: 'forest', zombie: 'graveyard', hyena: 'savanna', gorilla: 'jungle', raider: 'old_village', golem: 'temple' };
 
 // 스냅샷 주기
 const STATE_HZ = 15;       // 내 캐릭터 상태 → 호스트
@@ -96,6 +96,7 @@ export function packPlayer(pid, p, extra) {
     Math.round(e.gold === undefined ? 0 : e.gold),
     e.nick || '',
     e.classId || p.classId || 'warrior',
+    Math.round(p.armorTier || 0),
   ];
 }
 
@@ -117,12 +118,14 @@ export function unpackPlayer(a) {
     gold: Number(a[12]) || 0,
     nick: a[13] ? String(a[13]) : '',
     classId: a[14] ? String(a[14]) : 'warrior',
+    armorTier: Number(a[15]) || 0,
   };
 }
 
-// 몹 상태 → 컴팩트 배열 [id, type, x, z, hp, chasing, attackProgress]
+// 몹 상태 → 컴팩트 배열 [id, type, x, z, hp, chasing, attackProgress, slamProgress]
 export function packMob(m) {
   const atk = m.attackT > 0 ? Math.round((1 - m.attackT / (m.attackDur || 1)) * 100) : 0;
+  const slam = m.slamT > 0 ? Math.round((1 - m.slamT / (m.slamDur || 1)) * 100) : 0;
   return [
     m.netId,
     MOB_CODES.indexOf(m.typeId),
@@ -130,6 +133,7 @@ export function packMob(m) {
     Math.round(m.hp),
     m.state === 'chase' ? 1 : 0,
     clamp(atk, 0, 100),
+    clamp(slam, 0, 100),
   ];
 }
 
@@ -143,6 +147,7 @@ export function unpackMob(a) {
     hp: Number(a[4]) || 0,
     chasing: !!a[5],
     atk: Number(a[6]) || 0,
+    slam: Number(a[7]) || 0,
   };
 }
 
@@ -410,11 +415,11 @@ export class Net {
       }, 9000);
     });
     this.publish('h', encodeMsg('join', {
-      pid: this.pid, nick: this.nick, class: classId, wt: 0,
+      pid: this.pid, nick: this.nick, class: classId, wt: 0, at: 0,
     }));
     this._joinRetry = setInterval(() => {
       if (this.active) return;
-      this.publish('h', encodeMsg('join', { pid: this.pid, nick: this.nick, class: classId, wt: 0 }));
+      this.publish('h', encodeMsg('join', { pid: this.pid, nick: this.nick, class: classId, wt: 0, at: 0 }));
     }, 2500);
     const data = await welcome;
     clearInterval(this._joinRetry);
@@ -556,12 +561,13 @@ export class Net {
     }
     const classId = CLASSES[p.class] ? p.class : 'warrior';
     const spawn = this._spawnPoint(this.remotes.size + 1);
-    const rig = this._makeRig(p.pid, classId, p.wt || 0, spawn);
+    const rig = this._makeRig(p.pid, classId, p.wt || 0, spawn, p.at || 0);
     const rec = {
       pid: p.pid,
       nick: (p.nick || '친구').slice(0, 10),
       classId,
       weaponTier: 0,
+      armorTier: clamp(Math.round(p.at || 0), 0, 3),
       level: 1,
       hp: rig.maxHp,
       maxHp: rig.maxHp,
@@ -608,11 +614,12 @@ export class Net {
     return { x, z, yaw: Math.PI };
   }
 
-  _makeRig(pid, classId, weaponTier, spawn) {
+  _makeRig(pid, classId, weaponTier, spawn, armorTier) {
     const rig = new Player(this.game, classId);
     rig.isRemote = true;
     rig.weaponBonus = 0;
     if (weaponTier) rig.equipWeaponTier(Math.min(2, Math.max(0, weaponTier)));
+    if (armorTier) rig.equipArmorTier(Math.min(3, Math.max(0, armorTier)));
     rig.spawnAt(spawn.x, spawn.z);
     rig.facing = spawn.yaw;
     rig.root.rotation.y = spawn.yaw;
@@ -633,6 +640,11 @@ export class Net {
     if (wt !== rec.weaponTier) {
       rec.weaponTier = wt;
       if (rec.rig) rec.rig.equipWeaponTier(Math.min(2, Math.max(0, wt)));
+    }
+    const at = clamp(Math.round(Number(p.at) || 0), 0, 3);
+    if (at !== rec.armorTier) {
+      rec.armorTier = at;
+      if (rec.rig) rec.rig.equipArmorTier(at);
     }
     rec.alive = p.alive !== false;
     rec.speed = Number(p.spd) || 0;
@@ -668,10 +680,10 @@ export class Net {
       let rec = this.remotes.get(st.pid);
       if (!rec) {
         const spawn = { x: st.x, z: st.z, yaw: st.yaw };
-        const rig = this._makeRig(st.pid, st.classId, st.weaponTier, spawn);
+        const rig = this._makeRig(st.pid, st.classId, st.weaponTier, spawn, st.armorTier);
         rec = {
           pid: st.pid, nick: st.nick || (st.pid === this.hostPid ? '호스트' : '친구'),
-          classId: st.classId, weaponTier: st.weaponTier, level: st.level,
+          classId: st.classId, weaponTier: st.weaponTier, armorTier: st.armorTier || 0, level: st.level,
           hp: st.hp, maxHp: st.maxHp, alive: st.alive,
           x: st.x, z: st.z, yaw: st.yaw, anim: st.anim, animDur: st.animDur,
           speed: st.speed, rig,
@@ -692,6 +704,10 @@ export class Net {
       if (st.weaponTier !== rec.weaponTier) {
         rec.weaponTier = st.weaponTier;
         if (rec.rig) rec.rig.equipWeaponTier(Math.min(2, Math.max(0, rec.weaponTier)));
+      }
+      if ((st.armorTier || 0) !== rec.armorTier) {
+        rec.armorTier = clamp(Math.round(st.armorTier || 0), 0, 3);
+        if (rec.rig) rec.rig.equipArmorTier(rec.armorTier);
       }
       rec.target.set(st.x, 0, st.z);
       rec.targetYaw = st.yaw;
@@ -724,6 +740,8 @@ export class Net {
     mob.state = m.chasing ? 'chase' : 'idle';
     mob.attackT = m.atk > 0 ? mob.attackDur * (1 - m.atk / 100) : 0;
     mob.attackHit = m.atk > 0;
+    mob.slamDur = mob.type.slamWindup || 1.5;
+    mob.slamT = m.slam > 0 ? mob.slamDur * (1 - m.slam / 100) : 0;
     if (mob.dead && m.hp > 0) {
       mob.dead = false;
       mob.deadT = 0;
@@ -891,7 +909,7 @@ export class Net {
       x: p.position.x, z: p.position.z, yaw: p.facing,
       anim: ANIM_CODES[p.anim.name || ''] || 0,
       ad: Math.round((p.anim.duration || 0) * 10),
-      hp: p.hp, maxHp: p.maxHp, lvl: p.level, wt: p.weaponTier,
+      hp: p.hp, maxHp: p.maxHp, lvl: p.level, wt: p.weaponTier, at: p.armorTier || 0,
       spd: p.speedNow, alive: p.alive,
     }));
   }
@@ -939,6 +957,7 @@ export class Net {
       animDur: rec.animDur,
       speed: rec.speed,
       weaponTier: rec.weaponTier,
+      armorTier: rec.armorTier || 0,
       alive: rec.alive,
     });
     if (!rec.alive && rig.state !== 'dead') {
@@ -971,7 +990,7 @@ export class Net {
         rec.pid, r1(rec.x), r1(rec.z), r2(rec.yaw),
         ANIM_CODES[rec.anim] || 0, Math.round((rec.animDur || 0) * 10),
         Math.round(rec.hp), Math.round(rec.maxHp), rec.level, rec.weaponTier,
-        r1(rec.speed), rec.alive ? 1 : 0, 0, rec.nick, rec.classId,
+        r1(rec.speed), rec.alive ? 1 : 0, 0, rec.nick, rec.classId, rec.armorTier || 0,
       ]);
     }
     return list;

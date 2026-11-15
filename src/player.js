@@ -226,6 +226,13 @@ const PALETTE = {
   mage: { main: 0x6b4a8a, trim: 0xc9a0ff, cloth: 0x2a2038, metal: 0.05 },
 };
 
+// 상점 갑옷 티어별 재질감: 가죽 → 강철 → 빛나는 황금
+const ARMOR_STYLE = {
+  1: { plate: 0x7a5230, trim: 0x4b3320, rune: 0x2a1a0e, glow: 0, rough: 0.86, metal: 0.06 },
+  2: { plate: 0xa9b2ba, trim: 0x6d7883, rune: 0xa8d8ff, glow: 0.35, rough: 0.3, metal: 0.9 },
+  3: { plate: 0xd9a93a, trim: 0xf2d784, rune: 0xffe9a0, glow: 1.8, rough: 0.24, metal: 0.95 },
+};
+
 /* 키프레임 보간: frames = [{t:0, p:{...}}, ...] */
 function sampleFrames(t, frames) {
   let a = frames[0], b = frames[frames.length - 1];
@@ -427,6 +434,11 @@ export class Player {
     this.weaponTier = 0;
     this.weaponBonus = 0;
     this.weaponName = this.cls.weaponName.split(' ')[0];
+    // 갑옷: 0 = 맨몸(기본 모험가 복장), 1 ~ 3 = 상점 갑옷
+    this.armorTier = 0;
+    this.armorDefense = 0;
+    this.armorBonusHp = 0;
+    this.armorName = '';
     this.critChance = this.cls.critChance;
     this.potions = Object.assign({}, SHOP.starterPotions);
     this.xp = 0;
@@ -466,11 +478,18 @@ export class Player {
   build() {
     const pal = PALETTE[this.classId];
     const skin = new THREE.MeshStandardMaterial({ color: 0xe6bb98, roughness: 0.75 });
+    this.skinMat = skin;
+    // 기본 의상(모험가 튜닉) — 갑옷이 아닌 천 소재
+    this.tunicMat = new THREE.MeshStandardMaterial({ color: pal.main, roughness: 0.9, metalness: 0.0, emissive: 0x000000 });
+    this.tunicDarkMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.main).multiplyScalar(0.7), roughness: 0.94, metalness: 0.0, emissive: 0x000000 });
+    this.bootMat = new THREE.MeshStandardMaterial({ color: 0x3b2f26, roughness: 1, emissive: 0x000000 });
+    this.strapMat = new THREE.MeshStandardMaterial({ color: 0x513c28, roughness: 0.9, emissive: 0x000000 });
+    // 갑옷 재질 (Tier 1 ~ 3 에서 다시 만든다)
     this.armorMat = new THREE.MeshStandardMaterial({ color: pal.main, roughness: 0.62, metalness: pal.metal, emissive: 0x000000 });
     this.armorDarkMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.main).multiplyScalar(0.6), roughness: 0.75, metalness: pal.metal * 0.8, emissive: 0x000000 });
     this.trimMat = new THREE.MeshStandardMaterial({ color: pal.trim, roughness: 0.35, metalness: 0.75, emissive: 0x000000 });
     this.clothMat = new THREE.MeshStandardMaterial({ color: pal.cloth, roughness: 0.95, emissive: 0x000000 });
-    this.tintMats = [this.armorMat, this.armorDarkMat, this.trimMat, this.clothMat];
+    this.tintMats = [this.tunicMat, this.tunicDarkMat, this.clothMat, this.bootMat, this.strapMat];
 
     const mk = (geo, mat, x, y, z) => {
       const m = new THREE.Mesh(geo, mat);
@@ -495,30 +514,28 @@ export class Player {
     this.kneeL.position.set(0, -4.3, 0);
     this.kneeR = new THREE.Group();
     this.kneeR.position.set(0, -4.3, 0);
-    this.legL.add(mk(new THREE.BoxGeometry(2.1, 4.5, 2.5), this.armorDarkMat, 0, -2.2, 0));
-    this.legR.add(mk(new THREE.BoxGeometry(2.1, 4.5, 2.5), this.armorDarkMat, 0, -2.2, 0));
-    this.kneeL.add(mk(new THREE.BoxGeometry(1.95, 3.7, 2.3), this.armorDarkMat, 0, -1.85, 0));
-    this.kneeR.add(mk(new THREE.BoxGeometry(1.95, 3.7, 2.3), this.armorDarkMat, 0, -1.85, 0));
-    this.kneeL.add(mk(new THREE.BoxGeometry(2.3, 1.3, 3.4), this.clothMat, 0, -3.7, 0.5));
-    this.kneeR.add(mk(new THREE.BoxGeometry(2.3, 1.3, 3.4), this.clothMat, 0, -3.7, 0.5));
+    this.legL.add(mk(new THREE.BoxGeometry(2.1, 4.5, 2.5), this.clothMat, 0, -2.2, 0));
+    this.legR.add(mk(new THREE.BoxGeometry(2.1, 4.5, 2.5), this.clothMat, 0, -2.2, 0));
+    this.kneeL.add(mk(new THREE.BoxGeometry(1.95, 3.7, 2.3), this.clothMat, 0, -1.85, 0));
+    this.kneeR.add(mk(new THREE.BoxGeometry(1.95, 3.7, 2.3), this.clothMat, 0, -1.85, 0));
+    this.kneeL.add(mk(new THREE.BoxGeometry(2.3, 1.5, 3.4), this.bootMat, 0, -3.75, 0.5));
+    this.kneeR.add(mk(new THREE.BoxGeometry(2.3, 1.5, 3.4), this.bootMat, 0, -3.75, 0.5));
     this.legL.add(this.kneeL);
     this.legR.add(this.kneeR);
     this.body.add(this.legL, this.legR);
 
     // 상체
+    // 상체 — 갑옷 없는 기본 튜닉
     this.torso = new THREE.Group();
     this.torso.position.set(0, hipY, 0);
     this.body.add(this.torso);
-    this.torso.add(mk(new THREE.BoxGeometry(7.6, 6.8, 4.0), this.armorMat, 0, 3.3, 0));
-    this.torso.add(mk(new THREE.BoxGeometry(7.9, 2.2, 4.3), this.trimMat, 0, 1.0, 0));
-    this.torso.add(mk(new THREE.BoxGeometry(5.2, 3.6, 0.5), this.trimMat, 0, 4.2, 2.0));
-    this.torso.add(mk(new THREE.BoxGeometry(2.2, 3.0, 0.6), this.clothMat, 0, 4.3, 2.15));
-    // 어깨 견갑
-    for (const s of [-1, 1]) {
-      const pad = mk(new THREE.SphereGeometry(2.5, 10, 8), this.trimMat, s * 4.5, 5.9, 0);
-      pad.scale.set(1, 0.85, 1.05);
-      this.torso.add(pad);
-    }
+    this.torso.add(mk(new THREE.BoxGeometry(7.4, 6.8, 3.9), this.tunicMat, 0, 3.3, 0));
+    // 튜닉 옷자락 · 허리끈(천) — 갑옷 벨트가 아니다
+    this.torso.add(mk(new THREE.BoxGeometry(7.9, 1.8, 4.1), this.tunicDarkMat, 0, 0.5, 0));
+    this.torso.add(mk(new THREE.BoxGeometry(7.6, 0.9, 4.15), this.strapMat, 0, 1.9, 0));
+    // 깃 · 목둘레
+    this.torso.add(mk(new THREE.BoxGeometry(4.6, 1.0, 0.6), this.tunicDarkMat, 0, 6.5, 1.85));
+    this.torso.add(mk(new THREE.BoxGeometry(2.0, 2.4, 0.5), this.tunicDarkMat, 0, 4.6, 1.95));
 
     // 팔
     this.armL = new THREE.Group();
@@ -535,11 +552,11 @@ export class Player {
     this.handR.position.set(0, -3.2, 0);
 
     for (const arm of [this.armL, this.armR]) {
-      arm.add(mk(new THREE.BoxGeometry(2.0, 3.6, 2.1), this.armorMat, 0, -1.75, 0));
+      arm.add(mk(new THREE.BoxGeometry(2.0, 3.6, 2.1), this.tunicMat, 0, -1.75, 0));
     }
     for (const fore of [this.foreL, this.foreR]) {
-      fore.add(mk(new THREE.BoxGeometry(1.85, 3.2, 1.95), this.armorDarkMat, 0, -1.6, 0));
-      fore.add(mk(new THREE.BoxGeometry(1.95, 0.7, 2.05), this.trimMat, 0, -3.0, 0));
+      fore.add(mk(new THREE.BoxGeometry(1.85, 3.2, 1.95), this.skinMat, 0, -1.6, 0));
+      fore.add(mk(new THREE.BoxGeometry(1.95, 0.8, 2.05), this.tunicDarkMat, 0, -0.35, 0));
     }
     this.handL.add(mk(new THREE.BoxGeometry(1.8, 1.4, 1.9), skin, 0, -0.5, 0));
     this.handR.add(mk(new THREE.BoxGeometry(1.8, 1.4, 1.9), skin, 0, -0.5, 0));
@@ -561,6 +578,12 @@ export class Player {
       this.head.add(mk(new THREE.BoxGeometry(0.55, 0.75, 0.3), eyeMat, s * 0.85, 2.5, 1.92));
     }
     this.addHeadgear(mk);
+
+    // 갑옷 (Tier 0 = 없음)
+    this.armorChest = null;
+    this.armorBracerL = null;
+    this.armorBracerR = null;
+    this.armorMats = [];
 
     // 무기 (손 위치에서 몸 바깥쪽으로 기울여 어깨 견갑에 가리지 않게)
     this.equipWeaponTier(0, true);
@@ -606,10 +629,11 @@ export class Player {
   }
 
   addHeadgear(mk) {
+    // 기본은 갑옷이 아니라 천/가죽 소품 — 투구가 아닌 모자 · 머리띠
     if (this.classId === 'warrior') {
-      this.head.add(mk(new THREE.BoxGeometry(4.1, 1.7, 4.0), this.armorMat, 0, 3.9, 0));
-      this.head.add(mk(new THREE.BoxGeometry(0.7, 1.3, 3.2), this.trimMat, 0, 4.9, 0));
-      this.head.add(mk(new THREE.BoxGeometry(4.3, 1.1, 1.1), this.trimMat, 0, 3.4, 1.6));
+      this.head.add(mk(new THREE.BoxGeometry(4.15, 0.9, 4.05), this.strapMat, 0, 3.35, 0));
+      this.head.add(mk(new THREE.SphereGeometry(0.95, 8, 6), this.tunicDarkMat, 0, 3.1, -2.25));
+      this.head.add(mk(new THREE.BoxGeometry(1.0, 1.5, 0.4), this.tunicMat, 0, 3.9, 1.95));
     } else if (this.classId === 'archer') {
       const hood = mk(new THREE.SphereGeometry(2.3, 10, 8), this.clothMat, 0, 2.9, -0.3);
       hood.scale.set(1.05, 0.9, 1.05);
@@ -618,16 +642,119 @@ export class Player {
     } else if (this.classId === 'rogue') {
       this.head.add(mk(new THREE.SphereGeometry(2.2, 10, 8), this.clothMat, 0, 3.1, -0.2));
       this.head.add(mk(new THREE.BoxGeometry(3.5, 1.4, 0.5), this.clothMat, 0, 1.6, 1.95));
-      this.head.add(mk(new THREE.BoxGeometry(3.8, 0.5, 0.6), this.trimMat, 0, 2.2, 1.9));
+      this.head.add(mk(new THREE.BoxGeometry(3.8, 0.5, 0.6), this.strapMat, 0, 2.2, 1.9));
     } else if (this.classId === 'tanker') {
-      this.head.add(mk(new THREE.BoxGeometry(4.2, 3.0, 4.1), this.armorMat, 0, 3.1, 0));
-      this.head.add(mk(new THREE.BoxGeometry(4.4, 0.7, 4.3), this.trimMat, 0, 4.6, 0));
-      this.head.add(mk(new THREE.BoxGeometry(0.9, 1.6, 0.6), this.trimMat, 0, 2.4, 2.0));
+      this.head.add(mk(new THREE.BoxGeometry(4.1, 1.7, 3.95), this.strapMat, 0, 3.95, 0));
+      this.head.add(mk(new THREE.BoxGeometry(4.35, 0.8, 4.15), this.tunicDarkMat, 0, 3.05, 0));
+      this.head.add(mk(new THREE.BoxGeometry(0.9, 1.4, 0.5), this.tunicMat, 0, 2.4, 2.0));
     } else if (this.classId === 'mage') {
       this.head.add(mk(new THREE.CylinderGeometry(2.4, 2.4, 0.5, 12), this.clothMat, 0, 4.2, 0));
       this.head.add(mk(new THREE.ConeGeometry(2.1, 4.6, 10), this.clothMat, 0, 6.6, -0.2));
       this.head.add(mk(new THREE.SphereGeometry(0.45, 8, 6), this.trimMat, 0, 8.6, -0.2));
     }
+  }
+
+  /* ---------------------- 갑옷 (상점) 장착 · 3D 표시 ---------------------- */
+  // tier 0 = 없음(기본 복장), 1 = 가죽, 2 = 강철 판금, 3 = 황금 수호
+  equipArmorTier(tier) {
+    const t = clamp(Math.round(tier || 0), 0, 3);
+    const def = (SHOP.armors || []).find((a) => a.tier === t) || null;
+    const nextHp = def ? def.hp : 0;
+    const prevHp = this.armorBonusHp || 0;
+    this.armorTier = t;
+    this.armorDefense = def ? def.defense : 0;
+    this.armorBonusHp = nextHp;
+    this.armorName = def ? def.name : '';
+    if (nextHp !== prevHp) {
+      this.maxHp += nextHp - prevHp;
+      if (nextHp > prevHp) this.hp = Math.min(this.maxHp, this.hp + (nextHp - prevHp));
+      else this.hp = Math.min(this.hp, this.maxHp);
+    }
+    this.buildArmor(t);
+    if (this.game && this.game.hud && typeof this.game.hud.refreshBars === 'function') this.game.hud.refreshBars();
+    return def;
+  }
+
+  buildArmor(tier) {
+    const strip = (g, parent) => {
+      if (!g) return;
+      if (parent) parent.remove(g);
+      disposeObject(g);
+    };
+    strip(this.armorChest, this.torso);
+    strip(this.armorBracerL, this.foreL);
+    strip(this.armorBracerR, this.foreR);
+    this.armorChest = null;
+    this.armorBracerL = null;
+    this.armorBracerR = null;
+    if (!tier) return;
+
+    const style = ARMOR_STYLE[tier] || ARMOR_STYLE[1];
+    const plate = new THREE.MeshStandardMaterial({ color: style.plate, roughness: style.rough, metalness: style.metal });
+    const trim = new THREE.MeshStandardMaterial({ color: style.trim, roughness: Math.max(0.15, style.rough * 0.65), metalness: Math.min(1, style.metal + 0.3) });
+    const glow = new THREE.MeshStandardMaterial({
+      color: style.rune, emissive: style.rune, emissiveIntensity: style.glow,
+      roughness: 0.3, metalness: 0.4,
+    });
+
+    const chest = new THREE.Group();
+    this.torso.add(chest);
+    this.armorChest = chest;
+    const add = (g, geo, mat, x, y, z, rot, scl) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x || 0, y || 0, z || 0);
+      if (rot) m.rotation.set(rot[0] || 0, rot[1] || 0, rot[2] || 0);
+      if (scl) m.scale.set(scl[0], scl[1], scl[2]);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      g.add(m);
+      return m;
+    };
+    const slim = tier === 1 ? 0.94 : 1;
+
+    // 흉갑 · 목 가리개 · 허리대
+    add(chest, new THREE.BoxGeometry(8.2 * slim, 5.9 * slim, 4.6 * slim), plate, 0, 3.5, 0);
+    add(chest, new THREE.BoxGeometry(5.9 * slim, 1.2, 4.65 * slim), trim, 0, 6.6, 0);
+    add(chest, new THREE.BoxGeometry(8.35 * slim, 1.6, 4.7 * slim), trim, 0, 0.95, 0);
+    add(chest, new THREE.BoxGeometry(1.9, 1.5, 0.5), trim, 0, 0.95, 2.45);
+
+    // 가슴 장식 · 룬
+    if (tier === 1) {
+      add(chest, new THREE.BoxGeometry(7.6 * slim, 1.0, 0.4), trim, 0, 4.7, 2.15, [0, 0, 0.62]);
+      add(chest, new THREE.BoxGeometry(7.6 * slim, 1.0, 0.4), trim, 0, 4.7, 2.15, [0, 0, -0.62]);
+    } else {
+      add(chest, new THREE.BoxGeometry(4.0, 2.6, 0.5), trim, 0, 4.3, 2.3);
+      add(chest, new THREE.BoxGeometry(1.7, 1.7, 0.45), glow, 0, 4.3, 2.62, [0, 0, Math.PI / 4]);
+      if (tier === 3) {
+        add(chest, new THREE.SphereGeometry(1.0, 10, 8), glow, 0, 4.3, 2.75);
+        add(chest, new THREE.BoxGeometry(2.0, 0.5, 0.4), glow, 0, 1.0, 2.5);
+      }
+    }
+
+    // 어깨 견갑 (티어가 높을수록 크고 두꺼움)
+    const padR = tier === 1 ? 2.15 : tier === 2 ? 2.65 : 2.8;
+    for (const s of [-1, 1]) {
+      const pad = add(chest, new THREE.SphereGeometry(padR, 11, 9), plate, s * 4.55, 5.9, 0, null, [1, 0.86, 1.05]);
+      pad.rotation.z = s * 0.08;
+      add(chest, new THREE.BoxGeometry(padR * 1.9, 0.55, padR * 2.0), trim, s * 4.55, 5.9 - padR * 0.72, 0);
+      if (tier === 3) add(chest, new THREE.SphereGeometry(0.55, 8, 6), glow, s * 5.7, 6.5, 0);
+    }
+
+    // 팔 보호대
+    const bracer = (parent) => {
+      const g = new THREE.Group();
+      parent.add(g);
+      add(g, new THREE.BoxGeometry(2.15, 2.5, 2.3), plate, 0, -1.95, 0);
+      add(g, new THREE.BoxGeometry(2.3, 0.6, 2.4), trim, 0, -0.85, 0);
+      if (tier === 3) add(g, new THREE.BoxGeometry(0.5, 0.5, 2.42), glow, 0, -1.95, 0);
+      return g;
+    };
+    this.armorBracerL = bracer(this.foreL);
+    this.armorBracerR = bracer(this.foreR);
+    this.armorMats = [plate, trim, glow].map((m) => {
+      m.userData.baseEmissive = m.emissive.clone();
+      return m;
+    });
   }
 
   /* ------------------------------ 상태 API ------------------------------ */
@@ -727,6 +854,7 @@ export class Player {
     if (!this.alive || this.invuln > 0) return 0;
     let dmg = amount;
     if (this.buffs.fortress > 0) dmg *= 0.4;
+    if (this.armorDefense > 0) dmg *= (1 - this.armorDefense);
     dmg = Math.max(1, Math.round(dmg));
     this.hp -= dmg;
     this.invuln = 0.42;
@@ -829,6 +957,14 @@ export class Player {
       const t = clamp(this.hurtTint / 0.32, 0, 1);
       for (const m of this.tintMats) m.emissive.setRGB(t * 0.75, t * 0.06, t * 0.06);
     }
+    // 갑옷 재질도 피격 시 붉게 번짝인다 (장착 중일 때만)
+    if (this.armorMats && this.armorMats.length) {
+      const t = this.hurtTint > 0 ? clamp(this.hurtTint / 0.32, 0, 1) : 0;
+      for (const m of this.armorMats) {
+        if (t > 0) m.emissive.setRGB(t * 0.8, t * 0.06, t * 0.06);
+        else if (m.userData.baseEmissive) m.emissive.copy(m.userData.baseEmissive);
+      }
+    }
 
     // 타이머
     for (let i = this.timers.length - 1; i >= 0; i--) {
@@ -922,6 +1058,9 @@ export class Player {
     const s = st || {};
     if (s.weaponTier !== undefined && s.weaponTier !== this.weaponTier) {
       this.equipWeaponTier(clamp(Math.round(s.weaponTier), 0, 2));
+    }
+    if (s.armorTier !== undefined && Math.round(s.armorTier) !== this.armorTier) {
+      this.equipArmorTier(clamp(Math.round(s.armorTier), 0, 3));
     }
     this.attackCooldown = Math.max(0, this.attackCooldown - dt);
     this.invuln = Math.max(0, this.invuln - dt);

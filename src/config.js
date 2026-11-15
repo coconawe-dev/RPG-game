@@ -108,6 +108,32 @@ export const BIOMES = {
     landmark: '거대 아카시아',
     landmarkPos: { x: 1000, z: 0 },
   },
+  old_village: {
+    id: 'old_village',
+    name: '낡은 마을',
+    en: 'Ruined Village',
+    short: '낡은 마을',
+    center: { x: 2000, z: 0 },
+    bounds: { x0: 1500, x1: 2500, z0: -500, z1: 500 },
+    ground: 0x6f6455,
+    ground2: 0x585043,
+    edge: 0x473f34,
+    minimap: '#8a7d68',
+    sky: 0x8d8a80,
+    fog: 0x9c9284,
+    fogNear: 180,
+    fogFar: 1050,
+    sun: 0xdccfb4,
+    sunIntensity: 1.4,
+    hemiSky: 0xc4bba8,
+    hemiGround: 0x37332b,
+    hemiIntensity: 0.56,
+    mob: 'raider',
+    mobCount: 14,
+    landmark: '망루 폐허',
+    landmarkPos: { x: 2000, z: 0 },
+    spawn: { x: 1700, z: 90 },
+  },
   jungle: {
     id: 'jungle',
     name: '정글',
@@ -160,10 +186,10 @@ export const BIOMES = {
   },
 };
 
-export const BIOME_ORDER = ['village', 'forest', 'graveyard', 'savanna', 'jungle', 'temple'];
+export const BIOME_ORDER = ['village', 'forest', 'graveyard', 'savanna', 'old_village', 'jungle', 'temple'];
 
 // 미니맵 · 나침반에서 사용할 지역 목록 (사원 우선 표시)
-export const COMPASS_ORDER = ['temple', 'village', 'forest', 'graveyard', 'savanna', 'jungle'];
+export const COMPASS_ORDER = ['temple', 'village', 'forest', 'graveyard', 'savanna', 'old_village', 'jungle'];
 
 // 시작 골드
 export const START_GOLD = 100;
@@ -189,10 +215,16 @@ export const MOB_TYPES = {
     attackRange: 32, attackCooldown: 2.1, xp: 52, gold: 70, height: 20, radius: 8,
     leash: 320, kind: 'gorilla',
   },
+  raider: {
+    id: 'raider', name: '약탈자', hp: 135, damage: 18, speed: 44, aggro: 190,
+    attackRange: 30, attackCooldown: 1.5, xp: 48, gold: 65, height: 20, radius: 7,
+    leash: 340, kind: 'raider',
+  },
   golem: {
-    id: 'golem', name: '고대 골렘', hp: 1500, damage: 34, speed: 22, aggro: 320,
-    attackRange: 78, attackCooldown: 2.9, xp: 1500, gold: 500, height: 48, radius: 18,
-    leash: 620, kind: 'golem', boss: true,
+    id: 'golem', name: '고대 골렘', hp: 3200, damage: 54, speed: 28, aggro: 340,
+    attackRange: 82, attackCooldown: 2.1, xp: 2500, gold: 800, height: 48, radius: 18,
+    leash: 660, kind: 'golem', boss: true,
+    enrageAt: 0.5, slamEvery: 3, slamRadius: 200, slamWindup: 1.5, slamCooldown: 9,
   },
 };
 
@@ -386,6 +418,21 @@ export const SHOP = {
       { id: 'w-mage-3', tier: 3, name: '대현자의 홀', price: 220, damage: 24, crit: 0.05, desc: '대현자의 홀. 공격력 +24 · 치명타 +5%' },
     ],
   },
+  // 갑옷 (Tier 1 · 2 · 3) — 사면 바로 장착되고 최대 HP · 피해 감소가 붙는다
+  armors: [
+    {
+      id: 'a-leather', tier: 1, name: '가죽 갑옷', price: 90, hp: 45, defense: 0.2,
+      desc: '질긴 가죽으로 두른 모험가의 갑옷. 최대 HP +45 · 받는 피해 20% 감소',
+    },
+    {
+      id: 'a-steel', tier: 2, name: '강철 판금 갑옷', price: 200, hp: 110, defense: 0.35,
+      desc: '두꺼운 강철 판금. 최대 HP +110 · 받는 피해 35% 감소',
+    },
+    {
+      id: 'a-gold', tier: 3, name: '황금 수호 갑옷', price: 380, hp: 200, defense: 0.5,
+      desc: '빛나는 황금 갑옷. 최대 HP +200 · 받는 피해 50% 감소',
+    },
+  ],
   potions: [
     { id: 'potion-hp', name: '체력 포션', icon: '🧪', price: 30, heal: 80, key: '1', desc: 'HP 80 회복' },
     { id: 'potion-hp-big', name: '고급 체력 포션', icon: '🍶', price: 70, heal: 99999, key: '2', desc: 'HP 전체 회복' },
@@ -398,6 +445,12 @@ export const SHOP = {
 export function shopWeaponsFor(classId) {
   return SHOP.weapons[classId] || [];
 }
+
+export function armorByTier(tier) {
+  return SHOP.armors.find((a) => a.tier === tier) || null;
+}
+
+export const MAX_ARMOR_TIER = 3;
 
 export const BOSS_POS = { x: 0, z: -165 };
 export const TEMPLE_GATE = { x: 0, z: 0 };
