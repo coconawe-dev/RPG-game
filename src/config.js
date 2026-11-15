@@ -227,7 +227,7 @@ export const BIOMES_W2 = {
     peaceful: true,
     landmark: '별빛 광장',
     landmarkPos: { x: 0, z: W2 + 2000 },
-    spawn: { x: 0, z: W2 + 1952 },
+    spawn: { x: -60, z: W2 + 1925 },
     // 2세계 대장간(상점) — 광장 남쪽, 문은 광장(북쪽)을 향한다
     shop: {
       id: 'shop_w2',
