@@ -1,12 +1,12 @@
 // 오프라인 스모크 테스트: 월드/몬스터/플레이어/스킬을 DOM·WebGL 없이 논리 검증
 import * as THREE from 'three';
-import { buildWorld } from '/workspace/RPG-game/src/world.js';
+import { buildWorld, updateBiomeCulling } from '/workspace/RPG-game/src/world.js';
 import { MobManager } from '/workspace/RPG-game/src/mobs.js';
 import { Player } from '/workspace/RPG-game/src/player.js';
 import { Effects } from '/workspace/RPG-game/src/effects.js';
 import { Combat } from '/workspace/RPG-game/src/combat.js';
 import { castSkill } from '/workspace/RPG-game/src/skills.js';
-import { CLASS_ORDER, BIOMES, BOSS_POS, MOB_TYPES, SHOP, START_GOLD } from '/workspace/RPG-game/src/config.js';
+import { CLASS_ORDER, BIOMES, BIOME_ORDER, BOSS_POS, MOB_TYPES, SHOP, START_GOLD } from '/workspace/RPG-game/src/config.js';
 import { terrainHeight, regionAt, clampToWorld, WORLD } from '/workspace/RPG-game/src/utils.js';
 import { buyItem } from '/workspace/RPG-game/src/shop.js';
 import {
@@ -19,8 +19,20 @@ const check = (cond, msg) => { if (!cond) problems.push(msg); };
 
 const scene = new THREE.Scene();
 const world = buildWorld(scene);
-console.log('world children:', scene.children.length);
-check(scene.children.length > 20, 'world produced too few objects');
+let worldMeshes = 0;
+scene.traverse((o) => { if (o.isMesh || o.isInstancedMesh) worldMeshes++; });
+console.log('world children:', scene.children.length, 'meshes:', worldMeshes);
+check(worldMeshes > 20, 'world produced too few objects');
+
+// 바이옴 그룹: 멀리 있는 바이옴은 통째로 꺼진다 (그리기 호출 · 그림자 패스 절약)
+check(!!world.biomeGroups && Object.keys(world.biomeGroups).length === BIOME_ORDER.length, 'biome groups missing');
+updateBiomeCulling(world, { x: -2000, z: 0 }, 1280);
+const inVillage = Object.keys(world.biomeGroups).filter((id) => world.biomeGroups[id].visible);
+check(inVillage.indexOf('village') >= 0, 'nearby biome must stay visible');
+check(inVillage.indexOf('old_village') < 0, 'distant biome (old_village) must be culled from the village: ' + inVillage.join(','));
+check(inVillage.indexOf('jungle') < 0, 'distant biome (jungle) must be culled from the village: ' + inVillage.join(','));
+updateBiomeCulling(world, { x: 2000, z: 0 }, 1280);
+check(world.biomeGroups.old_village.visible, 'biome must come back when approached');
 
 // 지형 연속성: 바이옴 경계에서 높이 동일해야 함
 const edgeChecks = [
@@ -574,11 +586,15 @@ check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.pr
   me.equipArmorTier(0);
 
   // 미러는 AI를 돌리지 않고 호스트 위치를 따라간다
+  // (렉 절약을 위해 플레이어에서 먼 몹은 갱신을 쉬므로, 미러 옆으로 플레이어를 옮겨 놓고 본다)
+  const savedPos = me.position.clone();
+  me.position.set(30, me.position.y, 10);
   mirror.position.set(10, 0, 10);
   netG._applyWorld({ ps: [hostPlayerRec], ms: [packMob({ netId: 7, typeId: 'zombie', position: new THREE.Vector3(60, 0, 10), hp: 50, maxHp: 74, attackT: 0, attackDur: 0.85, state: 'chase' })], ds: [] });
   for (let i = 0; i < 20; i++) game.mobManager.update(1 / 60);
   check(mirror.position.x > 10.5, 'mob mirror did not interpolate toward host position: ' + mirror.position.x);
   check(mirror.hp === 50, 'mob mirror hp not synced');
+  me.position.copy(savedPos);
 
   // 게스트 피해는 호스트에게 보내고, 화면에는 예상 피해만 표시
   const guestOut = [];

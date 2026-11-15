@@ -22,9 +22,32 @@ const NEIGHBORS = {
 
 const C = (hex) => new THREE.Color(hex);
 
+/* ---------------------------- 품질 설정 ----------------------------
+   buildWorld(scene, { low: true }) 로 휴대폰 품질을 고른다.
+   - low: 지형 정점 수를 줄이고, 프롭(나무·바위·풀)은 그림자를 드리우지 않는다
+   - 두 경우 모두 장식용 점광원은 쓰지 않는다 (아래 glowHalo · 발광 재질로 대신한다)
+------------------------------------------------------------------- */
+const QUALITY = { low: false, propShadows: true, groundSeg: 78 };
+
+export function getWorldQuality() { return QUALITY; }
+
+// 값이 큰 장식 불빛은 실제 조명(점광원) 대신 가산 혼합 후광 메시로 표현한다.
+// 점광원 하나가 씬의 모든 MeshStandardMaterial 픽셀 비용을 끌어올리기 때문.
+const haloGeo = new THREE.SphereGeometry(1, 10, 8);
+function glowHalo(color, size, opacity, flatten) {
+  const mat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: opacity === undefined ? 0.2 : opacity,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const m = new THREE.Mesh(haloGeo, mat);
+  m.scale.set(size, size * (flatten === undefined ? 1 : flatten), size);
+  m.userData.baseOpacity = mat.opacity;
+  return m;
+}
+
 /* ------------------------------- 지형 ------------------------------- */
 function buildGround(scene, biome) {
-  const seg = 78;
+  const seg = QUALITY.groundSeg;
   const geo = new THREE.PlaneGeometry(WORLD.cell, WORLD.cell, seg, seg);
   geo.rotateX(-Math.PI / 2);
 
@@ -87,11 +110,9 @@ function buildGround(scene, biome) {
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
 
-  const mat = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 0.96,
-    metalness: 0.0,
-  });
+  // 지면은 화면을 가장 크게 채우는 면이라 표준(PBR) 재질 대신 램버트를 쓴다.
+  // 색은 정점 색으로 이미 다 칠해져 있어 겉모습 차이가 거의 없고 픽셀 비용은 훨씬 싸다.
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(biome.center.x, 0, biome.center.z);
   mesh.receiveShadow = true;
@@ -136,9 +157,11 @@ function buildInstancedSet(scene, parts, placements) {
       im.setMatrixAt(i, out);
     }
     im.instanceMatrix.needsUpdate = true;
-    im.castShadow = !!part.castShadow;
+    im.castShadow = !!(part.castShadow && QUALITY.propShadows);
     im.receiveShadow = true;
-    im.frustumCulled = false;
+    // 인스턴스 전체를 감싸는 경계 구를 계산해 두면 화면 밖으로 나갈 때 통째로 건너뛴다
+    im.computeBoundingSphere();
+    im.frustumCulled = true;
     scene.add(im);
   }
 }
@@ -335,9 +358,10 @@ function buildGraveyard(scene) {
   const candle = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xa8e0ff }));
   candle.position.set(0, 8, 0);
   g.add(candle);
-  const candleLight = new THREE.PointLight(0x9fd8ff, 60, 220, 2);
-  candleLight.position.set(0, 10, 0);
-  g.add(candleLight);
+  // 촛불 후광 (점광원 대신 가산 메시)
+  const candleGlow = glowHalo(0x9fd8ff, 11, 0.16);
+  candleGlow.position.set(0, 9, 0);
+  g.add(candleGlow);
   g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
   scene.add(g);
 }
@@ -547,9 +571,10 @@ function buildOldVillage(scene) {
   );
   ember.position.y = 4.4;
   fire.add(ember);
-  const fireLight = new THREE.PointLight(0xffa040, 320, 360, 2);
-  fireLight.position.y = 12;
-  fire.add(fireLight);
+  // 모닥불 후광 — 실제 조명 대신 가산 혼합 메시 (아래 updateOldVillage 에서 흔들린다)
+  const fireGlow = glowHalo(0xffa040, 44, 0.17, 0.75);
+  fireGlow.position.y = 11;
+  fire.add(fireGlow);
   fire.position.set(fx, terrainHeight(fx, fz), fz);
   scene.add(fire);
 
@@ -620,7 +645,7 @@ function buildOldVillage(scene) {
   g.rotation.y = -0.35;
   scene.add(g);
 
-  return { fire, flame, fireLight, tower: g };
+  return { fire, flame, fireGlow, tower: g };
 }
 
 function buildJungle(scene) {
@@ -664,9 +689,9 @@ function buildJungle(scene) {
     eye.position.set(sx, 30, 12.4);
     g.add(eye);
   }
-  const eyeLight = new THREE.PointLight(0x8cff8c, 70, 240, 2);
-  eyeLight.position.set(0, 30, 20);
-  g.add(eyeLight);
+  const eyeGlow = glowHalo(0x8cff8c, 16, 0.13, 0.55);
+  eyeGlow.position.set(0, 30, 13);
+  g.add(eyeGlow);
   g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
   g.rotation.y = Math.PI;
   scene.add(g);
@@ -700,9 +725,9 @@ function buildTemple(scene) {
   }));
   crystal.position.y = topY + 18;
   g.add(crystal);
-  const crystalLight = new THREE.PointLight(0x6fe0ff, 260, 520, 2);
-  crystalLight.position.y = topY + 18;
-  g.add(crystalLight);
+  const crystalGlow = glowHalo(0x6fe0ff, 26, 0.2);
+  crystalGlow.position.y = topY + 18;
+  g.add(crystalGlow);
 
   // 랜드마크 링
   const ringGeo = new THREE.RingGeometry(196, 204, 60);
@@ -766,9 +791,9 @@ function buildTemple(scene) {
     const flame = new THREE.Mesh(new THREE.SphereGeometry(2.6, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffb45c }));
     flame.position.set(0, 62, 0);
     gate.add(flame);
-    const light = new THREE.PointLight(0xffb45c, 90, 260, 2);
-    light.position.set(0, 62, 0);
-    gate.add(light);
+    const flameGlow = glowHalo(0xffb45c, 12, 0.18);
+    flameGlow.position.set(0, 62, 0);
+    gate.add(flameGlow);
     gate.position.set(gd.x, terrainHeight(gd.x, gd.z), gd.z);
     gate.rotation.y = gd.ry;
     scene.add(gate);
@@ -786,9 +811,9 @@ function buildTemple(scene) {
     const fire = new THREE.Mesh(new THREE.SphereGeometry(4.2, 9, 7), new THREE.MeshBasicMaterial({ color: 0xff9a3c }));
     fire.position.y = 12;
     brazier.add(fire);
-    const fl = new THREE.PointLight(0xff9a3c, 150, 340, 2);
-    fl.position.y = 16;
-    brazier.add(fl);
+    const fireGlow = glowHalo(0xff9a3c, 20, 0.18);
+    fireGlow.position.y = 13;
+    brazier.add(fireGlow);
     brazier.position.set(x, terrainHeight(x, z), z);
     scene.add(brazier);
   }
@@ -1000,9 +1025,9 @@ function buildFountain(scene, cx, cz) {
     jet.rotation.set(Math.sin(a) * 0.42, 0, -Math.cos(a) * 0.42);
     g.add(jet);
   }
-  const light = new THREE.PointLight(0x9fe0ff, 60, 240, 2);
-  light.position.set(0, 40, 0);
-  g.add(light);
+  const waterGlow = glowHalo(0x9fe0ff, 26, 0.1, 0.6);
+  waterGlow.position.set(0, 34, 0);
+  g.add(waterGlow);
   g.position.set(cx, terrainHeight(cx, cz), cz);
   scene.add(g);
   return { group: g, water, top };
@@ -1048,12 +1073,12 @@ function buildLamps(scene) {
     { geo: new THREE.BoxGeometry(6, 8, 6), mat: lampMat, pos: [0, 34.5, 0] },
     { geo: new THREE.ConeGeometry(5, 3.4, 4), mat: poleMat, pos: [0, 40, 0], rot: [0, Math.PI / 4, 0] },
   ], placements);
-  // 실제 조명은 4개만 (성능)
+  // 조명은 램프 유리(발광 재질)와 작은 후광 메시로만 표현한다 — 점광원은 쓰지 않는다
   for (const i of [0, 1, 2, 3]) {
     const s = spots[i];
-    const l = new THREE.PointLight(0xffcf8a, 70, 240, 2);
-    l.position.set(s.x, terrainHeight(s.x, s.z) + 34, s.z);
-    scene.add(l);
+    const halo = glowHalo(0xffd79a, 11, 0.22);
+    halo.position.set(s.x, terrainHeight(s.x, s.z) + 34.5, s.z);
+    scene.add(halo);
   }
 }
 
@@ -1279,9 +1304,9 @@ function buildShop(scene) {
   }));
   lightBeam.position.set(0, 80, 26);
   g.add(lightBeam);
-  const shopLight = new THREE.PointLight(0xffcf8a, 200, 420, 2);
-  shopLight.position.set(0, 46, 30);
-  g.add(shopLight);
+  const shopGlow = glowHalo(0xffcf8a, 34, 0.14, 0.9);
+  shopGlow.position.set(0, 50, 30);
+  g.add(shopGlow);
 
   g.position.set(s.x, terrainHeight(s.x, s.z), s.z);
   scene.add(g);
@@ -1371,7 +1396,7 @@ function buildSky(scene) {
     offset: { value: 120 },
     exponent: { value: 0.9 },
   };
-  const geo = new THREE.SphereGeometry(2600, 24, 16);
+  const geo = new THREE.SphereGeometry(1400, 24, 16);
   const mat = new THREE.ShaderMaterial({
     uniforms,
     side: THREE.BackSide,
@@ -1413,14 +1438,17 @@ function buildLights(scene) {
   const sun = new THREE.DirectionalLight(0xfff4d6, 2.0);
   sun.position.set(-120, 240, 90);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  // 그림자 맵은 1024면 충분하다 (2048은 모바일 GPU에서 비용만 두 배)
+  const shadowSize = QUALITY.low ? 1024 : 1024;
+  sun.shadow.mapSize.set(shadowSize, shadowSize);
   const cam = sun.shadow.camera;
   cam.near = 1;
-  cam.far = 620;
-  cam.left = -150;
-  cam.right = 150;
-  cam.top = 150;
-  cam.bottom = -150;
+  cam.far = QUALITY.low ? 520 : 620;
+  const ext = QUALITY.low ? 120 : 150;
+  cam.left = -ext;
+  cam.right = ext;
+  cam.top = ext;
+  cam.bottom = -ext;
   sun.shadow.bias = -0.0006;
   sun.shadow.normalBias = 0.6;
   scene.add(sun);
@@ -1434,18 +1462,33 @@ function buildLights(scene) {
 }
 
 /* ------------------------------- 월드 ------------------------------- */
-export function buildWorld(scene) {
+export function buildWorld(scene, opts) {
+  const o = opts || {};
+  QUALITY.low = !!o.low;
+  QUALITY.propShadows = !QUALITY.low;
+  QUALITY.groundSeg = QUALITY.low ? 52 : 78;
+
   scene.fog = new THREE.Fog(0xb5dbe4, 280, 1500);
 
-  for (const id of BIOME_ORDER) buildGround(scene, BIOMES[id]);
+  // 바이옴마다 하나의 그룹에 담는다 — 멀리 있는 바이옴은 통째로 visible=false 로 꺼서
+  // 그리기 호출과 그림자 패스를 아예 건너뛴다 (아래 updateBiomeCulling).
+  const biomeGroups = {};
+  for (const id of BIOME_ORDER) {
+    const g = new THREE.Group();
+    g.name = 'biome-' + id;
+    scene.add(g);
+    biomeGroups[id] = g;
+  }
 
-  const village = buildVillage(scene);
-  buildForest(scene);
-  buildGraveyard(scene);
-  buildSavanna(scene);
-  const oldVillage = buildOldVillage(scene);
-  buildJungle(scene);
-  buildTemple(scene);
+  for (const id of BIOME_ORDER) buildGround(biomeGroups[id], BIOMES[id]);
+
+  const village = buildVillage(biomeGroups.village);
+  buildForest(biomeGroups.forest);
+  buildGraveyard(biomeGroups.graveyard);
+  buildSavanna(biomeGroups.savanna);
+  const oldVillage = buildOldVillage(biomeGroups.old_village);
+  buildJungle(biomeGroups.jungle);
+  buildTemple(biomeGroups.temple);
   buildBoundary(scene);
 
   const lights = buildLights(scene);
@@ -1457,9 +1500,34 @@ export function buildWorld(scene) {
     hemi: lights.hemi,
     sky: sky.sky,
     skyUniforms: sky.uniforms,
+    biomeGroups,
     village,
     oldVillage,
   };
+}
+
+/* 바이옴 거리 컬링: 카메라(플레이어)에서 가장 가까운 바이옴 경계까지의 거리가
+   잘림 거리(cut)보다 멀면 그 바이옴 그룹을 통째로 끈다.
+   안개가 이미 덮는 거리에서만 끄므로 화면에서 사라지는 것이 보이지 않는다.
+   (히스테리시스: 끄는 거리와 켜는 거리를 다르게 둬 경계에서 깜빡이지 않게) */
+export function updateBiomeCulling(world, pos, cut) {
+  const groups = world && world.biomeGroups;
+  if (!groups || !pos) return;
+  const hide = cut || 1280;
+  const show = hide * 0.9;
+  for (const id of BIOME_ORDER) {
+    const g = groups[id];
+    if (!g) continue;
+    const b = BIOMES[id].bounds;
+    const dx = pos.x < b.x0 ? b.x0 - pos.x : (pos.x > b.x1 ? pos.x - b.x1 : 0);
+    const dz = pos.z < b.z0 ? b.z0 - pos.z : (pos.z > b.z1 ? pos.z - b.z1 : 0);
+    const d = Math.hypot(dx, dz);
+    if (g.visible) {
+      if (d > hide) g.visible = false;
+    } else if (d < show) {
+      g.visible = true;
+    }
+  }
 }
 
 /* 낡은 마을의 생동감: 캠프파이어 불길 */
@@ -1473,7 +1541,11 @@ export function updateOldVillage(world, dt, t) {
   );
   ov.flame.rotation.y += dt * 0.6;
   if (ov.flame.material) ov.flame.material.opacity = 0.68 + Math.sin(t * 11.3) * 0.14;
-  if (ov.fireLight) ov.fireLight.intensity = 280 + Math.sin(t * 8.4) * 70;
+  // 후광도 불길처럼 밝아졌다 어두워진다 (점광원 없이 같은 느낌)
+  if (ov.fireGlow && ov.fireGlow.material) {
+    const k = 0.82 + Math.sin(t * 8.4) * 0.16 + Math.sin(t * 17.1) * 0.05;
+    ov.fireGlow.material.opacity = ov.fireGlow.userData.baseOpacity * k;
+  }
 }
 
 /* 태초마을의 생동감: 상인 인사 · 상점 표식 · 분수 물결 */

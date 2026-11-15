@@ -218,9 +218,6 @@ function buildGolem() {
     color: 0x7fe8ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false,
   }), 0, 34, 9);
   body.add(coreHalo);
-  const coreLight = new THREE.PointLight(0x6fe0ff, 900, 420, 2);
-  coreLight.position.set(0, 34, 12);
-  body.add(coreLight);
 
   // 어깨 · 팔
   const armL = new THREE.Group();
@@ -639,7 +636,22 @@ export class Mob {
     this.root.position.copy(this.position);
     this.root.rotation.y = this.facing;
 
-    this.animate(dt, dist);
+    // 화면에 또렷하게 잡히는 거리에서만 뼈대 애니메이션을 돌린다 (먼 몹은 꿈쩍 않는 점과 구분되지 않는다)
+    if (this.dist === undefined || this.dist < (this.game.mobManager ? this.game.mobManager.animRadius : 460) || this.type.boss) {
+      this.animate(dt, dist);
+    }
+  }
+
+  // 아주 먼 몹: 그리지도, 움직이지도 않고 부활 타이머만 돌린다
+  updateFar(dt) {
+    if (!this.dead) return;
+    this.deadT += dt;
+    if (this.type.boss) return;
+    this.respawnT -= dt;
+    if (this.respawnT <= 0) {
+      this.respawn();
+      this.root.visible = false;
+    }
   }
 
   // 가장 가까운 플레이어(나 또는 함께 하는 친구)를 노린다
@@ -931,7 +943,7 @@ export class Mob {
     this.hurtT = Math.max(0, this.hurtT - dt);
     const p = this.game.player;
     const near = p ? Math.hypot(p.position.x - this.position.x, p.position.z - this.position.z) : 200;
-    this.animate(dt, near);
+    if (near < (this.game.mobManager ? this.game.mobManager.animRadius : 460)) this.animate(dt, near);
   }
 
   // 내가 가한 피해를 바로 보여 주기 (게스트 화면의 예상 표시)
@@ -963,6 +975,10 @@ export class MobManager {
   constructor(game) {
     this.game = game;
     this.mobs = [];
+    // 이 거리 밖의 몹은 그리지도 업데이트하지도 않는다 (안개에 가려 보이지 않는 구간)
+    this.cullRadius = 760;
+    // 이 거리 밖의 몹은 위치만 갱신하고 애니메이션은 쉰다
+    this.animRadius = 460;
     this.spawnAll();
   }
 
@@ -998,10 +1014,40 @@ export class MobManager {
   }
 
   update(dt) {
+    const p = this.game.player;
+    const px = p ? p.position.x : 0;
+    const pz = p ? p.position.z : 0;
     for (let i = 0; i < this.mobs.length; i++) {
       const m = this.mobs[i];
+      if (!p) {
+        if (m.remote) m.updateRemote(dt);
+        else m.update(dt);
+        continue;
+      }
+      m.dist = Math.hypot(m.position.x - px, m.position.z - pz);
+      if (m.dist > this.cullRadius) {
+        if (m.root.visible) m.root.visible = false;
+        m.updateFar(dt);
+        continue;
+      }
+      if (!m.root.visible && !m.dead) m.root.visible = true;
       if (m.remote) m.updateRemote(dt);
       else m.update(dt);
+    }
+  }
+
+  // AI 를 돌리지 않는 상태(시작 화면 · 상점 창 등)에서도 가까운 몸만 보이게 한다
+  cullByDistance(center) {
+    const p = center || (this.game.player ? this.game.player.position : BIOMES.village.spawn);
+    if (!p) return;
+    for (let i = 0; i < this.mobs.length; i++) {
+      const m = this.mobs[i];
+      m.dist = Math.hypot(m.position.x - p.x, m.position.z - p.z);
+      if (m.dist > this.cullRadius) {
+        if (m.root.visible) m.root.visible = false;
+      } else if (!m.root.visible && !m.dead) {
+        m.root.visible = true;
+      }
     }
   }
 

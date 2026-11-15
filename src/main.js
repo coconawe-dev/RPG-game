@@ -1,7 +1,7 @@
 // 게임 진입점: 렌더러 · 월드 · 입력 · 카메라 · 상태 관리
 import * as THREE from 'three';
 import { BIOMES, BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD } from './config.js';
-import { buildWorld, updateSun, updateVillage, updateOldVillage } from './world.js';
+import { buildWorld, updateSun, updateVillage, updateOldVillage, updateBiomeCulling } from './world.js';
 import { Player } from './player.js';
 import { MobManager } from './mobs.js';
 import { Combat } from './combat.js';
@@ -58,6 +58,21 @@ class Game {
     this.lastPointer = { x: 0, y: 0 };
     this.biomeCenters = {};
     this.biomeColors = {};
+    // 화면 품질: 'high' | 'low' (휴대폰 · iPad 는 low 로 시작한다)
+    this.quality = 'high';
+    this.qualityLevel = 0;      // 0 = 기본, 1·2 = 자동 하향 단계
+    this.pixelRatio = 1;
+    this._perf = { frames: 0, acc: 0, low: 0, samples: 0 };
+    this._cullAcc = 0;
+    this._tmp = {
+      vecA: new THREE.Vector3(),
+      vecB: new THREE.Vector3(),
+      colorA: new THREE.Color(),
+      colorB: new THREE.Color(),
+      colorC: new THREE.Color(),
+      colorD: new THREE.Color(),
+      colorE: new THREE.Color(),
+    };
     for (const id of BIOME_ORDER) {
       const b = BIOMES[id];
       this.biomeCenters[id] = b.center;
@@ -75,29 +90,46 @@ class Game {
 
   init() {
     const canvas = document.getElementById('scene');
+    // 렌더러를 만들기 전에 터치 기기인지 · 어떤 품질로 시작할지 정한다
+    this.isTouch = this.detectTouch();
+    this.quality = this.chooseQuality();
+    this.pixelRatio = this.targetPixelRatio();
     try {
-      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+      this.renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: this.quality === 'high', // 휴대폰은 픽셀 비율을 낮춰 안티에일리어싱 비용을 아낸다
+        powerPreference: 'high-performance',
+        stencil: false,
+      });
     } catch (err) {
       const el = document.getElementById('loader');
       if (el) el.innerHTML = '<p>이 브라우저에서 WebGL을 사용할 수 없습니다.</p>';
       throw err;
     }
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = this.quality === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.5, 6000);
+    // 안개 너머까지 그리지 않는다 — 바이옴 컬링 거리(≈1280)를 덮는 정도면 충분하다
+    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.8, 1900);
     this.camera.position.set(-1050, 70, 160);
 
-    this.world = buildWorld(this.scene);
+    this.world = buildWorld(this.scene, { low: this.quality === 'low' });
     this.effects = new Effects(this.scene);
+    if (this.quality === 'low') this.effects.maxParticles = 24;
     this.combat = new Combat(this);
     this.mobManager = new MobManager(this);
+    if (this.quality === 'low') {
+      this.mobManager.cullRadius = 680;
+      this.mobManager.animRadius = 380;
+    }
+    // 시작 화면부터 먼 몹을 꺼 둔다 (첫 프레임부터 가볍게)
+    this.mobManager.cullByDistance(BIOMES.village.spawn);
     this.hud = new HUD(this);
     this.sfx = new Sfx();
     this.shop = new Shop(this);
@@ -143,6 +175,83 @@ class Game {
     window.__GAME__ = this;
 
     requestAnimationFrame((t) => this.tick(t));
+  }
+
+  /* ---------------------------- 화면 품질 ---------------------------- */
+  // 휴대폰 · iPad 판단 (iPadOS Safari 는 데스크톱처럼 보고하므로 터치 지원 여부로 본다)
+  detectTouch() {
+    const qp = new URLSearchParams(window.location.search);
+    const force = qp.get('touch');
+    if (force === '1') return true;
+    if (force === '0') return false;
+    const coarse = (navigator.maxTouchPoints > 0)
+      || ('ontouchstart' in window)
+      || !!(window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
+    return !!coarse;
+  }
+
+  // ?quality=low|high 로 강제할 수 있다
+  chooseQuality() {
+    const forced = (new URLSearchParams(window.location.search).get('quality') || '').toLowerCase();
+    if (forced === 'low' || forced === 'high') return forced;
+    if (this.isTouch) return 'low';
+    const minSide = Math.min(window.innerWidth || 1024, window.innerHeight || 768);
+    return minSide <= 620 ? 'low' : 'high';
+  }
+
+  targetPixelRatio() {
+    const dpr = window.devicePixelRatio || 1;
+    if (this.quality === 'low') {
+      if (this.qualityLevel >= 2) return 1;
+      if (this.qualityLevel === 1) return Math.min(dpr, 1.1);
+      return Math.min(dpr, 1.25);
+    }
+    if (this.qualityLevel >= 2) return Math.min(dpr, 1);
+    if (this.qualityLevel === 1) return Math.min(dpr, 1.5);
+    return Math.min(dpr, 2);
+  }
+
+  // 렉이 계속되면 단계적으로만 내린다 (0 → 1 → 2)
+  applyQualityLevel(level) {
+    if (!this.renderer) return;
+    const next = Math.max(this.qualityLevel, Math.min(2, level));
+    if (next === this.qualityLevel) return;
+    this.qualityLevel = next;
+    const pr = this.targetPixelRatio();
+    if (pr !== this.pixelRatio) {
+      this.pixelRatio = pr;
+      this.renderer.setPixelRatio(pr);
+    }
+    if (this.quality === 'low' && this.mobManager) {
+      this.mobManager.cullRadius = next >= 1 ? 620 : 680;
+      this.mobManager.animRadius = next >= 1 ? 340 : 380;
+    }
+  }
+
+  // 1초 단위 프레임 수를 재서 계속 느리면 품질을 한 단계 내린다
+  measurePerf(rawDt) {
+    const perf = this._perf;
+    if (document.hidden || rawDt > 0.25) { perf.acc = 0; perf.frames = 0; return; }
+    perf.acc += rawDt;
+    perf.frames++;
+    if (perf.acc < 1) return;
+    const fps = perf.frames / perf.acc;
+    perf.acc = 0;
+    perf.frames = 0;
+    perf.samples++;
+    this.lastFps = Math.round(fps);
+    // 시작 직후(로딩 · 셰이더 컴파일)에는 판단하지 않는다
+    if (this.elapsed < 5 || this.state !== 'playing') { perf.low = 0; return; }
+    const limit = this.quality === 'low' ? 42 : 46;
+    if (fps < limit) {
+      perf.low++;
+      if (perf.low >= 2 && this.qualityLevel < 2) {
+        perf.low = 0;
+        this.applyQualityLevel(this.qualityLevel + 1);
+      }
+    } else {
+      perf.low = 0;
+    }
   }
 
   /* ------------------------------ 입력 ------------------------------ */
@@ -319,14 +428,8 @@ class Game {
 
   /* -------------------------- 모바일 터치 조작 -------------------------- */
   bindTouch() {
-    // iPadOS Safari는 데스크톱 UA/넓은 화면으로 보고하므로 터치 지원 여부로 판단
-    const coarse = (navigator.maxTouchPoints > 0)
-      || ('ontouchstart' in window)
-      || !!(window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
-    const qp = new URLSearchParams(window.location.search);
-    const forceTouch = qp.get('touch');
-    const initialTouch = forceTouch === '1' ? true : (forceTouch === '0' ? false : coarse);
-    this.isTouch = initialTouch;
+    // iPadOS Safari는 데스크톱 UA/넓은 화면으로 보고하므로 터치 지원 여부로 판단 (init 에서 이미 판단함)
+    const initialTouch = this.isTouch;
     const setTouchMode = (on) => {
       document.body.classList.toggle('touch-mode', on);
       const btn = document.getElementById('mode-toggle');
@@ -1025,6 +1128,7 @@ class Game {
 
     this.renderer.render(this.scene, this.camera);
     this.frames++;
+    this.measurePerf(dtRaw);
     if (!this.firstFrameDone) {
       this.firstFrameDone = true;
       this.hud.hideLoader();
@@ -1042,9 +1146,20 @@ class Game {
       }
     }
 
+    // 먼 바이옴은 통째로 꺼 둔다 (안개가 덮는 거리에서만) — 0.2초에 한 번만 검사
+    this._cullAcc += dt;
+    if (this._cullAcc > 0.2 && this.world && this.world.biomeGroups) {
+      this._cullAcc = 0;
+      const at = this.player ? this.player.position : BIOMES.village.spawn;
+      const fogFar = this.scene.fog ? this.scene.fog.far : 1200;
+      const maxCut = this.quality === 'low' ? 1100 : 1280;
+      updateBiomeCulling(this.world, at, Math.min(maxCut, Math.max(720, fogFar)));
+    }
+
     if (this.state === 'menu') {
       this.updateMenuCamera(dt);
       this.effects.update(dt);
+      if (this.mobManager) this.mobManager.cullByDistance(BIOMES.village.spawn);
       updateVillage(this.world, dt, this.elapsed);
       updateOldVillage(this.world, dt, this.elapsed);
       return;
@@ -1134,22 +1249,24 @@ class Game {
     const x = spawn.x + Math.cos(t * 0.12) * r;
     const z = spawn.z + Math.sin(t * 0.12) * r;
     const y = terrainHeight(x, z) + 95;
-    this.camera.position.lerp(new THREE.Vector3(x, y, z), 1 - Math.exp(-1.2 * dt));
+    const focus = this._tmp.vecA.set(spawn.x, 0, spawn.z);
+    this.camera.position.lerp(this._tmp.vecB.set(x, y, z), 1 - Math.exp(-1.2 * dt));
     this.camera.lookAt(spawn.x, 18, spawn.z);
-    updateSun(this.world, new THREE.Vector3(spawn.x, 0, spawn.z), this.camera);
-    this.updateEnvironment(dt, new THREE.Vector3(spawn.x, 0, spawn.z));
+    updateSun(this.world, focus, this.camera);
+    this.updateEnvironment(dt, focus);
   }
 
   placeCamera(instant, dt) {
     if (!this.player) return;
     const p = this.player;
-    const target = new THREE.Vector3(p.position.x, p.position.y + 16, p.position.z);
-    const dir = new THREE.Vector3(
+    const target = this._tmp.vecA.set(p.position.x, p.position.y + 16, p.position.z);
+    const dir = this._tmp.vecB.set(
       Math.sin(this.camYaw) * Math.cos(this.camPitch),
       Math.sin(this.camPitch),
       Math.cos(this.camYaw) * Math.cos(this.camPitch)
     );
-    const desired = target.clone().addScaledVector(dir, this.camDist);
+    const desired = this._camDesired || (this._camDesired = new THREE.Vector3());
+    desired.copy(target).addScaledVector(dir, this.camDist);
     const minY = terrainHeight(desired.x, desired.z) + 7;
     if (desired.y < minY) desired.y = minY;
 
@@ -1171,7 +1288,7 @@ class Game {
 
   /* ---------------------------- 환경 전환 ---------------------------- */
   updateEnvironment(dt, atPos) {
-    const pos = atPos || (this.player ? this.player.position : new THREE.Vector3(-1000, 0, 0));
+    const pos = atPos || (this.player ? this.player.position : this._tmp.vecA.set(-1000, 0, 0));
     const w = biomeWeights(pos.x, pos.z, this.biomeCenters);
     let fogR = 0, fogG = 0, fogB = 0;
     let skyR = 0, skyG = 0, skyB = 0;
@@ -1194,11 +1311,11 @@ class Game {
       hemiI += BIOMES[id].hemiIntensity * k;
     }
 
-    const fogColor = new THREE.Color(fogR, fogG, fogB);
-    const skyColor = new THREE.Color(skyR, skyG, skyB);
-    const sunColor = new THREE.Color(sunR, sunG, sunB);
-    const hemiSky = new THREE.Color(hsR, hsG, hsB);
-    const hemiGround = new THREE.Color(hgR, hgG, hgB);
+    const fogColor = this._tmp.colorA.setRGB(fogR, fogG, fogB);
+    const skyColor = this._tmp.colorB.setRGB(skyR, skyG, skyB);
+    const sunColor = this._tmp.colorC.setRGB(sunR, sunG, sunB);
+    const hemiSky = this._tmp.colorD.setRGB(hsR, hsG, hsB);
+    const hemiGround = this._tmp.colorE.setRGB(hgR, hgG, hgB);
 
     if (this.scene.fog) {
       this.scene.fog.color.lerp(fogColor, 1 - Math.exp(-2.5 * dt));
@@ -1225,6 +1342,14 @@ class Game {
       frames: this.frames,
       drawCalls: this.renderer ? this.renderer.info.render.calls : 0,
       triangles: this.renderer ? this.renderer.info.render.triangles : 0,
+      programs: this.renderer ? this.renderer.info.programs.length : 0,
+      quality: this.quality,
+      qualityLevel: this.qualityLevel,
+      pixelRatio: this.pixelRatio,
+      fps: this.lastFps || null,
+      visibleBiomes: this.world && this.world.biomeGroups
+        ? Object.keys(this.world.biomeGroups).filter((id) => this.world.biomeGroups[id].visible)
+        : null,
       mobs: this.mobManager ? this.mobManager.mobs.length : 0,
       aliveMobs: this.mobManager ? this.mobManager.mobs.filter((m) => !m.dead).length : 0,
       bossHp: this.mobManager && this.mobManager.boss() ? this.mobManager.boss().hp : null,

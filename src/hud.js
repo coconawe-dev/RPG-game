@@ -294,10 +294,15 @@ export class HUD {
 
   updateGold() {
     const g = this.game;
-    const txt = '🪙 ' + (Number(g.gold) || 0) + 'G';
+    const amount = Number(g.gold) || 0;
+    const txt = '🪙 ' + amount + 'G';
     if (this.dom.goldTag && this.dom.goldTag.textContent !== txt) this.dom.goldTag.textContent = txt;
-    const shopGold = document.getElementById('shop-gold');
-    if (shopGold) shopGold.textContent = (Number(g.gold) || 0) + ' G';
+    if (!this._shopGoldEl) this._shopGoldEl = document.getElementById('shop-gold');
+    const shopGold = this._shopGoldEl;
+    if (shopGold && this._shopGoldTxt !== amount) {
+      this._shopGoldTxt = amount;
+      shopGold.textContent = amount + ' G';
+    }
   }
 
   refreshWeapon() {
@@ -354,16 +359,36 @@ export class HUD {
   refreshBars() {
     const p = this.game.player;
     if (!p) return;
-    const hpP = Math.max(0, p.hp / p.maxHp);
-    this.dom.hpFill.style.width = (hpP * 100).toFixed(1) + '%';
-    this.dom.hpText.textContent = Math.ceil(Math.max(0, p.hp)) + ' / ' + Math.round(p.maxHp);
-    const xpP = Math.max(0, Math.min(1, p.xp / p.xpNext));
-    this.dom.xpFill.style.width = (xpP * 100).toFixed(1) + '%';
-    this.dom.xpText.textContent = Math.floor(p.xp) + ' / ' + p.xpNext;
-    this.dom.levelText.textContent = 'Lv.' + p.level;
-    const bonus = p.weaponBonus > 0 ? ' (+' + p.weaponBonus + ')' : '';
-    const defense = ' · 피해 감소 ' + Math.round((p.armorDefense || 0) * 100) + '%';
-    this.dom.statRow.textContent = '공격력 ' + p.damage.toFixed(1) + bonus + defense + ' · 이동속도 ' + Math.round(p.moveSpeed);
+    // 값이 실제로 바뀔 때만 DOM 을 건드린다 (매 프레임 layout/style 재계산 방지)
+    const c = this._bars || (this._bars = {});
+    const hpNow = Math.ceil(Math.max(0, p.hp));
+    const hpMax = Math.round(p.maxHp);
+    if (c.hp !== hpNow || c.hpMax !== hpMax) {
+      c.hp = hpNow; c.hpMax = hpMax;
+      const hpP = Math.max(0, p.hp / p.maxHp);
+      this.dom.hpFill.style.width = (hpP * 100).toFixed(1) + '%';
+      this.dom.hpText.textContent = hpNow + ' / ' + hpMax;
+    }
+    const xpNow = Math.floor(p.xp);
+    if (c.xp !== xpNow || c.xpNext !== p.xpNext) {
+      c.xp = xpNow; c.xpNext = p.xpNext;
+      const xpP = Math.max(0, Math.min(1, p.xp / p.xpNext));
+      this.dom.xpFill.style.width = (xpP * 100).toFixed(1) + '%';
+      this.dom.xpText.textContent = xpNow + ' / ' + p.xpNext;
+    }
+    if (c.level !== p.level) {
+      c.level = p.level;
+      this.dom.levelText.textContent = 'Lv.' + p.level;
+    }
+    const dmg = p.damage.toFixed(1);
+    const spd = Math.round(p.moveSpeed);
+    const def = Math.round((p.armorDefense || 0) * 100);
+    if (c.dmg !== dmg || c.spd !== spd || c.def !== def || c.bonus !== p.weaponBonus) {
+      c.dmg = dmg; c.spd = spd; c.def = def; c.bonus = p.weaponBonus;
+      const bonus = p.weaponBonus > 0 ? ' (+' + p.weaponBonus + ')' : '';
+      const defense = ' · 피해 감소 ' + def + '%';
+      this.dom.statRow.textContent = '공격력 ' + dmg + bonus + defense + ' · 이동속도 ' + spd;
+    }
     this.updateGold();
     this.refreshPotions();
   }
@@ -372,19 +397,20 @@ export class HUD {
     const g = this.game;
     const p = g.player;
     if (!p) return;
+    this._acc = (this._acc || 0) + dt;
 
     // 체력 · 경험치
     this.refreshBars();
 
-    // 버프
+    // 버프 (문자열이 바뀔 때만 innerHTML 교체)
     const buffs = [];
     if (p.buffs.fortress > 0) buffs.push(['철벽 태세 ' + p.buffs.fortress.toFixed(1) + 's', '']);
     if (p.buffs.haste > 0) buffs.push(['신속 ' + p.buffs.haste.toFixed(1) + 's', 'frost']);
     if (p.buffs.elixir > 0) buffs.push(['전투의 비약 +35% ' + Math.ceil(p.buffs.elixir) + 's', 'attack']);
-    if (buffs.length !== this._buffCount) {
-      this.dom.buffRow.innerHTML = buffs.map((b) => '<span class="buff ' + b[1] + '">' + b[0] + '</span>').join('');
-    } else if (buffs.length) {
-      this.dom.buffRow.innerHTML = buffs.map((b) => '<span class="buff ' + b[1] + '">' + b[0] + '</span>').join('');
+    const buffHtml = buffs.map((b) => '<span class="buff ' + b[1] + '">' + b[0] + '</span>').join('');
+    if (buffHtml !== this._buffHtml) {
+      this._buffHtml = buffHtml;
+      this.dom.buffRow.innerHTML = buffHtml;
     }
     this._buffCount = buffs.length;
 
@@ -406,9 +432,12 @@ export class HUD {
     const bossNear = boss && !boss.dead && Math.hypot(boss.position.x - p.position.x, boss.position.z - p.position.z) < 520;
     this.dom.bossWrap.classList.toggle('on', !!bossNear);
     if (bossNear) {
-      const bp = Math.max(0, boss.hp / boss.maxHp);
-      this.dom.bossFill.style.width = (bp * 100).toFixed(1) + '%';
-      this.dom.bossHpText.textContent = Math.ceil(Math.max(0, boss.hp)) + ' / ' + boss.maxHp;
+      const bp = Math.ceil(Math.max(0, boss.hp));
+      if (this._bossHp !== bp) {
+        this._bossHp = bp;
+        this.dom.bossFill.style.width = (Math.max(0, boss.hp / boss.maxHp) * 100).toFixed(1) + '%';
+        this.dom.bossHpText.textContent = bp + ' / ' + boss.maxHp;
+      }
     }
 
     // 대상(가장 가까운 몹)
@@ -422,41 +451,63 @@ export class HUD {
     const tgt = near && !near.dead ? near : null;
     this.dom.targetWrap.classList.toggle('on', !!tgt && tgt !== boss);
     if (tgt) {
-      this.dom.targetName.textContent = tgt.type.name + '  Lv.' + tgt.level;
-      this.dom.targetHpText.textContent = Math.ceil(Math.max(0, tgt.hp)) + ' / ' + tgt.maxHp;
-      this.dom.targetFill.style.width = (Math.max(0, tgt.hp / tgt.maxHp) * 100).toFixed(1) + '%';
+      const th = Math.ceil(Math.max(0, tgt.hp));
+      if (this._targetHp !== th || this._targetId !== tgt.netId) {
+        this._targetHp = th;
+        this._targetId = tgt.netId;
+        this.dom.targetName.textContent = tgt.type.name + '  Lv.' + tgt.level;
+        this.dom.targetHpText.textContent = th + ' / ' + tgt.maxHp;
+        this.dom.targetFill.style.width = (Math.max(0, tgt.hp / tgt.maxHp) * 100).toFixed(1) + '%';
+      }
     }
 
-    // 스킬 쿨다운
-    const cdState = { q: p.cooldowns.q, e: p.cooldowns.e, attack: p.attackCooldown };
+    // 스킬 쿨다운 (숫자가 바뀔 때만 글씨 교체)
+    const cd = this._cd || (this._cd = {});
     for (const key of ['attack', 'q', 'e']) {
       const slot = this.skillSlots[key];
       if (!slot) continue;
-      const cd = cdState[key];
-      const cooling = cd > 0.05;
-      slot.el.classList.toggle('cooling', cooling);
-      if (cooling) slot.cd.textContent = cd >= 1 ? Math.ceil(cd) : cd.toFixed(1);
+      const value = key === 'attack' ? p.attackCooldown : p.cooldowns[key];
+      const cooling = value > 0.05;
+      if (slot._cooling !== cooling) {
+        slot._cooling = cooling;
+        slot.el.classList.toggle('cooling', cooling);
+      }
+      const text = cooling ? (value >= 1 ? String(Math.ceil(value)) : value.toFixed(1)) : '';
+      if (cd[key] !== text) {
+        cd[key] = text;
+        slot.cd.textContent = text;
+      }
     }
 
     // 모바일 터치 버튼 쿨다운
     if (this.touch.q) {
       const cq = p.cooldowns.q;
       const ce = p.cooldowns.e;
-      this.touch.q.textContent = cq > 0.05 ? (cq >= 1 ? Math.ceil(cq) : cq.toFixed(1)) : '';
-      this.touch.e.textContent = ce > 0.05 ? (ce >= 1 ? Math.ceil(ce) : ce.toFixed(1)) : '';
-      this.touch.qBtn.classList.toggle('cooling', cq > 0.05);
-      this.touch.eBtn.classList.toggle('cooling', ce > 0.05);
+      const tq = cq > 0.05 ? (cq >= 1 ? String(Math.ceil(cq)) : cq.toFixed(1)) : '';
+      const te = ce > 0.05 ? (ce >= 1 ? String(Math.ceil(ce)) : ce.toFixed(1)) : '';
+      if (cd.tq !== tq) { cd.tq = tq; this.touch.q.textContent = tq; }
+      if (cd.te !== te) { cd.te = te; this.touch.e.textContent = te; }
+      if (cd.tqc !== (cq > 0.05)) { cd.tqc = cq > 0.05; this.touch.qBtn.classList.toggle('cooling', cq > 0.05); }
+      if (cd.tec !== (ce > 0.05)) { cd.tec = ce > 0.05; this.touch.eBtn.classList.toggle('cooling', ce > 0.05); }
     }
 
-    // 미니맵 · 나침반
+    // 미니맵 · 나침반은 화면을 보는 데 지장 없는 8fps 로만 다시 그린다
     if (this.mapOpen) {
-      this.drawMinimap(p);
-      this.updateCompass(p);
+      this._mapAcc = (this._mapAcc || 0) + dt;
+      if (this._mapAcc > 0.12) {
+        this._mapAcc = 0;
+        this.drawMinimap(p);
+        this.updateCompass(p);
+      }
     }
 
-    // 네임플레이트 · 데미지 숫자
-    this.updateNameplates();
-    this.updatePlayerPlates();
+    // 네임플레이트 · 데미지 숫자 (이름표는 20fps 면 충분하다)
+    this._plateAcc = (this._plateAcc || 0) + dt;
+    if (this._plateAcc > 0.05) {
+      this._plateAcc = 0;
+      this.updateNameplates();
+      this.updatePlayerPlates();
+    }
     this.updateFloaters(dt);
 
     // 배너 타이머
@@ -613,7 +664,7 @@ export class HUD {
     const h = window.innerHeight;
     const mobs = g.mobManager ? g.mobManager.mobs : [];
     let used = 0;
-    const v = new THREE.Vector3();
+    const v = this._plateV || (this._plateV = new THREE.Vector3());
     for (const m of mobs) {
       if (m.dead) continue;
       const d = Math.hypot(m.position.x - p.position.x, m.position.z - p.position.z);
@@ -629,16 +680,18 @@ export class HUD {
         el.className = 'nameplate';
         el.innerHTML = '<div class="np-name"></div><div class="np-bar"><div class="np-fill"></div></div>';
         this.dom.nameplates.appendChild(el);
-        np = { el, name: el.querySelector('.np-name'), fill: el.querySelector('.np-fill') };
+        np = { el, name: el.querySelector('.np-name'), fill: el.querySelector('.np-fill'), label: '', w: '' };
         this.namePlatePool.push(np);
       }
       used++;
       np.el.style.display = 'block';
       np.el.style.left = sx + 'px';
       np.el.style.top = sy + 'px';
-      np.name.textContent = m.type.name + ' Lv.' + m.level;
-      np.fill.style.width = (Math.max(0, m.hp / m.maxHp) * 100).toFixed(1) + '%';
-      np.el.classList.toggle('boss', !!m.type.boss);
+      const label = m.type.name + ' Lv.' + m.level;
+      if (np.label !== label) { np.label = label; np.name.textContent = label; }
+      const w = (Math.max(0, m.hp / m.maxHp) * 100).toFixed(1) + '%';
+      if (np.w !== w) { np.w = w; np.fill.style.width = w; }
+      if (np.boss !== !!m.type.boss) { np.boss = !!m.type.boss; np.el.classList.toggle('boss', !!m.type.boss); }
     }
     for (let i = used; i < this.namePlatePool.length; i++) {
       this.namePlatePool[i].el.style.display = 'none';
@@ -655,7 +708,7 @@ export class HUD {
       const cam = g.camera;
       const w = window.innerWidth;
       const h = window.innerHeight;
-      const v = new THREE.Vector3();
+      const v = this._plateV || (this._plateV = new THREE.Vector3());
       for (const rec of net.remotes.values()) {
         const rig = rec.rig;
         if (!rig) continue;
@@ -670,7 +723,7 @@ export class HUD {
           el.className = 'nameplate player';
           el.innerHTML = '<div class="np-name"></div><div class="np-bar"><div class="np-fill"></div></div>';
           this.dom.nameplates.appendChild(el);
-          np = { el, name: el.querySelector('.np-name'), fill: el.querySelector('.np-fill') };
+          np = { el, name: el.querySelector('.np-name'), fill: el.querySelector('.np-fill'), label: '', w: '' };
           pool.push(np);
         }
         used++;
@@ -678,9 +731,11 @@ export class HUD {
         np.el.style.left = sx + 'px';
         np.el.style.top = sy + 'px';
         const cls = CLASSES[rec.classId];
-        np.name.textContent = (rec.nick || '친구') + (cls ? ' · ' + cls.name : '') + ' Lv.' + (rec.level || 1);
-        np.fill.style.width = (Math.max(0, Math.min(1, (rec.hp || 0) / (rec.maxHp || 1))) * 100).toFixed(1) + '%';
-        np.el.classList.toggle('dead', !rec.alive);
+        const label = (rec.nick || '친구') + (cls ? ' · ' + cls.name : '') + ' Lv.' + (rec.level || 1);
+        if (np.label !== label) { np.label = label; np.name.textContent = label; }
+        const w2 = (Math.max(0, Math.min(1, (rec.hp || 0) / (rec.maxHp || 1))) * 100).toFixed(1) + '%';
+        if (np.w !== w2) { np.w = w2; np.fill.style.width = w2; }
+        if (np.dead !== !rec.alive) { np.dead = !rec.alive; np.el.classList.toggle('dead', !rec.alive); }
       }
     }
     for (let i = used; i < pool.length; i++) pool[i].el.style.display = 'none';
@@ -708,7 +763,7 @@ export class HUD {
     const cam = this.game.camera;
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const v = new THREE.Vector3();
+    const v = this._floatV || (this._floatV = new THREE.Vector3());
     for (let i = this.floaters.length - 1; i >= 0; i--) {
       const f = this.floaters[i];
       f.life -= dt;

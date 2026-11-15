@@ -9,6 +9,7 @@ export class Effects {
     this.scene = scene;
     this.items = [];
     this.lights = [];
+    this.maxParticles = 40; // 파티클 수 상한 (휴대폰에서 낮춘다)
   }
 
   add(item) { this.items.push(item); return item; }
@@ -69,41 +70,51 @@ export class Effects {
     return this.add(item);
   }
 
-  /* 파티클 폭발 */
+  /* 파티클 폭발 — 포인트 하나로 그려 한 번의 드로우 콜만 쓴다 */
   burst(pos, color, count, opts) {
     const o = opts || {};
-    const n = count || 12;
-    const geo = new THREE.SphereGeometry(o.size === undefined ? 0.8 : o.size, 6, 5);
-    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending });
-    const group = new THREE.Group();
-    group.position.set(pos.x, pos.y, pos.z);
-    const parts = [];
+    const n = Math.max(1, Math.min(this.maxParticles || 40, count || 12));
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(n * 3);
+    const vels = new Array(n);
+    const spread = o.power === undefined ? 26 : o.power;
     for (let i = 0; i < n; i++) {
-      const m = new THREE.Mesh(geo, mat);
+      positions[i * 3] = 0;
+      positions[i * 3 + 1] = 0;
+      positions[i * 3 + 2] = 0;
       const a = Math.random() * Math.PI * 2;
       const el = Math.random() * Math.PI * 0.5;
-      const sp = (o.power === undefined ? 26 : o.power) * (0.45 + Math.random() * 0.8);
-      parts.push({
-        m,
-        v: new THREE.Vector3(Math.cos(a) * Math.cos(el) * sp, Math.sin(el) * sp * 0.9, Math.sin(a) * Math.cos(el) * sp),
-      });
-      group.add(m);
+      const sp = spread * (0.45 + Math.random() * 0.8);
+      vels[i] = new THREE.Vector3(Math.cos(a) * Math.cos(el) * sp, Math.sin(el) * sp * 0.9, Math.sin(a) * Math.cos(el) * sp);
     }
-    this.scene.add(group);
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      color, size: (o.size === undefined ? 0.8 : o.size) * 2,
+      transparent: true, opacity: 0.95, depthWrite: false,
+      blending: THREE.AdditiveBlending, sizeAttenuation: true,
+    });
+    const points = new THREE.Points(geo, mat);
+    points.position.set(pos.x, pos.y, pos.z);
+    points.frustumCulled = false;
+    this.scene.add(points);
     const dur = o.duration === undefined ? 0.7 : o.duration;
     const grav = o.gravity === undefined ? 34 : o.gravity;
+    const attr = geo.attributes.position;
     const item = {
       t: 0, dur, kind: 'burst',
       update: (dt) => {
         this._tick(item, dt);
-        for (let i = 0; i < parts.length; i++) {
-          const p = parts[i];
-          p.v.y -= grav * dt;
-          p.m.position.addScaledVector(p.v, dt);
+        for (let i = 0; i < n; i++) {
+          const v = vels[i];
+          v.y -= grav * dt;
+          positions[i * 3] += v.x * dt;
+          positions[i * 3 + 1] += v.y * dt;
+          positions[i * 3 + 2] += v.z * dt;
         }
+        attr.needsUpdate = true;
         mat.opacity = 0.95 * (1 - clamp(item.t / dur, 0, 1));
       },
-      dispose: () => { this.scene.remove(group); geo.dispose(); mat.dispose(); },
+      dispose: () => { this.scene.remove(points); geo.dispose(); mat.dispose(); },
     };
     return this.add(item);
   }
@@ -141,19 +152,28 @@ export class Effects {
     return item;
   }
 
-  /* 잠깐 반짝이는 점광 */
+  /* 잠깐 반짝이는 빛 (점광원 대신 가산 혼합 후광 메시 — 재질 재컴파일·조명 비용 없음) */
   flash(pos, color, intensity, distance, duration) {
-    const light = new THREE.PointLight(color, intensity || 400, distance || 320, 2);
-    light.position.set(pos.x, pos.y + 14, pos.z);
-    this.scene.add(light);
+    const power = intensity || 400;
+    const size = clamp(Math.sqrt(power) * 0.75, 6, 40) * 0.6;
+    const geo = new THREE.SphereGeometry(1, 12, 9);
+    const mat = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x, pos.y + 14, pos.z);
+    mesh.scale.setScalar(size);
+    this.scene.add(mesh);
     const dur = duration || 0.3;
     const item = {
       t: 0, dur, kind: 'flash',
       update: (dt) => {
         this._tick(item, dt);
-        light.intensity = (intensity || 400) * (1 - clamp(item.t / dur, 0, 1));
+        const p = clamp(item.t / dur, 0, 1);
+        mat.opacity = 0.85 * (1 - p);
+        mesh.scale.setScalar(size * (1 + p * 0.9));
       },
-      dispose: () => { this.scene.remove(light); },
+      dispose: () => { this.scene.remove(mesh); geo.dispose(); mat.dispose(); },
     };
     return this.add(item);
   }
