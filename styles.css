@@ -1021,6 +1021,13 @@ body.touch-mode .touch-hint.fade { opacity: 0; }
 .potion-slot.w2 { border-color: rgba(170, 130, 255, 0.55); }
 .potion-slot.w2 .slot-key { color: #c9a8ff; }
 
+/* 포션 6칸(1·2·3 + 4·5·6)이 좁은 화면에서도 겹치지 않게 */
+@media (max-width: 1180px) {
+  .potion-slot { width: 48px; height: 48px; }
+  .potion-slot .slot-name { font-size: 7.5px; }
+  .potion-slot .slot-count { font-size: 9px; }
+}
+
 .floater.gold { color: #ffd75e; text-shadow: 0 2px 10px rgba(120, 80, 0, 0.9); font-size: 17px; }
 .buff.attack { color: #ffbd6a; border-color: rgba(255, 189, 106, 0.5); }
 

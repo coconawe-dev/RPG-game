@@ -104,6 +104,7 @@ export class Shop {
     this.keeperEl = $('shop-keeper');
     this.eyebrowEl = $('shop-eyebrow');
     this.titleEl = $('shop-title');
+    this.potionHintEl = $('shop-potion-hint');
     this.isOpen = false;
     this.toastTimer = 0;
     // 지금 열려 있는 상점 (기본: 1세계 태초마을)
@@ -150,6 +151,11 @@ export class Shop {
     this.shop = shop;
     if (this.eyebrowEl) this.eyebrowEl.textContent = shop.eyebrow || '태초마을 · 상점';
     if (this.titleEl) this.titleEl.textContent = shop.title || '무기 · 갑옷 · 포션 상점';
+    if (this.potionHintEl) {
+      this.potionHintEl.textContent = shop.kind === 'world2'
+        ? '숫자키 4 · 5 · 6 으로 바로 사용'
+        : '숫자키 1 · 2 · 3 으로 바로 사용';
+    }
     if (this.keeperEl) {
       this.keeperEl.innerHTML = '<b>' + shop.keeper.name + '</b> · ' + shop.keeper.role
         + ' — "' + shop.keeper.line + '"';
