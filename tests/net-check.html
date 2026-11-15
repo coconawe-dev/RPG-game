@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>멀티플레이 연결 점검</title>
+<style>
+  body { margin: 0; padding: 16px 16px 60px; font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif; background: #0d1117; color: #e6edf3; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  p.lead { color: #8b949e; margin: 0 0 14px; font-size: 12px; }
+  #out { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .ok { color: #56d364; }
+  .bad { color: #ff7b72; }
+  .wait { color: #d29922; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #30363d; background: #21262d; color: #e6edf3; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<h1>멀티플레이 연결 점검</h1>
+<p class="lead">이 페이지는 게임 멀티플레이가 쓰는 신호 서버·STUN·중계 서버에 브라우저가 실제로 닿는지 확인합니다. 결과는 아래에 순서대로 표시됩니다.</p>
+<button id="run" type="button">다시 점검</button>
+<div id="out"></div>
+<script>
+(function () {
+  var out = document.getElementById('out');
+  var lines = [];
+  function log(text, cls) {
+    lines.push(text);
+    out.innerHTML = lines.map(function (l) {
+      var m = l.match(/^\[([A-Z]+)\]/);
+      var c = m && m[1] === 'OK' ? 'ok' : m && m[1] === 'FAIL' ? 'bad' : m && m[1] === 'WAIT' ? 'wait' : '';
+      return '<span class="' + c + '">' + l.replace(/[<>&]/g, function (s) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[s]; }) + '</span>';
+    }).join('\n');
+    document.title = 'net-check ' + lines.length;
+  }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout ' + ms + 'ms ' + (label || ''))); }, ms); }),
+    ]);
+  }
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = function () { res(true); };
+      s.onerror = function () { rej(new Error('load failed ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  async function checkFetch(url) {
+    var t0 = performance.now();
+    try {
+      var r = await withTimeout(fetch(url, { cache: 'no-store' }), 12000, url);
+      log('[OK] fetch ' + url + ' → ' + r.status + ' (' + Math.round(performance.now() - t0) + 'ms)');
+      return true;
+    } catch (e) {
+      log('[FAIL] fetch ' + url + ' → ' + e.message);
+      return false;
+    }
+  }
+
+  async function checkStun() {
+    if (!window.RTCPeerConnection) { log('[FAIL] RTCPeerConnection 없음'); return; }
+    try {
+      var pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      });
+      pc.createDataChannel('probe');
+      var types = {};
+      var done = new Promise(function (res) {
+        pc.onicecandidate = function (e) {
+          if (!e.candidate) { res(); return; }
+          var m = / typ (\w+)/.exec(e.candidate.candidate);
+          var t = m ? m[1] : 'unknown';
+          types[t] = (types[t] || 0) + 1;
+        };
+      });
+      pc.createOffer().then(function (o) { return pc.setLocalDescription(o); });
+      await withTimeout(done, 9000, 'ice').catch(function () {});
+      pc.close();
+      var keys = Object.keys(types);
+      if (keys.length) log('[OK] ICE 후보: ' + keys.map(function (k) { return k + '=' + types[k]; }).join(', '));
+      else log('[FAIL] ICE 후보 없음 (STUN 미도달 가능)');
+      if (types.srflx) log('[OK] STUN 반사 후보 확보 (외부망 P2P 가능성 높음)');
+      else log('[WAIT] STUN 반사 후보 없음 — 같은 공유기 안에서만 P2P가 될 수 있음');
+    } catch (e) {
+      log('[FAIL] STUN 점검: ' + e.message);
+    }
+  }
+
+  async function checkPeerJS() {
+    try {
+      await checkFetch('https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js');
+      await loadScript('https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js');
+      if (!window.Peer) { log('[FAIL] PeerJS 스크립트는 받았지만 window.Peer 없음'); return; }
+      log('[OK] PeerJS 라이브러리 로드');
+
+      var idA = 'rpgcheck-a-' + Math.random().toString(36).slice(2, 8);
+      var idB = 'rpgcheck-b-' + Math.random().toString(36).slice(2, 8);
+      var t0 = performance.now();
+      var a = new Peer(idA, { debug: 0 });
+      await withTimeout(new Promise(function (res, rej) {
+        a.on('open', res); a.on('error', rej);
+      }), 12000, 'peer A open');
+      log('[OK] 신호 서버 접속 · 호스트 id 개설 (' + Math.round(performance.now() - t0) + 'ms)');
+
+      var b = new Peer(idB, { debug: 0 });
+      await withTimeout(new Promise(function (res, rej) {
+        b.on('open', res); b.on('error', rej);
+      }), 12000, 'peer B open');
+
+      var got = '';
+      a.on('connection', function (conn) {
+        conn.on('data', function (d) { got = String(d); });
+      });
+      var conn = b.connect(idA, { reliable: true });
+      await withTimeout(new Promise(function (res, rej) {
+        conn.on('open', res); conn.on('error', rej);
+      }), 15000, 'data channel open');
+      log('[OK] WebRTC 데이터 채널 연결');
+      conn.send('ping-' + Date.now());
+      var t1 = performance.now();
+      for (var i = 0; i < 60; i++) { if (got) break; await wait(100); }
+      if (got) log('[OK] 메시지 수신: ' + got + ' (' + Math.round(performance.now() - t1) + 'ms)');
+      else log('[FAIL] 메시지 수신 실패');
+      try { conn.close(); } catch (e) {}
+      try { a.destroy(); } catch (e) {}
+      try { b.destroy(); } catch (e) {}
+    } catch (e) {
+      log('[FAIL] PeerJS 점검: ' + e.message);
+    }
+  }
+
+  async function checkMqtt() {
+    try {
+      var ws = new WebSocket('wss://broker.emqx.io:8084/mqtt', ['mqtt']);
+      var opened = await withTimeout(new Promise(function (res, rej) {
+        ws.onopen = res; ws.onerror = function () { rej(new Error('ws error')); }; ws.onclose = function () { rej(new Error('ws close')); };
+      }), 10000, 'mqtt ws');
+      log('[OK] WSS 중계(broker.emqx.io) 접속');
+      // MQTT 3.1.1 CONNECT
+      var cid = 'rpgcheck' + Math.random().toString(36).slice(2, 8);
+      var body = [0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0x02, 0x00, 0x3c];
+      body.push(0x00, cid.length);
+      for (var i = 0; i < cid.length; i++) body.push(cid.charCodeAt(i));
+      ws.send(new Uint8Array([0x10, body.length].concat(body)));
+      var ok = await withTimeout(new Promise(function (res) {
+        ws.onmessage = function (ev) {
+          var b = new Uint8Array(ev.data);
+          res(b[0] === 0x20 && b[3] === 0x00);
+        };
+      }), 8000, 'mqtt connack').catch(function () { return false; });
+      log(ok ? '[OK] MQTT CONNACK 수락' : '[FAIL] MQTT CONNACK 없음');
+      ws.close();
+      void opened;
+    } catch (e) {
+      log('[FAIL] WSS 중계 점검: ' + e.message);
+    }
+  }
+
+  async function run() {
+    lines = [];
+    out.innerHTML = '';
+    log('[WAIT] 점검 시작 ' + new Date().toISOString());
+    await checkStun();
+    await checkPeerJS();
+    await checkMqtt();
+    log('[WAIT] 점검 끝');
+  }
+  document.getElementById('run').addEventListener('click', run);
+  run();
+})();
+</script>
+</body>
+</html>
