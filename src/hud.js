@@ -538,6 +538,22 @@ export class HUD {
       }
     }
 
+    // 함께 하는 친구 위치
+    const net = this.game.net;
+    if (net && net.active && net.remotes.size) {
+      for (const rec of net.remotes.values()) {
+        const bx = toPx(rec.x);
+        const by = toPy(rec.z);
+        ctx.beginPath();
+        ctx.arc(bx, by, 3.2, 0, Math.PI * 2);
+        ctx.fillStyle = '#8fd0ff';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
     // 플레이어
     const px = toPx(p.position.x);
     const py = toPy(p.position.z);
