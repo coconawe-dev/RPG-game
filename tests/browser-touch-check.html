@@ -128,8 +128,13 @@
     record('tap_attacks', g.player.anim.name === 'attack' || g.player.attackCooldown > 0,
       { before: atkBefore, after: g.player.anim.name, cd: +(g.player.attackCooldown || 0).toFixed(2) });
 
-    // ---- 7) 마우스/트랙패드 드래그 (포인터 락 없이) ----
-    await sleep(900); // 터치 뒤 700ms 동안은 합성 마우스 이벤트를 무시하므로 대기
+    // ---- 7) 마우스/트랙패드 드래그 (포인터 락이 걸리지 않는 환경 = iPad 트랙패드·Safari 조건) ----
+    // 헤드리스 브라우저는 포인터 락을 그냥 허용해주므로, 실제 조건을 만들기 위해 직접 해제한다.
+    if (W.document.exitPointerLock) W.document.exitPointerLock();
+    g.pointerLockBroken = true;      // 다시 걸지 않도록
+    await sleep(250);
+    record('pointer_lock_released', !W.document.pointerLockElement, { lockEl: !!W.document.pointerLockElement });
+    await sleep(700); // 터치 뒤 700ms 동안은 합성 마우스 이벤트를 무시하므로 대기
     const fireMouse = (target, type, x, y, extra) => target.dispatchEvent(new W.MouseEvent(type, Object.assign({
       bubbles: true, cancelable: true, view: W, button: 0, buttons: 1, clientX: x, clientY: y,
     }, extra || {})));
@@ -147,13 +152,13 @@
       { draggingOn, delta: +(yawM1 - yawM0).toFixed(3), draggingOff: g.mouseDragging, diag: mdiag });
 
     // ---- 8) 짧은 클릭 = 공격 (포인터 락 없음) ----
-    await sleep(400);
-    const animBeforeClick = g.player.anim.name;
+    await sleep(1200);
+    const cdBefore = g.player.attackCooldown || 0;
     fireMouse(canvas, 'mousedown', ax, ay);
     fireMouse(W, 'mouseup', ax, ay, { buttons: 0 });
     await sleep(60);
-    record('click_attacks_without_lock', g.player.anim.name === 'attack' || g.player.attackCooldown > 0,
-      { before: animBeforeClick, after: g.player.anim.name });
+    record('click_attacks_without_lock', (g.player.attackCooldown || 0) > 0.3 && cdBefore < 0.2,
+      { cdBefore: +cdBefore.toFixed(2), cdAfter: +(g.player.attackCooldown || 0).toFixed(2), anim: g.player.anim.name });
 
     // ---- 9) 콘솔 에러 없음 + 렌더 지속 ----
     await sleep(300);
