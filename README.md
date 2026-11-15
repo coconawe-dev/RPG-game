@@ -205,6 +205,14 @@ node --experimental-websocket tests/relay-live.mjs # WSS 중계 서버 왕복 �
 
 중계 서버(EMQX · HiveMQ)에 닿는지 확인만 하려면 `tests/net-check.html`을 열면 됩니다(접속 · 메시지 왕복 결과 표시).
 
+휴대폰 화면(390×844)에서 시작 화면과 방 참가를 확인하려면 `tests/phone-check.html`을 열면 됩니다.
+두 개의 휴대폰 크기 화면에서 호스트가 방을 만들고 참가자가 참가하며, 시작 화면의 닉네임·방 만들기·방 참가 패널이
+화면 위쪽에서 잘리지 않고 눌리는 자리에 있는지도 함께 점검합니다(결과는 아래 JSON, 제목은 ALL PASS / FAIL).
+
+- `?mode=typed`(기본): 참가자가 방 코드를 직접 넣고 참가
+- `?mode=invite`: 참가자가 `?room=CODE` 초대 링크로 들어와 참가
+- `?mode=manual`: 점검 없이 휴대폰 화면 하나만 띄움 (손으로 탭해 보거나 캐처용)
+
 브라우저 입력(멀티터치) 점검은 `tests/browser-touch-check.html`을 브라우저로 열면 됩니다.게임을 iframe으로 띄운 뒤 조이스틱 + 화면 드래그를 동시에 흉내 내는 터치 이벤트를 보내고,
 카메라 회전·조이스틱 유지·마우스 드래그 폴백이 기대대로 동작하는지 결과를 JSON으로 보여줍니다(16개 항목).
 

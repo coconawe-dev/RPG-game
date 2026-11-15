@@ -67,12 +67,21 @@
   window.addEventListener('load', async () => {
     const qp = new URLSearchParams(location.search);
     const prefix = qp.get('src') || '../index.html';
-    const mode = qp.get('mode') === 'invite' ? 'invite' : 'typed';
+    const mode = qp.get('mode') === 'invite' ? 'invite' : (qp.get('mode') === 'manual' ? 'manual' : 'typed');
     const v = 'v=' + Date.now();
     const hostFrame = document.getElementById('host');
     const guestFrame = document.getElementById('guest');
     window.__PHONE_CHECK__.frames = { host: hostFrame, guest: guestFrame };
     window.__PHONE_CHECK__.mode = mode;
+
+    // ?mode=manual — 자동 점검 없이 휴대폰 화면 하나만 띄운다 (손으로 탭해 보거나 캐처용)
+    if (mode === 'manual') {
+      guestFrame.parentElement.style.display = 'none';
+      document.getElementById('result').style.display = 'none';
+      document.title = '휴대폰 화면 점검 (수동)';
+      hostFrame.src = prefix + '?' + v;
+      return;
+    }
 
     // ---------- 1) 호스트 시작 화면(휴대폰) 레이아웃 ----------
     const hostLoaded = new Promise((r) => hostFrame.addEventListener('load', r, { once: true }));
@@ -157,8 +166,11 @@
     const roomPanel = hd.getElementById('room-panel');
     const rpRect = rectOf(roomPanel);
     record('방 패널이 화면 안 (호스트)', !!rpRect && rpRect.right <= 396 && rpRect.top >= 0, rpRect);
-    const rpText = roomPanel ? roomPanel.textContent.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
-    record('방 패널에 접속 인원 표시', /2명/.test(rpText), rpText);
+    const rpText = await waitFor(() => {
+      const t = roomPanel ? roomPanel.textContent.replace(/\s+/g, ' ').trim() : '';
+      return /2명/.test(t) ? t.slice(0, 60) : null;
+    }, 8000, 250);
+    record('방 패널에 접속 인원 표시', !!rpText, rpText || (roomPanel ? roomPanel.textContent.replace(/\s+/g, ' ').trim().slice(0, 60) : ''));
     const copyBtn = hd.getElementById('rp-copy');
     const leaveBtn = hd.getElementById('rp-leave');
     record('초대 링크 · 나가기 버튼이 화면 안', rectOf(copyBtn).right <= 396 && rectOf(leaveBtn).right <= 396, { copy: rectOf(copyBtn), leave: rectOf(leaveBtn) });
