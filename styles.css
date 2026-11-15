@@ -629,6 +629,28 @@ body.touch-mode .touch-hint { display: block; }
 .mode-toggle:active { transform: scale(0.98); }
 .touch-hint { display: none; }
 
+/* 터치 모드 하단 안내 (조이스틱·시점·탭 공격) */
+body.touch-mode .touch-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  max-width: 60vw;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(10, 13, 18, 0.55);
+  border: 1px solid rgba(232, 194, 106, 0.22);
+  color: var(--ink-dim);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0.9;
+  transition: opacity 0.8s ease;
+  z-index: 2;
+}
+body.touch-mode .touch-hint.fade { opacity: 0; }
+
 .joy {
   position: absolute;
   left: 22px;

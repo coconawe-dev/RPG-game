@@ -11,6 +11,16 @@ import { Sfx } from './audio.js';
 import { castSkill } from './skills.js';
 import { terrainHeight, clamp, damp, lerp, biomeWeights, regionAt } from './utils.js';
 
+// 터치 목록에서 identifier가 같은 손가락을 찾는다.
+// (멀티터치에서 손가락마다 다른 일을 시키기 위한 추적용 — 조이스틱과 시점 회전이 서로를 방해하지 않게 한다)
+function findTouchById(list, id) {
+  if (!list || id === null || id === undefined) return null;
+  for (let i = 0; i < list.length; i++) {
+    if (list[i] && list[i].identifier === id) return list[i];
+  }
+  return null;
+}
+
 class Game {
   constructor() {
     this.state = 'menu';
@@ -30,6 +40,10 @@ class Game {
     this.deathTimer = -1;
     this.pointerLockBroken = false;
     this.dragging = false;
+    this.mouseDragging = false;
+    this.mouseDragMoved = 0;
+    this.mouseDragAt = 0;
+    this._look = null;
     this.lastPointer = { x: 0, y: 0 };
     this.biomeCenters = {};
     this.biomeColors = {};
@@ -149,34 +163,50 @@ class Game {
     canvas.addEventListener('mousedown', (e) => {
       if (Date.now() - (this.lastTouchAt || 0) < 700) return; // 터치 뒤 합성 이벤트 무시
       if (this.state !== 'playing') return;
+      if (e.button !== 0) return;
       if (document.pointerLockElement === canvas) {
-        if (e.button === 0 && this.player) this.player.attack();
+        if (this.player) this.player.attack();
         return;
       }
-      if (this.pointerLockBroken) {
-        if (e.button === 0 && this.player) this.player.attack();
-        return;
-      }
+      // 포인터 락이 없거나(iPad 트랙패드·Safari·미지원 브라우저) 걸지 못해도
+      // 버튼을 누른 채 끌면 바로 시점이 돌아가도록 드래그를 먼저 살린다.
+      this.mouseDragging = true;
       this.dragging = true;
+      this.mouseDragMoved = 0;
+      this.mouseDragAt = Date.now();
       this.lastPointer.x = e.clientX;
       this.lastPointer.y = e.clientY;
-      const req = canvas.requestPointerLock ? canvas.requestPointerLock() : null;
-      if (req && req.catch) req.catch(() => { this.pointerLockBroken = true; });
-      if (!canvas.requestPointerLock) this.pointerLockBroken = true;
+      if (!this.pointerLockBroken && canvas.requestPointerLock) {
+        const req = canvas.requestPointerLock();
+        if (req && req.catch) req.catch(() => { this.pointerLockBroken = true; });
+      }
     });
 
-    window.addEventListener('mouseup', () => { this.dragging = false; });
+    window.addEventListener('mouseup', (e) => {
+      const wasDragging = this.mouseDragging;
+      const moved = this.mouseDragMoved || 0;
+      const quickTap = Date.now() - (this.mouseDragAt || 0) < 350;
+      this.mouseDragging = false;
+      this.dragging = false;
+      // 포인터 락이 없는 상태(트랙패드·터치 노트북)에서는 짧게 “클릭”한 경우만 공격
+      if (wasDragging && moved < 6 && quickTap
+        && document.pointerLockElement !== this.renderer.domElement
+        && this.state === 'playing' && this.player && (!e || e.button === 0)) {
+        this.player.attack();
+      }
+    });
 
     window.addEventListener('mousemove', (e) => {
       const canvasEl = this.renderer.domElement;
       if (document.pointerLockElement === canvasEl) {
         this.camYaw -= e.movementX * 0.0023;
         this.camPitch = clamp(this.camPitch + e.movementY * 0.0019, -0.32, 0.95);
-      } else if (this.dragging) {
+      } else if (this.mouseDragging) {
         const dx = e.clientX - this.lastPointer.x;
         const dy = e.clientY - this.lastPointer.y;
         this.lastPointer.x = e.clientX;
         this.lastPointer.y = e.clientY;
+        this.mouseDragMoved += Math.abs(dx) + Math.abs(dy);
         this.camYaw -= dx * 0.004;
         this.camPitch = clamp(this.camPitch + dy * 0.003, -0.32, 0.95);
       }
@@ -185,7 +215,7 @@ class Game {
     document.addEventListener('pointerlockchange', () => {
       const locked = document.pointerLockElement === this.renderer.domElement;
       if (this.hud) this.hud.setCrosshair(locked);
-      if (!locked) this.dragging = false;
+      if (!locked) { this.dragging = false; this.mouseDragging = false; }
     });
 
     canvas.addEventListener('wheel', (e) => {
@@ -194,6 +224,12 @@ class Game {
     }, { passive: false });
 
     window.addEventListener('resize', () => this.resize());
+    // iPad/아이폰 회전 시 Safari가 늦게 크기를 갱신하므로 한 번 더 맞춰준다
+    window.addEventListener('orientationchange', () => {
+      this.resize();
+      setTimeout(() => this.resize(), 260);
+      setTimeout(() => this.resize(), 700);
+    });
 
     // ---- 모바일 확대(더블탭 · 핀치) 차단 ----
     const stopMulti = (e) => {
@@ -250,37 +286,59 @@ class Game {
     document.addEventListener('touchstart', () => { this.lastTouchAt = Date.now(); }, { passive: true });
 
     // 캔버스 터치 드래그로 시점 회전 + 짧은 탭으로 공격
+    // 손가락을 identifier로 추적한다. 왼손으로 조이스틱을 잡은 채 오른손으로 화면을 끌어도
+    // (동시에 터치가 2개 이상이어도) 시점 회전이 계속 동작한다.
     const canvas = this.renderer.domElement;
+    const LOOK_YAW = 0.005;
+    const LOOK_PITCH = 0.004;
     let look = null;
+    const setLook = (v) => { look = v; this._look = v; };
+
     canvas.addEventListener('touchstart', (e) => {
       this.lastTouchAt = Date.now();
-      if (e.touches.length !== 1) { look = null; return; }
-      const t = e.touches[0];
-      look = { x: t.clientX, y: t.clientY, moved: 0, at: Date.now() };
-    }, { passive: true });
+      if (this.state !== 'playing') return;
+      if (look) return; // 이미 다른 손가락이 시점을 돌리는 중이면 그 손가락을 계속 쓴다
+      const t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      setLook({ id: t.identifier, x: t.clientX, y: t.clientY, moved: 0, at: Date.now() });
+      // iPadOS Safari가 드래그를 페이지 스크롤/바운스로 처리하지 않도록
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+
     canvas.addEventListener('touchmove', (e) => {
-      if (!look || e.touches.length !== 1) return;
-      const t = e.touches[0];
+      if (!look) return;
+      if (this.state !== 'playing') { setLook(null); return; }
+      const t = findTouchById(e.touches, look.id) || findTouchById(e.changedTouches, look.id);
+      if (!t) return;
       const dx = t.clientX - look.x;
       const dy = t.clientY - look.y;
       look.x = t.clientX;
       look.y = t.clientY;
       look.moved += Math.abs(dx) + Math.abs(dy);
-      this.camYaw -= dx * 0.005;
-      this.camPitch = clamp(this.camPitch + dy * 0.004, -0.32, 0.95);
+      this.camYaw -= dx * LOOK_YAW;
+      this.camPitch = clamp(this.camPitch + dy * LOOK_PITCH, -0.32, 0.95);
       if (e.cancelable) e.preventDefault();
     }, { passive: false });
-    canvas.addEventListener('touchend', () => {
-      if (look && look.moved < 14 && Date.now() - look.at < 320) {
-        if (this.state === 'playing' && this.player) this.player.attack();
+
+    const endLook = (e) => {
+      if (!look) return;
+      // 방금 떨어진 손가락이 시점용 손가락일 때만 드래그를 끝낸다
+      // (조이스틱을 잡은 다른 손가락이 떨어져도 시점 회전은 유지)
+      if (e && e.changedTouches && e.changedTouches.length && !findTouchById(e.changedTouches, look.id)) return;
+      if (look.moved < 14 && Date.now() - look.at < 320 && this.state === 'playing' && this.player) {
+        this.player.attack();
       }
-      look = null;
-    }, { passive: true });
+      setLook(null);
+      if (e && e.cancelable) e.preventDefault();
+    };
+    canvas.addEventListener('touchend', endLook, { passive: false });
+    canvas.addEventListener('touchcancel', endLook, { passive: false });
 
     const joy = document.getElementById('joy');
     const knob = document.getElementById('joy-knob');
     if (joy && knob) {
       let active = false;
+      let touchId = null; // 조이스틱을 잡고 있는 손가락 identifier
       let cx = 0, cy = 0;
       const maxR = 52;
       const setKnob = (dx, dy) => {
@@ -304,17 +362,28 @@ class Game {
         this.input.sprint = limit > 0.85;
       };
       const start = (e) => {
-        const t = e.changedTouches ? e.changedTouches[0] : e;
+        if (active) return;
+        const t = (e.changedTouches && e.changedTouches[0]) || e;
+        if (!t) return;
+        touchId = (typeof t.identifier === 'number') ? t.identifier : null;
         const r = joy.getBoundingClientRect();
         cx = r.left + r.width / 2;
         cy = r.top + r.height / 2;
         active = true;
-        e.preventDefault();
-        move({ clientX: t.clientX, clientY: t.clientY, preventDefault: () => {} });
+        if (e.cancelable) e.preventDefault();
+        move({ clientX: t.clientX, clientY: t.clientY, preventDefault() {}, cancelable: false });
       };
       const move = (e) => {
         if (!active) return;
-        const t = e.changedTouches ? e.changedTouches[0] : e;
+        let t;
+        if (e.changedTouches) {
+          t = touchId === null
+            ? e.changedTouches[0]
+            : (findTouchById(e.touches, touchId) || findTouchById(e.changedTouches, touchId));
+        } else {
+          t = e; // 마우스 테스트 입력
+        }
+        if (!t) return; // 다른 손가락의 이동 — 조이스틱과 무관
         let dx = t.clientX - cx;
         let dy = t.clientY - cy;
         const len = Math.hypot(dx, dy);
@@ -324,7 +393,11 @@ class Game {
         if (e.cancelable) e.preventDefault();
       };
       const end = (e) => {
+        if (!active) return;
+        // 조이스틱을 잡은 손가락이 떨어진 경우에만 조이스틱을 놓는다
+        if (e && e.changedTouches && touchId !== null && !findTouchById(e.changedTouches, touchId)) return;
         active = false;
+        touchId = null;
         setKnob(0, 0);
         this.input.forward = false; this.input.back = false;
         this.input.left = false; this.input.right = false;
@@ -340,6 +413,7 @@ class Game {
         const r = joy.getBoundingClientRect();
         cx = r.left + r.width / 2;
         cy = r.top + r.height / 2;
+        touchId = null;
         active = true;
         move(e);
         e.preventDefault();
@@ -410,6 +484,13 @@ class Game {
     this.hud.hideEnd();
     this.sfx.init();
     this.hud.banner(CLASSES[classId].name + ' · ' + BIOMES[biomeId].name, 2400);
+    // 터치 조작 안내는 시작 후 잠시 보여주고 사라진다
+    const touchHint = document.getElementById('touch-hint');
+    if (touchHint) {
+      touchHint.classList.remove('fade');
+      if (this._touchHintTimer) clearTimeout(this._touchHintTimer);
+      this._touchHintTimer = setTimeout(() => touchHint.classList.add('fade'), 8000);
+    }
     this.placeCamera(true);
     const canvas = this.renderer.domElement;
     if (canvas.requestPointerLock && !this.pointerLockBroken) {
@@ -665,6 +746,13 @@ class Game {
         anim: this.player.anim.name,
       } : null,
       region: this.regionId || null,
+      touch: this.touchMode === undefined ? null : {
+        mode: this.touchMode,
+        look: this._look ? { id: this._look.id, moved: Math.round(this._look.moved) } : null,
+        mouseDragging: this.mouseDragging,
+        pointerLocked: this.renderer ? document.pointerLockElement === this.renderer.domElement : false,
+      },
+      cam: { yaw: Math.round(this.camYaw * 1000) / 1000, pitch: Math.round(this.camPitch * 1000) / 1000 },
       errors: this.errors || [],
     };
   }
