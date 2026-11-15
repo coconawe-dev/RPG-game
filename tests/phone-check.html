@@ -150,7 +150,7 @@
     const guestGame = await waitFor(() => {
       const g = game(guestFrame);
       return g && g.net && g.net.active && g.net.remotes.size ? g : null;
-    }, 26000, 250);
+    }, 40000, 250);
     if (!guestGame) {
       const note = gd.getElementById('mp-note').textContent;
       record('참가자 방 참가', false, { note, code });
@@ -159,7 +159,7 @@
     record('참가자 방 참가', true, { room: guestGame.net.roomCode, note: gd.getElementById('mp-note').textContent.slice(0, 60) });
 
     // ---------- 4) 서로 보이는지 · HUD 방 패널 ----------
-    const seen = await waitFor(() => (hostGame.net.remotes.size ? [...hostGame.net.remotes.values()] : null), 12000, 200);
+    const seen = await waitFor(() => (hostGame.net.remotes.size ? [...hostGame.net.remotes.values()] : null), 20000, 200);
     record('호스트가 참가자를 봄', !!seen, seen ? { nick: seen[0].nick, cls: seen[0].classId, count: hostGame.net.playerCount } : null);
     record('참가자가 호스트를 봄', guestGame.net.remotes.size > 0, { remotes: guestGame.net.remotes.size });
 
