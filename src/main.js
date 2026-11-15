@@ -298,10 +298,16 @@ class Game {
       document.addEventListener(name, (e) => e.preventDefault(), { passive: false });
     });
     // 더블탭(300ms 이내 두 번째 탭) 확대 방지
+    // 주의: 버튼 · 입력칸 · 직업 카드처럼 누르는 요소에서 preventDefault 하면 그 탭의 click 이
+    // 사라져 휴대폰에서 "방 참가"나 직업 선택이 눌리지 않는 것처럼 보인다. 그래서 게임 화면과
+    // 빈 배경에서만 막고, 실제로 누르는 컨트롤은 그대로 둔다.
     let lastTouchEnd = 0;
+    const TAP_CONTROL = 'button, input, textarea, select, a, label, .class-card, .mp-panel, .mp-join-row, .shop-item, .slot, .tbtn, .joy';
     document.addEventListener('touchend', (e) => {
       const now = Date.now();
-      if (now - lastTouchEnd < 320 && e.cancelable) e.preventDefault();
+      const t = e.target;
+      const onControl = !!(t && t.closest && t.closest(TAP_CONTROL));
+      if (!onControl && now - lastTouchEnd < 320 && e.cancelable) e.preventDefault();
       lastTouchEnd = now;
     }, { passive: false });
     document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
@@ -575,19 +581,24 @@ class Game {
         const code = normalizeRoomCode(this.mpDom.code ? this.mpDom.code.value : '');
         if (!isValidRoomCode(code)) {
           this.mpNote('방 코드를 확인해 주세요 (예: K7TQ)', 'err');
-          if (this.mpDom.code) this.mpDom.code.focus();
+          this.highlightCodeInput();
           return;
         }
+        // 휴대폰 키보드가 열려 있으면 닫아 직업 카드가 보이게 한다
+        if (this.mpDom.code) this.mpDom.code.blur();
         this.mpNote('직업을 고르면 <b>' + code + '</b> 방에 참가합니다.', 'ok');
-        const grid = document.getElementById('class-grid');
-        if (grid) {
-          grid.classList.remove('mp-flash');
-          void grid.offsetWidth;
-          grid.classList.add('mp-flash');
-          grid.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        this.revealClassGrid();
       };
       this.mpDom.joinGo.addEventListener('click', go);
+    }
+
+    // 방 코드 입력 후 키보드의 이동/완료 키로도 참가되게
+    if (this.mpDom.code) {
+      this.mpDom.code.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || e.isComposing) return;
+        e.preventDefault();
+        if (this.mpDom.joinGo) this.mpDom.joinGo.click();
+      });
     }
 
     // ?room=CODE 초대 링크로 들어온 경우: 코드 채우고 방 참가 강조
@@ -634,6 +645,35 @@ class Game {
     el.innerHTML = text;
     el.classList.toggle('err', kind === 'err');
     el.classList.toggle('ok', kind === 'ok');
+  }
+
+  // 방 코드 입력칸을 잠깐 강조해 어디를 고쳐야 하는지 보이게
+  highlightCodeInput() {
+    const el = this.mpDom && this.mpDom.code;
+    if (!el) return;
+    el.focus();
+    el.classList.add('highlight');
+    clearTimeout(this._codeHighlightTimer);
+    this._codeHighlightTimer = setTimeout(() => el.classList.remove('highlight'), 2600);
+  }
+
+  // 직업 카드가 화면 밖으로 밑려 있을 때만 부드럽게 올린다 (휴대폰에서 키보드·작은 화면 대비)
+  revealClassGrid() {
+    const ov = document.getElementById('start-overlay');
+    const grid = document.getElementById('class-grid');
+    if (!ov || !grid) return;
+    grid.classList.remove('mp-flash');
+    void grid.offsetWidth;
+    grid.classList.add('mp-flash');
+    const ob = ov.getBoundingClientRect();
+    const gb = grid.getBoundingClientRect();
+    const panel = document.getElementById('mp-panel');
+    // 휴대폰에서 위에 붙어 있는 패널 높이만큼은 비워 둔다
+    const docked = panel ? Math.max(0, panel.getBoundingClientRect().bottom - ob.top) : 0;
+    if (gb.top > ob.top + docked + 40) {
+      const delta = gb.top - ob.top - docked - 8;
+      ov.scrollTo({ top: Math.max(0, ov.scrollTop + delta), behavior: 'smooth' });
+    }
   }
 
   readNick() {
@@ -725,18 +765,22 @@ class Game {
       } else {
         const code = normalizeRoomCode(this.mpDom.code ? this.mpDom.code.value : '');
         if (!isValidRoomCode(code)) {
-          this.mpNote('방 코드를 확인해 주세요 (예: K7TQ)', 'err');
+          this.mpNote('방 코드를 넣고 <b>참가</b>를 누른 뒤 직업을 골라 주세요.', 'err');
+          this.highlightCodeInput();
           return;
         }
-        this.mpNote('방에 들어가는 중…');
+        this.mpNote('방 <b>' + code + '</b> 를 찾는 중…');
         const data = await this.net.join(code, classId, nick, (s) => this.mpNote(s));
         this.startClass(classId, { spawn: data.spawn });
         this.hud.showRoom({ code, count: this.net.playerCount, players: playerListForHud(this.net, this.player) });
       }
-      this.mpNote('함께 플레이 중 · 지도는 <b>M</b> 키로 접을 수 있어요', 'ok');
+      this.mpNote(this.mpMode === 'host'
+        ? '방이 열렸습니다 · 친구를 기다리는 중 · 지도는 <b>M</b> 키'
+        : '방에 참가했습니다! 함께 플레이 중 · 지도는 <b>M</b> 키', 'ok');
     } catch (err) {
       if (this.net) this.net.stop();
-      this.mpNote((err && err.message) || '접속에 실패했습니다', 'err');
+      const msg = (err && err.message) || '접속에 실패했습니다';
+      this.mpNote(msg + '<br><span style="opacity:.8">직업을 다시 누르면 방을 찾는 것을 다시 시도합니다.</span>', 'err');
     }
   }
 

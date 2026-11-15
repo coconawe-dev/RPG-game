@@ -15,6 +15,10 @@ export const BROKERS = [
 ];
 
 const TOPIC_PREFIX = 'rpgmp/1/';
+// 게스트가 방 응답(welcome)을 기다리는 시간 · 다시 보내는 간격
+// 휴대폰 회선은 첫 패킷이 늦거나 유실될 수 있어 조금 더 길고 촘촘하게 잡는다.
+const JOIN_WAIT_MS = 14000;
+const JOIN_RETRY_MS = 1200;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const MAX_PLAYERS = 4;
 
@@ -366,6 +370,18 @@ export class Net {
     this._worldAcc = 0;
     this._rosterDirty = false;
     this.stats = { sent: 0, recv: 0, bytes: 0 };
+
+    // 휴대폰에서 다른 앱(카톡·문자)에 다녀오면 Safari가 연결을 잠시 멈춘다.
+    // 참가 응답을 기다리는 중에 화면으로 돌아오면 join 을 바로 다시 보내 기다리는 시간을 줄인다.
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) return;
+        if (this.active || this.role !== 'guest' || !this._welcomeResolve) return;
+        this.publish('h', encodeMsg('join', {
+          pid: this.pid, nick: this.nick, class: this.classId, wt: 0, at: 0,
+        }));
+      });
+    }
   }
 
   get isHost() { return this.role === 'host'; }
@@ -407,27 +423,42 @@ export class Net {
 
     const welcome = new Promise((resolve, reject) => {
       this._welcomeResolve = resolve;
+      this._welcomeReject = reject;
+      // 호스트 응답이 늦어질 때(휴대폰 느린 네트워크·호스트가 아직 준비 중) 기다리는 중임을 계속 알려 준다
+      const startedAt = Date.now();
+      this._joinTick = setInterval(() => {
+        const s = Math.round((Date.now() - startedAt) / 1000);
+        if (s === 4 && onStatus) onStatus('방 <b>' + this.roomCode + '</b> 에 연결하는 중…');
+        else if (s === 8 && onStatus) onStatus('아직 응답이 없습니다 · 방 코드를 다시 확인해 주세요');
+      }, 1000);
       setTimeout(() => {
         if (this._welcomeResolve) {
           this._welcomeResolve = null;
-          reject(new Error('방을 찾지 못했습니다. 코드를 확인하거나 호스트가 게임을 시작했는지 봐 주세요.'));
+          this._welcomeReject = null;
+          this._clearJoinRetry();
+          reject(new Error('방을 찾지 못했습니다. 방 코드를 확인하거나, 호스트가 아직 게임을 시작하지 않았다면 시작한 뒤 다시 참가해 주세요.'));
         }
-      }, 9000);
+      }, JOIN_WAIT_MS);
     });
     this.publish('h', encodeMsg('join', {
       pid: this.pid, nick: this.nick, class: classId, wt: 0, at: 0,
     }));
+    // 호스트가 곧바로 응답하지 못하는 경우(구독 직후·패킷 유실)를 대비해 짧게 여러 번 다시 보낸다
     this._joinRetry = setInterval(() => {
-      if (this.active) return;
+      if (this.active || !this._welcomeResolve) return;
       this.publish('h', encodeMsg('join', { pid: this.pid, nick: this.nick, class: classId, wt: 0, at: 0 }));
-    }, 2500);
+    }, JOIN_RETRY_MS);
     const data = await welcome;
-    clearInterval(this._joinRetry);
-    this._joinRetry = null;
+    this._clearJoinRetry();
     this.hostPid = data.hostPid;
     this.spawn = data.spawn || null;
     this.lastRecvAt = Date.now();
     return data;
+  }
+
+  _clearJoinRetry() {
+    if (this._joinRetry) { clearInterval(this._joinRetry); this._joinRetry = null; }
+    if (this._joinTick) { clearInterval(this._joinTick); this._joinTick = null; }
   }
 
   // 연결되는 중계 서버에 모두 붙는다 — 어느 쪽에 있든 서로 만나게 하기 위해 (병렬 접속)
@@ -524,6 +555,7 @@ export class Net {
       if (this._welcomeResolve) {
         const res = this._welcomeResolve;
         this._welcomeResolve = null;
+        this._welcomeReject = null;
         res(msg.p || {});
       }
     } else if (msg.t === 'w') {
@@ -542,6 +574,14 @@ export class Net {
       else this._dropRemote(msg.p && msg.p.pid);
     } else if (msg.t === 'full') {
       this.error = '방이 가득 찼습니다.';
+      // 14초를 기다리지 않고 바로 알린다
+      if (this._welcomeReject) {
+        const rej = this._welcomeReject;
+        this._welcomeResolve = null;
+        this._welcomeReject = null;
+        this._clearJoinRetry();
+        rej(new Error('방이 가득 찼습니다 (최대 4명). 다른 방을 만들거나 참가해 주세요.'));
+      }
       this.stop();
     }
   }
@@ -1030,7 +1070,14 @@ export class Net {
     }
     this.active = false;
     if (this._idleTimer) { clearInterval(this._idleTimer); this._idleTimer = null; }
-    if (this._joinRetry) { clearInterval(this._joinRetry); this._joinRetry = null; }
+    this._clearJoinRetry();
+    // 참가 대기 중에 연결이 끊긴 경우 대기하던 join 을 바로 정리한다
+    if (this._welcomeReject) {
+      const rej = this._welcomeReject;
+      this._welcomeResolve = null;
+      this._welcomeReject = null;
+      try { rej(new Error('방 연결이 끊어졌습니다. 잠시 뒤 다시 시도해 주세요.')); } catch (e) { /* noop */ }
+    }
     for (const t of this.transports) {
       try { t.close(); } catch (e) { /* noop */ }
     }
