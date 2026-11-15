@@ -89,7 +89,7 @@ export class Combat {
       const kdir = new THREE.Vector3(mob.position.x - origin.x, 0, mob.position.z - origin.z).normalize();
       const knock = player.classId === 'tanker' ? 16 : player.classId === 'rogue' ? 3 : 8;
       this.applyDamage(mob, damage, {
-        critChance: player.cls.critChance, dir: kdir, knock,
+        critChance: player.critChance === undefined ? player.cls.critChance : player.critChance, dir: kdir, knock,
       });
       this.game.effects.burst(new THREE.Vector3(mob.position.x, mob.position.y + mob.height * 0.6, mob.position.z), 0xffd9a0, 6, { power: 16, size: 0.5, duration: 0.4 });
     }

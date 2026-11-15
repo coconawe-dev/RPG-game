@@ -83,7 +83,7 @@ const IMPLS = {
           const a = Math.atan2(base.x, base.z) + i * 0.11;
           const dir = new THREE.Vector3(Math.sin(a), 0, Math.cos(a));
           game.combat.fireArrow(p, dir, {
-            damage: p.damage * 0.72, speed: 450, range: 330, critChance: p.cls.critChance,
+            damage: p.damage * 0.72, speed: 450, range: 330, critChance: p.critChance === undefined ? p.cls.critChance : p.critChance,
           });
         }
         game.effects.burst(at(p, 16), 0xd8ff9a, 8, { power: 14, size: 0.5, duration: 0.4 });
@@ -110,7 +110,7 @@ const IMPLS = {
           const from = new THREE.Vector3(tx, p.position.y + 150, tz);
           game.combat.spawnArrowFrom(from, new THREE.Vector3(0, -1, 0.02), {
             damage: p.damage * 0.55, speed: 320, range: 400, splash: 26, fall: true, vy: -100,
-            critChance: p.cls.critChance, speedNote: true,
+            critChance: p.critChance === undefined ? p.cls.critChance : p.critChance, speedNote: true,
           });
           game.effects.ring(new THREE.Vector3(tx, p.position.y, tz), 0xd8ff9a, 20, { duration: 0.4, yOffset: 0.6 });
         });

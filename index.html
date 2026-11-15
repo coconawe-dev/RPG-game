@@ -30,6 +30,7 @@
           <span class="weapon-tag" id="weapon-tag">검</span>
           <span class="level-text" id="level-text">Lv.1</span>
         </div>
+        <div class="gold-row"><span class="gold-tag" id="gold-tag">🪙 100G</span></div>
         <div class="bar-row">
           <span class="bar-label">HP</span>
           <div class="bar"><i class="bar-fill hp-fill" id="hp-fill"></i><b class="bar-text" id="hp-text">170 / 170</b></div>
@@ -77,12 +78,23 @@
           <li><kbd>좌클릭</kbd> / <kbd>J</kbd> <span>기본 공격</span></li>
           <li><kbd>Q</kbd> <span id="ctrl-q">스킬 1</span></li>
           <li><kbd>E</kbd> <span id="ctrl-e">스킬 2</span></li>
+          <li><kbd>F</kbd> <span>상점 열기 (상점 앞)</span></li>
+          <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> <span>포션 사용</span></li>
           <li><kbd>Esc</kbd> <span>마우스 고정 해제</span></li>
         </ul>
       </section>
 
-      <div class="skillbar" id="skillbar"></div>
+      <div class="hud-center">
+        <div class="potion-bar" id="potion-bar"></div>
+        <div class="skillbar" id="skillbar"></div>
+      </div>
     </div>
+
+    <button class="shop-prompt" id="shop-prompt" type="button">
+      <span class="sp-ico">🛒</span>
+      <span class="sp-text">상점 열기</span>
+      <b class="sp-key">[F]</b>
+    </button>
 
     <div class="touch-ui" id="touch-ui">
       <div class="joy" id="joy">
@@ -91,6 +103,11 @@
         <span class="joy-label">이동</span>
       </div>
       <div class="touch-actions">
+        <div class="trow trow-potion">
+          <button class="tbtn small potion" id="tbtn-potion-1" type="button"><span>🧪</span><b id="tpotion-1">0</b></button>
+          <button class="tbtn small potion" id="tbtn-potion-2" type="button"><span>🍶</span><b id="tpotion-2">0</b></button>
+          <button class="tbtn small potion" id="tbtn-potion-3" type="button"><span>⚗️</span><b id="tpotion-3">0</b></button>
+        </div>
         <div class="trow">
           <button class="tbtn small" id="tbtn-jump" type="button">점프</button>
           <button class="tbtn" id="tbtn-q" type="button"><b>Q</b><span id="tcd-q"></span></button>
@@ -109,9 +126,9 @@
     <div class="start-inner">
       <p class="eyebrow">WEB 3D RPG · THREE.JS</p>
       <h1>정글 사원의 <span>고대 골렘</span></h1>
-      <p class="lead">다섯 개의 지역을 끊김 없이 달려, 정글 사원 깊은 곳에 잠든 고대 골렘을 쓰러뜨리세요.</p>
+      <p class="lead">태초마을에서 무기와 포션을 장만하고, 쾌적한 숲을 지나 정글 사원 깊은 곳에 잠든 고대 골렘을 쓰러뜨리세요.</p>
       <div class="class-grid" id="class-grid"></div>
-      <p class="tip">직업을 선택하면 바로 시작됩니다 · 직업마다 무기·공격 모션·<b>Q / E 스킬</b>이 모두 다릅니다.</p>
+      <p class="tip">직업을 선택하면 태초마을에서 시작됩니다 · 직업마다 무기·공격 모션·<b>Q / E 스킬</b>이 모두 다릅니다.</p>
     </div>
   </div>
 
@@ -125,6 +142,35 @@
         <button class="btn primary" id="end-primary" type="button">계속 탐험하기</button>
         <button class="btn" id="end-restart" type="button">직업 다시 선택</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 태초마을 무기 · 포션 상점 -->
+  <div class="shop-overlay hidden" id="shop-overlay">
+    <div class="shop-modal" role="dialog" aria-modal="true" aria-labelledby="shop-title">
+      <header class="shop-head">
+        <div class="shop-head-main">
+          <p class="shop-eyebrow">태초마을 · 상점</p>
+          <h2 id="shop-title">무기 · 포션 상점</h2>
+          <p class="shop-keeper" id="shop-keeper">상점 주인 <b>도로시</b></p>
+        </div>
+        <div class="shop-gold"><span>🪙</span><b id="shop-gold">100 G</b></div>
+      </header>
+      <div class="shop-body">
+        <section class="shop-sec">
+          <h3>무기 <span class="shop-sub">직업 전용 · 사면 바로 장착됩니다</span></h3>
+          <div class="shop-grid" id="shop-weapons"></div>
+        </section>
+        <section class="shop-sec">
+          <h3>포션 <span class="shop-sub">숫자키 1 · 2 · 3 으로 바로 사용</span></h3>
+          <div class="shop-grid" id="shop-potions"></div>
+        </section>
+      </div>
+      <footer class="shop-foot">
+        <span class="shop-hint">골드는 몬스터를 처치해 모으세요 · 보유 포션은 HUD에 표시됩니다</span>
+        <button class="btn primary" id="shop-close" type="button">닫기 (Esc)</button>
+      </footer>
+      <div class="shop-toast" id="shop-toast"></div>
     </div>
   </div>
 

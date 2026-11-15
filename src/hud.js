@@ -1,6 +1,6 @@
 // HUD: 상태창 · 지역 표시 · 미니맵 · 나침반 · 스킬바 · 네임플레이트 · 데미지 숫자
 import * as THREE from 'three';
-import { CLASSES, CLASS_ORDER, BIOMES, COMPASS_ORDER, BIOME_ORDER } from './config.js';
+import { CLASSES, CLASS_ORDER, BIOMES, COMPASS_ORDER, BIOME_ORDER, SHOP } from './config.js';
 import { regionAt } from './utils.js';
 
 const $ = (id) => document.getElementById(id);
@@ -11,6 +11,8 @@ export class HUD {
     this.dom = {
       classBadge: $('class-badge'),
       weaponTag: $('weapon-tag'),
+      goldTag: $('gold-tag'),
+      potionBar: $('potion-bar'),
       levelText: $('level-text'),
       hpFill: $('hp-fill'),
       hpText: $('hp-text'),
@@ -73,6 +75,7 @@ export class HUD {
     this.buildCompass();
     this.buildClassCards();
     this.buildSkillBar(null);
+    this.buildPotionBar();
 
     this.dom.controlsToggle.addEventListener('click', () => {
       const p = this.dom.controlsPanel;
@@ -142,6 +145,67 @@ export class HUD {
     this.dom.ctrlE.textContent = 'E · ' + c.skills.e.name;
   }
 
+  /* ---------------------------- 포션 바 ---------------------------- */
+  buildPotionBar() {
+    const bar = this.dom.potionBar;
+    if (!bar) return;
+    bar.innerHTML = '';
+    this.potionSlots = {};
+    for (const pt of SHOP.potions) {
+      const slot = document.createElement('button');
+      slot.type = 'button';
+      slot.className = 'slot potion-slot';
+      slot.setAttribute('data-potion', pt.id);
+      slot.innerHTML =
+        '<span class="slot-key">' + pt.key + '</span>' +
+        '<span class="slot-icon">' + pt.icon + '</span>' +
+        '<b class="slot-count">×0</b>' +
+        '<span class="slot-name">' + pt.name + '</span>';
+      slot.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (this.game.state === 'playing') this.game.usePotion(pt.id);
+      });
+      bar.appendChild(slot);
+      this.potionSlots[pt.id] = { el: slot, count: slot.querySelector('.slot-count') };
+    }
+    this._potionSig = '';
+  }
+
+  refreshPotions() {
+    const p = this.game.player;
+    if (!p || !this.potionSlots) return;
+    const parts = [];
+    for (const pt of SHOP.potions) parts.push(p.potionCount(pt.id));
+    const sig = parts.join(',') + '|' + (p.alive ? 1 : 0);
+    if (sig === (this._potionSig || '')) return;
+    this._potionSig = sig;
+    for (const pt of SHOP.potions) {
+      const s = this.potionSlots[pt.id];
+      const n = p.potionCount(pt.id);
+      if (!s) continue;
+      s.count.textContent = '×' + n;
+      s.el.classList.toggle('empty', n <= 0);
+      const tEl = document.getElementById('tpotion-' + pt.key);
+      if (tEl) tEl.textContent = String(n);
+      const tBtn = document.getElementById('tbtn-potion-' + pt.key);
+      if (tBtn) tBtn.classList.toggle('empty', n <= 0);
+    }
+  }
+
+  updateGold() {
+    const g = this.game;
+    const txt = '🪙 ' + (Number(g.gold) || 0) + 'G';
+    if (this.dom.goldTag && this.dom.goldTag.textContent !== txt) this.dom.goldTag.textContent = txt;
+    const shopGold = document.getElementById('shop-gold');
+    if (shopGold) shopGold.textContent = (Number(g.gold) || 0) + ' G';
+  }
+
+  refreshWeapon() {
+    const p = this.game.player;
+    if (!p) return;
+    if (this.dom.weaponTag) this.dom.weaponTag.textContent = p.weaponName || p.cls.weaponName.split(' ')[0];
+  }
+
   flashSkill(key) {
     const s = this.skillSlots[key];
     if (!s) return;
@@ -176,6 +240,8 @@ export class HUD {
     this.dom.classBadge.textContent = c.name;
     this.dom.weaponTag.textContent = c.weaponName.split(' ')[0];
     this.buildSkillBar(player);
+    this.refreshPotions();
+    this.updateGold();
     this.refreshBars();
     this.dom.startOverlay.classList.add('hidden');
     const hudRoot = document.getElementById('hud');
@@ -195,7 +261,10 @@ export class HUD {
     this.dom.xpFill.style.width = (xpP * 100).toFixed(1) + '%';
     this.dom.xpText.textContent = Math.floor(p.xp) + ' / ' + p.xpNext;
     this.dom.levelText.textContent = 'Lv.' + p.level;
-    this.dom.statRow.textContent = '공격력 ' + p.damage.toFixed(1) + ' · 이동속도 ' + Math.round(p.moveSpeed);
+    const bonus = p.weaponBonus > 0 ? ' (+' + p.weaponBonus + ')' : '';
+    this.dom.statRow.textContent = '공격력 ' + p.damage.toFixed(1) + bonus + ' · 이동속도 ' + Math.round(p.moveSpeed);
+    this.updateGold();
+    this.refreshPotions();
   }
 
   update(dt) {
@@ -210,6 +279,7 @@ export class HUD {
     const buffs = [];
     if (p.buffs.fortress > 0) buffs.push(['철벽 태세 ' + p.buffs.fortress.toFixed(1) + 's', '']);
     if (p.buffs.haste > 0) buffs.push(['신속 ' + p.buffs.haste.toFixed(1) + 's', 'frost']);
+    if (p.buffs.elixir > 0) buffs.push(['전투의 비약 +35% ' + Math.ceil(p.buffs.elixir) + 's', 'attack']);
     if (buffs.length !== this._buffCount) {
       this.dom.buffRow.innerHTML = buffs.map((b) => '<span class="buff ' + b[1] + '">' + b[0] + '</span>').join('');
     } else if (buffs.length) {
@@ -308,9 +378,12 @@ export class HUD {
     const ctx = this.minimapCtx;
     const W = this.dom.minimap.width;
     const H = this.dom.minimap.height;
-    const scale = W / 3000;
-    const toPx = (x) => (x + 1500) * scale;
-    const toPy = (z) => (z + 1500) * scale;
+    // 세계는 서쪽으로 태초마을만큼 더 넓다 (x -2500 ~ 1500, z -1500 ~ 1500)
+    const scale = Math.min(W / 4000, H / 3000);
+    const offX = (W - 4000 * scale) / 2;
+    const offY = (H - 3000 * scale) / 2;
+    const toPx = (x) => offX + (x + 2500) * scale;
+    const toPy = (z) => offY + (z + 1500) * scale;
     ctx.clearRect(0, 0, W, H);
 
     // 배경
@@ -456,14 +529,14 @@ export class HUD {
   floater(text, worldPos, kind, scale) {
     if (this.floaters.length > 34) return;
     const el = document.createElement('div');
-    el.className = 'floater' + (kind === 'crit' ? ' crit' : kind === 'hurt' ? ' hurt' : kind === 'heal' ? ' heal' : kind === 'xp' ? ' xp' : '');
+    el.className = 'floater' + (kind === 'crit' ? ' crit' : kind === 'hurt' ? ' hurt' : kind === 'heal' ? ' heal' : kind === 'xp' ? ' xp' : kind === 'gold' ? ' gold' : '');
     el.textContent = text;
     this.dom.floaters.appendChild(el);
     const f = {
       el,
-      pos: new THREE.Vector3(worldPos.x, worldPos.y + (kind === 'xp' ? 6 : 0), worldPos.z),
-      life: kind === 'xp' ? 1.3 : 0.9,
-      maxLife: kind === 'xp' ? 1.3 : 0.9,
+      pos: new THREE.Vector3(worldPos.x, worldPos.y + (kind === 'xp' ? 6 : kind === 'gold' ? 12 : 0), worldPos.z),
+      life: kind === 'xp' || kind === 'gold' ? 1.3 : 0.9,
+      maxLife: kind === 'xp' || kind === 'gold' ? 1.3 : 0.9,
       scale: scale || 1,
       offX: (Math.random() - 0.5) * 26,
     };
@@ -509,7 +582,7 @@ export class HUD {
     } else {
       d.endEyebrow.textContent = 'DEFEATED';
       d.endTitle.textContent = '쓰러졌습니다…';
-      d.endLead.textContent = '다시 일어나 정글 사원에 도전해 보세요. 레벨과 장비는 그대로 유지됩니다.';
+      d.endLead.textContent = '태초마을 광장에서 다시 일어납니다. 레벨 · 장비 · 포션은 그대로 유지되니 상점에서 정비하고 다시 도전해 보세요.';
       d.endPrimary.textContent = '부활하기';
     }
     d.endStats.innerHTML = stats.map((s) =>

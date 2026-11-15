@@ -1,7 +1,7 @@
 // 몹: 슬라임 · 좀비 · 하이에나 · 고릴라 · 고대 골렘(보스) + AI
 import * as THREE from 'three';
 import { BIOMES, BIOME_ORDER, MOB_TYPES, BOSS_POS } from './config.js';
-import { terrainHeight, clamp, damp, dampAngle, rand, TAU, lerp } from './utils.js';
+import { terrainHeight, clamp, damp, dampAngle, rand, TAU, lerp, WORLD } from './utils.js';
 
 function mkMesh(geo, mat, x, y, z) {
   const m = new THREE.Mesh(geo, mat);
@@ -339,6 +339,11 @@ export class Mob {
       p.kills++;
       this.game.hud.floater('+' + this.type.xp + ' XP', new THREE.Vector3(this.position.x, this.position.y + this.height, this.position.z), 'xp', 1.5);
     }
+    // 골드 드랍 (상점에서 무기 · 포션 구매)
+    const gold = this.type.gold || 0;
+    if (gold > 0 && typeof this.game.addGold === 'function') {
+      this.game.addGold(gold, this.position);
+    }
     this.game.effects.burst(new THREE.Vector3(this.position.x, this.position.y + this.height * 0.5, this.position.z), this.type.boss ? 0x9fe8ff : 0xffcf8a, this.type.boss ? 40 : 14, { power: this.type.boss ? 60 : 26, size: this.type.boss ? 2.2 : 0.8 });
     if (this.type.boss) {
       this.game.onBossDefeated();
@@ -495,10 +500,12 @@ export class Mob {
       }
     }
 
+    // 태초마을은 안전 지대 — 몬스터는 마을로 들어오지 않는다
+    if (this.biomeId !== 'village' && this.position.x < -1492) this.position.x = -1492;
+
     // 지형 · 경계
-    const B = 1460;
-    this.position.x = clamp(this.position.x, -B, B);
-    this.position.z = clamp(this.position.z, -B, B);
+    this.position.x = clamp(this.position.x, WORLD.xMin + 10, WORLD.xMax - 10);
+    this.position.z = clamp(this.position.z, WORLD.zMin + 10, WORLD.zMax - 10);
     this.position.y = terrainHeight(this.position.x, this.position.z);
     this.root.position.copy(this.position);
     this.root.rotation.y = this.facing;
@@ -640,6 +647,7 @@ export class MobManager {
     for (const id of BIOME_ORDER) {
       const biome = BIOMES[id];
       const typeId = biome.mob;
+      if (!typeId || !MOB_TYPES[typeId] || !biome.mobCount) continue; // 태초마을: 평화 지대
       if (MOB_TYPES[typeId].boss) {
         this.spawn(typeId, BOSS_POS, id);
         continue;

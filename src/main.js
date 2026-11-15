@@ -1,7 +1,7 @@
 // 게임 진입점: 렌더러 · 월드 · 입력 · 카메라 · 상태 관리
 import * as THREE from 'three';
-import { BIOMES, BIOME_ORDER, CLASSES, PLAYER_SIZE } from './config.js';
-import { buildWorld, updateSun } from './world.js';
+import { BIOMES, BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD } from './config.js';
+import { buildWorld, updateSun, updateVillage } from './world.js';
 import { Player } from './player.js';
 import { MobManager } from './mobs.js';
 import { Combat } from './combat.js';
@@ -9,6 +9,7 @@ import { Effects } from './effects.js';
 import { HUD } from './hud.js';
 import { Sfx } from './audio.js';
 import { castSkill } from './skills.js';
+import { Shop } from './shop.js';
 import { terrainHeight, clamp, damp, lerp, biomeWeights, regionAt } from './utils.js';
 
 // 터치 목록에서 identifier가 같은 손가락을 찾는다.
@@ -36,6 +37,8 @@ class Game {
     this.playTime = 0;
     this.elapsed = 0;
     this.player = null;
+    this.gold = START_GOLD;
+    this.nearShop = false;
     this.victoryTimer = -1;
     this.deathTimer = -1;
     this.pointerLockBroken = false;
@@ -89,15 +92,19 @@ class Game {
     this.mobManager = new MobManager(this);
     this.hud = new HUD(this);
     this.sfx = new Sfx();
+    this.shop = new Shop(this);
 
     this.bindInput();
     this.bindTouch();
     this.resize();
 
-    // 디버그용: ?class=warrior&biome=temple 로 바로 시작
+    // 디버그용: ?class=warrior&biome=temple 로 바로 시작, ?x=&z= 로 위치 지정
     const qp = new URLSearchParams(window.location.search);
     this.startBiome = qp.get('biome');
     this.autoClass = qp.get('class');
+    const qx = parseFloat(qp.get('x'));
+    const qz = parseFloat(qp.get('z'));
+    this.debugSpawn = (isFinite(qx) && isFinite(qz)) ? { x: qx, z: qz } : null;
     if (this.autoClass && CLASSES[this.autoClass]) {
       setTimeout(() => this.startClass(this.autoClass), 350);
     }
@@ -122,16 +129,32 @@ class Game {
 
     window.addEventListener('keydown', (e) => {
       const k = e.key ? e.key.toLowerCase() : '';
+      // 상점 모달이 열려 있는 동안은 이동 · 공격 입력을 막는다
+      if (this.state === 'shop') {
+        if (k === 'escape' || k === 'f') this.closeShop();
+        return;
+      }
       if (k === 'w' || k === 'arrowup') { this.input.forward = true; }
       if (k === 's' || k === 'arrowdown') { this.input.back = true; }
       if (k === 'a' || k === 'arrowleft') { this.input.left = true; }
       if (k === 'd' || k === 'arrowright') { this.input.right = true; }
       if (k === 'shift') this.input.sprint = true;
       if (e.code === 'Space') { this.input.jump = true; e.preventDefault(); }
-      if (k === 'j' || k === 'f') { if (this.state === 'playing' && this.player) this.player.attack(); }
+      if (k === 'j') { if (this.state === 'playing' && this.player) this.player.attack(); }
+      if (k === 'f') {
+        if (this.state === 'playing' && this.player) {
+          if (this.nearShop) this.openShop();
+          else this.player.attack();
+        }
+      }
       if (k === 'q') { if (this.state === 'playing' && this.player) this.player.useSkill('q'); }
       if (k === 'e') { if (this.state === 'playing' && this.player) this.player.useSkill('e'); }
       if (k === 'escape' && document.exitPointerLock) document.exitPointerLock();
+      // 포션 빠른 사용: 1 / 2 / 3
+      if (this.state === 'playing' && this.player) {
+        const pid = { '1': 'potion-hp', '2': 'potion-hp-big', '3': 'potion-atk' }[k];
+        if (pid) { this.usePotion(pid); e.preventDefault(); return; }
+      }
       if (k === '1' || k === '2' || k === '3' || k === '4' || k === '5') {
         if (this.state === 'menu') {
           const order = ['warrior', 'archer', 'rogue', 'tanker', 'mage'];
@@ -440,6 +463,20 @@ class Game {
     bindBtn('tbtn-q', () => this.player.useSkill('q'));
     bindBtn('tbtn-e', () => this.player.useSkill('e'));
     bindBtn('tbtn-jump', () => { this.input.jump = true; });
+    bindBtn('tbtn-potion-1', () => this.usePotion('potion-hp'));
+    bindBtn('tbtn-potion-2', () => this.usePotion('potion-hp-big'));
+    bindBtn('tbtn-potion-3', () => this.usePotion('potion-atk'));
+
+    // 상점 프롬프트 자체가 버튼 (데스크톱 채팅 · iPad 탭 모두)
+    const prompt = document.getElementById('shop-prompt');
+    if (prompt) {
+      const openShop = (e) => {
+        if (e.cancelable) e.preventDefault();
+        if (this.state === 'playing' && this.player) this.openShop();
+      };
+      prompt.addEventListener('click', openShop);
+      prompt.addEventListener('touchstart', openShop, { passive: false });
+    }
   }
 
   resize() {
@@ -460,18 +497,27 @@ class Game {
       this.effects.clear();
     }
     this.player = new Player(this, classId);
-    const biomeId = (this.startBiome && BIOMES[this.startBiome]) ? this.startBiome : 'forest';
+    // 기본 시작 지점은 태초마을 (디버그 ?biome= / ?x=&z= 로 바꿀 수 있다)
+    const biomeId = (this.startBiome && BIOMES[this.startBiome]) ? this.startBiome : 'village';
     let spawn;
     let yaw = -Math.PI / 2 + 0.25;
-    if (biomeId === 'temple') {
+    if (this.debugSpawn) {
+      spawn = this.debugSpawn;
+    } else if (biomeId === 'temple') {
       spawn = { x: 0, z: 372 };
       yaw = 0;
+    } else if (biomeId === 'village') {
+      spawn = BIOMES.village.spawn;
+      yaw = 0; // 북쪽(광장 · 상점)을 바라보는 시점
     } else if (BIOMES[biomeId].spawn) {
       spawn = BIOMES[biomeId].spawn;
     } else {
       spawn = BIOMES[biomeId].center;
     }
     this.player.spawnAt(spawn.x, spawn.z);
+    if (biomeId === 'village' && !this.debugSpawn) this.player.facing = Math.PI;
+    this.gold = START_GOLD;
+    this.nearShop = false;
     this.camYaw = yaw;
     this.camPitch = 0.22;
     this.camDist = 56;
@@ -502,12 +548,15 @@ class Game {
 
   resetRun() {
     if (!this.player) return;
-    const spawn = BIOMES.forest.spawn;
+    // 부활하면 태초마을(광장 앞)에서 체력을 회복하고 다시 시작한다
+    const spawn = BIOMES.village.spawn;
     this.player.spawnAt(spawn.x, spawn.z);
+    this.player.facing = Math.PI;
     this.player.hp = this.player.maxHp;
     this.mobManager.resetAggro();
     this.hud.hideEnd();
     this.hud.refreshBars();
+    this.hud.banner('태초마을에서 다시 일어났습니다', 2000);
     this.state = 'playing';
     this.deathTimer = -1;
   }
@@ -556,6 +605,86 @@ class Game {
     this.hud.banner('쓰러졌습니다…', 1800);
   }
 
+  /* --------------------------- 태초마을 상점 --------------------------- */
+  isNearShop() {
+    const p = this.player;
+    if (!p || !p.alive) return false;
+    const inter = BIOMES.village.shop.interact;
+    return Math.hypot(p.position.x - inter.x, p.position.z - inter.z) <= inter.radius;
+  }
+
+  updateShopProximity() {
+    const near = this.state === 'playing' && this.isNearShop();
+    if (near === this.nearShop) return;
+    this.nearShop = near;
+    const el = document.getElementById('shop-prompt');
+    if (el) el.classList.toggle('on', near);
+    const tBtn = document.getElementById('tbtn-shop');
+    if (tBtn) tBtn.classList.toggle('on', near);
+  }
+
+  openShop() {
+    if (this.state !== 'playing' || !this.player) return;
+    this.state = 'shop';
+    this.input.forward = false;
+    this.input.back = false;
+    this.input.left = false;
+    this.input.right = false;
+    this.input.sprint = false;
+    this.input.jump = false;
+    if (document.exitPointerLock) document.exitPointerLock();
+    if (this.shop) this.shop.open();
+    this.sfx.shop();
+    this.hud.setCrosshair(false);
+    this.nearShop = false;
+    const el = document.getElementById('shop-prompt');
+    if (el) el.classList.remove('on');
+  }
+
+  closeShop() {
+    if (this.shop) this.shop.close();
+    if (this.state !== 'shop') return;
+    this.state = 'playing';
+    this.nearShop = false;
+    this.updateShopProximity();
+    if (!this.isTouch && !this.pointerLockBroken && this.renderer && this.renderer.domElement.requestPointerLock) {
+      const req = this.renderer.domElement.requestPointerLock();
+      if (req && req.catch) req.catch(() => { this.pointerLockBroken = true; });
+    }
+    this.hud.refreshBars();
+    this.hud.refreshPotions();
+  }
+
+  addGold(amount, pos) {
+    const n = Math.max(0, Math.round(amount));
+    if (!n) return;
+    this.gold += n;
+    if (pos) this.hud.floater('+' + n + 'G', pos, 'gold', 1.6);
+    this.sfx.coin();
+    this.hud.updateGold();
+  }
+
+  usePotion(id) {
+    const p = this.player;
+    if (!p) return { ok: false, msg: '' };
+    const res = p.usePotion(id);
+    this.hud.refreshPotions();
+    this.hud.refreshBars();
+    if (!res.ok && res.msg) this.hud.banner(res.msg, 1200);
+    return res;
+  }
+
+  onWeaponBought(weapon) {
+    this.hud.refreshBars();
+    this.hud.refreshWeapon();
+    this.hud.banner(weapon.name + ' 장착!', 1500);
+    if (this.effects && this.player) this.effects.ring(this.player.position, 0xffd24a, 64, { duration: 0.7 });
+  }
+
+  onPotionBought() {
+    this.hud.refreshPotions();
+  }
+
   /* ------------------------------- 루프 ------------------------------- */
   tick(now) {
     requestAnimationFrame((t) => this.tick(t));
@@ -588,6 +717,16 @@ class Game {
     if (this.state === 'menu') {
       this.updateMenuCamera(dt);
       this.effects.update(dt);
+      updateVillage(this.world, dt, this.elapsed);
+      return;
+    }
+
+    // 상점 창이 열려 있는 동안은 이동 · 전투를 잠시 멈춘다
+    if (this.state === 'shop') {
+      this.placeCamera(false, dt);
+      this.updateEnvironment(dt);
+      this.hud.update(dt);
+      updateVillage(this.world, dt, this.elapsed);
       return;
     }
 
@@ -606,6 +745,8 @@ class Game {
     this.placeCamera(false, dt);
     this.updateEnvironment(dt);
     this.hud.update(dt);
+    this.updateShopProximity();
+    updateVillage(this.world, dt, this.elapsed);
 
     // 타이머 상태 전환
     if (this.deathTimer > 0) {
@@ -634,6 +775,7 @@ class Game {
       [CLASSES[p.classId].name, '선택 직업'],
       ['Lv.' + p.level, '최종 레벨'],
       [String(p.kills), '처치한 몬스터'],
+      [String(this.gold) + 'G', '보유 골드'],
       [mins + '분 ' + String(secs).padStart(2, '0') + '초', '탐험 시간'],
     ];
   }
@@ -641,7 +783,7 @@ class Game {
   /* ------------------------------ 카메라 ------------------------------ */
   updateMenuCamera(dt) {
     const t = this.elapsed;
-    const spawn = BIOMES.forest.spawn;
+    const spawn = BIOMES.village.spawn; // 메뉴 배경: 태초마을
     const r = 170;
     const x = spawn.x + Math.cos(t * 0.12) * r;
     const z = spawn.z + Math.sin(t * 0.12) * r;
@@ -740,10 +882,18 @@ class Game {
       mobs: this.mobManager ? this.mobManager.mobs.length : 0,
       aliveMobs: this.mobManager ? this.mobManager.mobs.filter((m) => !m.dead).length : 0,
       bossHp: this.mobManager && this.mobManager.boss() ? this.mobManager.boss().hp : null,
+      gold: this.gold,
+      nearShop: !!this.nearShop,
+      shopOpen: this.state === 'shop',
       player: this.player ? {
         classId: this.player.classId, hp: Math.round(this.player.hp), level: this.player.level,
         x: Math.round(this.player.position.x), z: Math.round(this.player.position.z),
         anim: this.player.anim.name,
+        gold: this.gold,
+        weaponTier: this.player.weaponTier,
+        weaponName: this.player.weaponName,
+        damage: Math.round(this.player.damage * 10) / 10,
+        potions: Object.assign({}, this.player.potions),
       } : null,
       region: this.regionId || null,
       touch: this.touchMode === undefined ? null : {

@@ -82,4 +82,8 @@ export class Sfx {
   }
   death() { [330, 262, 196, 147].forEach((f, i) => this.tone({ freq: f, dur: 0.4, type: 'sine', vol: 0.22, delay: i * 0.14 })); }
   gate() { this.tone({ freq: 300, to: 420, dur: 0.4, type: 'sine', vol: 0.16 }); }
+  coin() { this.tone({ freq: 880, dur: 0.09, type: 'triangle', vol: 0.2 }); this.tone({ freq: 1320, dur: 0.12, type: 'triangle', vol: 0.16, delay: 0.07 }); }
+  potion() { this.tone({ freq: 300, to: 760, dur: 0.26, type: 'sine', vol: 0.22 }); this.noise(0.14, 0.08, 2600); }
+  shop() { this.tone({ freq: 660, dur: 0.1, type: 'triangle', vol: 0.18 }); this.tone({ freq: 990, dur: 0.16, type: 'triangle', vol: 0.14, delay: 0.08 }); }
+  buy() { this.tone({ freq: 520, dur: 0.1, type: 'square', vol: 0.16 }); this.tone({ freq: 1040, dur: 0.2, type: 'triangle', vol: 0.18, delay: 0.09 }); }
 }

@@ -1,10 +1,25 @@
 // 플레이어: 직업별 3D 리그, 이동, 절차적 애니메이션(공격/스킬/피격)
 import * as THREE from 'three';
-import { CLASSES } from './config.js';
+import { CLASSES, SHOP } from './config.js';
 import { buildWeapons } from './weapons.js';
 import {
-  clamp, damp, dampAngle, lerp, smoothstep, terrainHeight, clampToWorld, TAU,
+  clamp, damp, dampAngle, lerp, smoothstep, terrainHeight, clampToWorld, TAU, disposeObject,
 } from './utils.js';
+
+// 손에 쥐는 무기의 위치·회전 (직업별)
+const WEAPON_POSE = {
+  warrior: { r: { p: [-0.4, -1.0, 0.55], r: [0.14, 0, 0.46] } },
+  archer: { l: { p: [1.35, -0.6, 0.5], r: [0.05, 0.72, -0.22] } },
+  rogue: {
+    r: { p: [-0.25, -0.8, 0.4], r: [0.12, 0, 0.26] },
+    l: { p: [0.25, -0.8, 0.4], r: [0.12, 0, -0.26] },
+  },
+  tanker: {
+    r: { p: [-0.3, -0.8, 0.35], r: [0.1, 0, 0.32] },
+    l: { p: [0.7, -0.5, 0.25], r: [0, -Math.PI / 2, 0.12] },
+  },
+  mage: { r: { p: [-0.2, -0.85, 0.45], r: [0.1, 0, 0.22] } },
+};
 
 const POSE_KEYS = [
   'bodyY', 'bodyPitch', 'bodyRoll', 'spinY',
@@ -184,7 +199,12 @@ export class Player {
     this.level = 1;
     this.maxHp = this.cls.hp;
     this.hp = this.maxHp;
-    this.damage = this.cls.damage;
+    this.baseDamage = this.cls.damage;
+    this.weaponTier = 0;
+    this.weaponBonus = 0;
+    this.weaponName = this.cls.weaponName.split(' ')[0];
+    this.critChance = this.cls.critChance;
+    this.potions = Object.assign({}, SHOP.starterPotions);
     this.xp = 0;
     this.xpNext = 70;
     this.state = 'alive';
@@ -202,7 +222,7 @@ export class Player {
 
     this.attackCooldown = 0;
     this.cooldowns = { q: 0, e: 0 };
-    this.buffs = { fortress: 0, haste: 0, frost: 0 };
+    this.buffs = { fortress: 0, haste: 0, frost: 0, elixir: 0 };
     this.invuln = 0;
     this.dash = null;
     this.anim = { name: null, time: 0, duration: 1 };
@@ -319,21 +339,27 @@ export class Player {
     this.addHeadgear(mk);
 
     // 무기 (손 위치에서 몸 바깥쪽으로 기울여 어깨 견갑에 가리지 않게)
-    const w = buildWeapons(this.classId);
-    this.weapons = w;
-    const WEAPON_POSE = {
-      warrior: { r: { p: [-0.4, -1.0, 0.55], r: [0.14, 0, 0.46] } },
-      archer: { l: { p: [1.35, -0.6, 0.5], r: [0.05, 0.72, -0.22] } },
-      rogue: {
-        r: { p: [-0.25, -0.8, 0.4], r: [0.12, 0, 0.26] },
-        l: { p: [0.25, -0.8, 0.4], r: [0.12, 0, -0.26] },
-      },
-      tanker: {
-        r: { p: [-0.3, -0.8, 0.35], r: [0.1, 0, 0.32] },
-        l: { p: [0.7, -0.5, 0.25], r: [0, -Math.PI / 2, 0.12] },
-      },
-      mage: { r: { p: [-0.2, -0.85, 0.45], r: [0.1, 0, 0.22] } },
-    };
+    this.equipWeaponTier(0, true);
+
+    // 그림자 접지
+    this.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    this.game.scene.add(this.root);
+  }
+
+  /* --------------------------- 무기 교체 --------------------------- */
+  // tier 0 = 기본 장비, 1 = Tier 2, 2 = Tier 3 — 손의 무기 메시를 새로 만들어 갈아끼운다
+  equipWeaponTier(tier, initial) {
+    const t = clamp(Math.round(tier || 0), 0, 2);
+    const old = this.weapons;
+    if (old && !initial) {
+      for (const side of ['right', 'left']) {
+        const w = old[side];
+        if (!w) continue;
+        if (w.parent) w.parent.remove(w);
+        disposeObject(w);
+      }
+    }
+    const w = buildWeapons(this.classId, t);
     const wp = WEAPON_POSE[this.classId] || {};
     if (w.right) {
       const cfg = wp.r || { p: [0, -0.7, 0.2], r: [0, 0, 0] };
@@ -347,10 +373,9 @@ export class Player {
       w.left.rotation.set(cfg.r[0], cfg.r[1], cfg.r[2]);
       this.handL.add(w.left);
     }
-
-    // 그림자 접지
-    this.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    this.game.scene.add(this.root);
+    this.weapons = w;
+    this.weaponTier = t;
+    return w;
   }
 
   addHeadgear(mk) {
@@ -380,6 +405,12 @@ export class Player {
 
   /* ------------------------------ 상태 API ------------------------------ */
   get alive() { return this.state === 'alive'; }
+  // 기본 공격력 + 장비 보너스, 전투의 비약은 20초간 +35%
+  get damage() {
+    const base = this.baseDamage + this.weaponBonus;
+    return this.buffs && this.buffs.elixir > 0 ? base * 1.35 : base;
+  }
+  set damage(v) { this.baseDamage = v; }
   get moveSpeed() {
     let s = this.cls.speed;
     if (this.buffs.haste > 0) s *= 1.3;
@@ -397,6 +428,7 @@ export class Player {
     this.buffs.fortress = 0;
     this.buffs.haste = 0;
     this.buffs.frost = 0;
+    this.buffs.elixir = 0;
     this.attackCooldown = 0;
     this.cooldowns.q = 0;
     this.cooldowns.e = 0;
@@ -443,7 +475,7 @@ export class Player {
     if (!this.alive) return;
     const dir = this.forward();
     const cls = this.cls;
-    const critChance = cls.critChance;
+    const critChance = this.critChance;
     if (cls.projectile === 'arrow') {
       this.game.combat.fireArrow(this, dir, {
         damage: this.damage, speed: 420, range: 340, critChance,
@@ -487,10 +519,42 @@ export class Player {
   }
 
   heal(amount) {
-    if (!this.alive) return;
+    if (!this.alive) return 0;
+    const before = this.hp;
     this.hp = Math.min(this.maxHp, this.hp + amount);
-    this.game.hud.floater('+' + Math.round(amount), this.position, 'heal', 3);
+    const gained = this.hp - before;
+    if (gained > 0) this.game.hud.floater('+' + Math.round(gained), this.position, 'heal', 3);
     this.game.hud.refreshBars();
+    return gained;
+  }
+
+  /* ---------------------------- 포션 ---------------------------- */
+  potionCount(id) { return Math.max(0, this.potions[id] || 0); }
+
+  // 포션 사용 — 실제로 효과가 있을 때만 1개 소모한다
+  usePotion(id) {
+    const def = SHOP.potions.find((p) => p.id === id);
+    if (!def) return { ok: false, msg: '알 수 없는 포션입니다' };
+    if (!this.alive) return { ok: false, msg: '지금은 사용할 수 없습니다' };
+    if (this.potionCount(id) <= 0) return { ok: false, msg: def.name + '이(가) 없습니다' };
+
+    if (def.heal) {
+      if (this.hp >= this.maxHp - 0.5) return { ok: false, msg: '체력이 이미 가득 찼습니다' };
+      this.heal(def.heal);
+      this.potions[id] = this.potionCount(id) - 1;
+      this.game.sfx.potion();
+      return { ok: true, msg: def.name + ' 사용 · HP ' + Math.round(this.hp) + '/' + Math.round(this.maxHp) };
+    }
+    if (def.buff) {
+      this.buffs[def.buff] = def.duration;
+      this.potions[id] = this.potionCount(id) - 1;
+      this.game.sfx.potion();
+      if (this.game.effects) this.game.effects.aura(this.root, 0xffb347, 7, 14, 12);
+      if (this.game.effects) this.game.effects.ring(this.position, 0xffb347, 46, { duration: 0.6 });
+      this.game.hud.floater('공격력 +35%', this.position, 'xp', 2.4);
+      return { ok: true, msg: def.name + ' 사용 · ' + def.duration + '초간 공격력 +35%' };
+    }
+    return { ok: false, msg: '사용 효과가 없는 포션입니다' };
   }
 
   die() {
@@ -508,7 +572,7 @@ export class Player {
       this.level++;
       this.xpNext = Math.round(this.xpNext * 1.35 + 18);
       this.maxHp += 16;
-      this.damage += 2.4;
+      this.baseDamage += 2.4;
       this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.35);
       this.game.sfx.levelup();
       this.game.hud.banner('레벨 업!  Lv.' + this.level, 1900);
@@ -532,6 +596,7 @@ export class Player {
     }
     if (this.buffs.haste > 0) this.buffs.haste = Math.max(0, this.buffs.haste - dt);
     if (this.buffs.frost > 0) this.buffs.frost = Math.max(0, this.buffs.frost - dt);
+    if (this.buffs.elixir > 0) this.buffs.elixir = Math.max(0, this.buffs.elixir - dt);
     if (this.hurtTint > 0) {
       this.hurtTint = Math.max(0, this.hurtTint - dt);
       const t = clamp(this.hurtTint / 0.32, 0, 1);
@@ -727,9 +792,9 @@ export class Player {
     const w = this.weapons;
     if (w && w.right && this.classId === 'mage') {
       const attacking = this.anim.name === 'cast' || this.anim.name === 'explosion';
-      const orb = w.right.children[w.right.children.length - 2];
-      if (orb && orb.material && orb.material.emissiveIntensity !== undefined) {
-        orb.material.emissiveIntensity = attacking ? 3.4 : 2.0 + Math.sin(this.time * 3) * 0.4;
+      const orbMat = w.right.userData.orbMat;
+      if (orbMat && orbMat.emissiveIntensity !== undefined) {
+        orbMat.emissiveIntensity = attacking ? 3.4 : 2.0 + Math.sin(this.time * 3) * 0.4;
       }
     }
     if (w && w.left && this.classId === 'archer') {

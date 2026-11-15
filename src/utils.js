@@ -71,13 +71,19 @@ export function fbm(x, y, octaves) {
    세계 좌표계
    - 각 바이옴은 1000 x 1000 월드 단위
    - 중앙 정글 사원(0,0)을 네 방향이 감싸는 십자 구조
-       서쪽: 쾌적한 숲 / 동쪽: 사바나 / 북쪽: 무덤 / 남쪽: 정글
+       서쪽: 쾌적한 숲(-1000) → 그 서쪽: 태초마을(-2000)
+       동쪽: 사바나 / 북쪽: 무덤 / 남쪽: 정글
+   - x축은 서쪽으로 한 칸 더 길다 (태초마을) → 비대칭 경계
 ------------------------------------------------------------------ */
 export const WORLD = {
   cell: 1000,
   halfCell: 500,
-  half: 1500,
-  bound: 1470,
+  half: 2500,          // 가장 먼 x 거리(서쪽)
+  bound: 2470,
+  xMin: -2470,
+  xMax: 1470,
+  zMin: -1470,
+  zMax: 1470,
 };
 
 export function terrainHeight(x, z) {
@@ -92,25 +98,30 @@ export function terrainHeight(x, z) {
   const flat = smoothstep(10, 150, dEdge);
   h *= 1 - flat * 0.99;
 
-  // 세계 외곽은 완만하게 낮춤
-  const border = Math.min(WORLD.half - Math.abs(x), WORLD.half - Math.abs(z));
+  // 태초마을 광장 · 상점 터는 평평하게 (건물을 올리기 위해)
+  const dVillage = Math.hypot(x + 2000, z);
+  const flatVillage = smoothstep(540, 300, dVillage);
+  h *= 1 - flatVillage * 0.94;
+
+  // 세계 외곽(가장자리)은 완만하게 낮춤 — 태초마을이 서쪽으로 한 칸 더 넓다
+  const border = Math.min(x + 2500, 1500 - x, z + 1500, 1500 - z);
   h *= smoothstep(0, 90, border);
   return h;
 }
 
 export function regionAt(x, z) {
   if (Math.abs(x) <= WORLD.halfCell && Math.abs(z) <= WORLD.halfCell) return 'temple';
-  if (x < -WORLD.halfCell) return 'forest';
+  if (x < -WORLD.halfCell) return x < -1500 ? 'village' : 'forest';
   if (x > WORLD.halfCell) return 'savanna';
   if (z < -WORLD.halfCell) return 'graveyard';
-  return 'jungle';
+  if (z > WORLD.halfCell) return 'jungle';
+  return 'forest';
 }
 
 // 십자 형태의 통행 가능 영역으로 위치를 제한
 export function clampToWorld(p) {
-  const B = WORLD.bound;
-  p.x = clamp(p.x, -B, B);
-  p.z = clamp(p.z, -B, B);
+  p.x = clamp(p.x, WORLD.xMin, WORLD.xMax);
+  p.z = clamp(p.z, WORLD.zMin, WORLD.zMax);
   const ax = Math.abs(p.x), az = Math.abs(p.z);
   if (ax > WORLD.halfCell && az > WORLD.halfCell) {
     if (ax - WORLD.halfCell < az - WORLD.halfCell) {
@@ -123,7 +134,7 @@ export function clampToWorld(p) {
 }
 
 export function isInsideWorld(x, z) {
-  if (Math.abs(x) > WORLD.half || Math.abs(z) > WORLD.half) return false;
+  if (x < WORLD.xMin || x > WORLD.xMax || z < WORLD.zMin || z > WORLD.zMax) return false;
   return Math.abs(x) <= WORLD.halfCell || Math.abs(z) <= WORLD.halfCell;
 }
 

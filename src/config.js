@@ -3,6 +3,35 @@
 export const GROUND_Y = 0;
 
 export const BIOMES = {
+  village: {
+    id: 'village',
+    name: '태초마을',
+    en: 'Starter Village',
+    short: '마을',
+    center: { x: -2000, z: 0 },
+    bounds: { x0: -2500, x1: -1500, z0: -500, z1: 500 },
+    ground: 0x77a850,
+    ground2: 0x5d8b3e,
+    edge: 0x4d7534,
+    minimap: '#93c268',
+    sky: 0x9ed8f5,
+    fog: 0xd6ecf2,
+    fogNear: 360,
+    fogFar: 1650,
+    sun: 0xfff6dd,
+    sunIntensity: 2.3,
+    hemiSky: 0xe4f2ff,
+    hemiGround: 0x4f6d3a,
+    hemiIntensity: 0.86,
+    mob: null,
+    mobCount: 0,
+    peaceful: true,
+    landmark: '마을 광장',
+    landmarkPos: { x: -2000, z: 0 },
+    spawn: { x: -2000, z: 95 },
+    // 상점 건물 중심 · 상호작용 지점
+    shop: { x: -2000, z: -140, radius: 132, interact: { x: -2000, z: -78, radius: 74 } },
+  },
   forest: {
     id: 'forest',
     name: '쾌적한 숲',
@@ -131,35 +160,38 @@ export const BIOMES = {
   },
 };
 
-export const BIOME_ORDER = ['forest', 'graveyard', 'savanna', 'jungle', 'temple'];
+export const BIOME_ORDER = ['village', 'forest', 'graveyard', 'savanna', 'jungle', 'temple'];
 
 // 미니맵 · 나침반에서 사용할 지역 목록 (사원 우선 표시)
-export const COMPASS_ORDER = ['temple', 'forest', 'graveyard', 'savanna', 'jungle'];
+export const COMPASS_ORDER = ['temple', 'village', 'forest', 'graveyard', 'savanna', 'jungle'];
+
+// 시작 골드
+export const START_GOLD = 100;
 
 export const MOB_TYPES = {
   slime: {
     id: 'slime', name: '슬라임', hp: 46, damage: 7, speed: 20, aggro: 120,
-    attackRange: 24, attackCooldown: 1.7, xp: 16, height: 12, radius: 6,
+    attackRange: 24, attackCooldown: 1.7, xp: 16, gold: 15, height: 12, radius: 6,
     leash: 260, kind: 'slime',
   },
   zombie: {
     id: 'zombie', name: '좀비', hp: 74, damage: 11, speed: 30, aggro: 150,
-    attackRange: 28, attackCooldown: 1.9, xp: 26, height: 18, radius: 6,
+    attackRange: 28, attackCooldown: 1.9, xp: 26, gold: 30, height: 18, radius: 6,
     leash: 300, kind: 'humanoid',
   },
   hyena: {
     id: 'hyena', name: '하이에나', hp: 82, damage: 13, speed: 54, aggro: 190,
-    attackRange: 26, attackCooldown: 1.35, xp: 32, height: 12, radius: 6,
+    attackRange: 26, attackCooldown: 1.35, xp: 32, gold: 45, height: 12, radius: 6,
     leash: 360, kind: 'quadruped',
   },
   gorilla: {
     id: 'gorilla', name: '고릴라', hp: 158, damage: 19, speed: 38, aggro: 170,
-    attackRange: 32, attackCooldown: 2.1, xp: 52, height: 20, radius: 8,
+    attackRange: 32, attackCooldown: 2.1, xp: 52, gold: 70, height: 20, radius: 8,
     leash: 320, kind: 'gorilla',
   },
   golem: {
     id: 'golem', name: '고대 골렘', hp: 1500, damage: 34, speed: 22, aggro: 320,
-    attackRange: 78, attackCooldown: 2.9, xp: 1500, height: 48, radius: 18,
+    attackRange: 78, attackCooldown: 2.9, xp: 1500, gold: 500, height: 48, radius: 18,
     leash: 620, kind: 'golem', boss: true,
   },
 };
@@ -327,6 +359,45 @@ export const CLASSES = {
 export const CLASS_ORDER = ['warrior', 'archer', 'rogue', 'tanker', 'mage'];
 
 export const PLAYER_SIZE = { width: 10, height: 20, radius: 4.6 };
+
+/* ------------------------- 태초마을 무기 · 포션 상점 ------------------------- */
+export const SHOP = {
+  keeper: { name: '도로시', role: '상점 주인', line: '필요한 게 있으면 얼마든지 골라 봐.' },
+  // 직업별 상위 무기 (Tier 2 · 3) — 사면 바로 장착됩니다
+  weapons: {
+    warrior: [
+      { id: 'w-warrior-2', tier: 2, name: '강철 대검', price: 80, damage: 12, desc: '든든한 강철 대검. 공격력 +12' },
+      { id: 'w-warrior-3', tier: 3, name: '황금 기사검', price: 220, damage: 26, crit: 0.05, desc: '빛나는 황금 기사검. 공격력 +26 · 치명타 +5%' },
+    ],
+    archer: [
+      { id: 'w-archer-2', tier: 2, name: '강철 장궁', price: 80, damage: 10, desc: '튼튼한 강철 장궁. 공격력 +10' },
+      { id: 'w-archer-3', tier: 3, name: '바람의 명궁', price: 220, damage: 22, crit: 0.05, desc: '바람을 가르는 명궁. 공격력 +22 · 치명타 +5%' },
+    ],
+    rogue: [
+      { id: 'w-rogue-2', tier: 2, name: '미스릴 쌍단검', price: 80, damage: 8, desc: '가벼운 미스릴 쌍단검. 공격력 +8' },
+      { id: 'w-rogue-3', tier: 3, name: '그림자 쌍검', price: 220, damage: 18, crit: 0.06, desc: '그림자를 베는 쌍검. 공격력 +18 · 치명타 +6%' },
+    ],
+    tanker: [
+      { id: 'w-tanker-2', tier: 2, name: '강철 방패', price: 80, damage: 10, desc: '두꺼운 강철 방패. 공격력 +10' },
+      { id: 'w-tanker-3', tier: 3, name: '수호자의 성벽', price: 220, damage: 21, crit: 0.04, desc: '빛나는 수호자의 방패. 공격력 +21 · 치명타 +4%' },
+    ],
+    mage: [
+      { id: 'w-mage-2', tier: 2, name: '수정 지팡이', price: 80, damage: 11, desc: '맑은 수정이 박힌 지팡이. 공격력 +11' },
+      { id: 'w-mage-3', tier: 3, name: '대현자의 홀', price: 220, damage: 24, crit: 0.05, desc: '대현자의 홀. 공격력 +24 · 치명타 +5%' },
+    ],
+  },
+  potions: [
+    { id: 'potion-hp', name: '체력 포션', icon: '🧪', price: 30, heal: 80, key: '1', desc: 'HP 80 회복' },
+    { id: 'potion-hp-big', name: '고급 체력 포션', icon: '🍶', price: 70, heal: 99999, key: '2', desc: 'HP 전체 회복' },
+    { id: 'potion-atk', name: '전투의 비약', icon: '⚗️', price: 90, buff: 'elixir', duration: 20, mult: 1.35, key: '3', desc: '20초간 공격력 +35%' },
+  ],
+  // 시작 시 지급되는 포션
+  starterPotions: { 'potion-hp': 1 },
+};
+
+export function shopWeaponsFor(classId) {
+  return SHOP.weapons[classId] || [];
+}
 
 export const BOSS_POS = { x: 0, z: -165 };
 export const TEMPLE_GATE = { x: 0, z: 0 };
