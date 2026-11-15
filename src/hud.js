@@ -689,8 +689,8 @@ export class HUD {
       np.el.style.top = sy + 'px';
       const label = m.type.name + ' Lv.' + m.level;
       if (np.label !== label) { np.label = label; np.name.textContent = label; }
-      const w = (Math.max(0, m.hp / m.maxHp) * 100).toFixed(1) + '%';
-      if (np.w !== w) { np.w = w; np.fill.style.width = w; }
+      const hpW = (Math.max(0, m.hp / m.maxHp) * 100).toFixed(1) + '%';
+      if (np.w !== hpW) { np.w = hpW; np.fill.style.width = hpW; }
       if (np.boss !== !!m.type.boss) { np.boss = !!m.type.boss; np.el.classList.toggle('boss', !!m.type.boss); }
     }
     for (let i = used; i < this.namePlatePool.length; i++) {
