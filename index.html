@@ -10,6 +10,27 @@
 <meta name="description" content="Three.js로 만든 웹 3D RPG. 5개 지역, 5개 직업, 각 직업의 고유 무기와 Q/E 스킬, 정글 사원의 고대 골렘 보스전." />
 <link rel="icon" href="data:," />
 <link rel="stylesheet" href="./styles.css" />
+<script>
+// 모듈 로드·초기화 오류를 화면에 바로 보여 준다 (배포 직후 캐시 불일치 진단용)
+(function () {
+  function show(msg) {
+    var el = document.getElementById('loader');
+    if (!el) return;
+    el.style.display = 'flex';
+    el.innerHTML = '<p style="max-width:560px;text-align:center;font-size:12px;line-height:1.6">'
+      + '게임 스크립트를 불러오지 못했습니다.<br><span style="opacity:.7">' + String(msg).slice(0, 300) + '</span>'
+      + '<br><br>새로고침(Ctrl/Cmd+Shift+R) 해 보세요.</p>';
+  }
+  window.addEventListener('error', function (e) {
+    if (!e || !e.message) return;
+    show(e.message + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : ''));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e && e.reason;
+    show(r && r.message ? r.message : String(r));
+  });
+})();
+</script>
 <script type="importmap">
 {
   "imports": {
