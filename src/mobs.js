@@ -372,7 +372,7 @@ export class Mob {
     this.didAlert = false;
     this.bossIntroDone = false;
     this.stompCd = 4;
-    // 보스(고대 곰렘) 격노 · 충격파 내려치기
+    // 보스(고대 골렘) 격노 · 충격파 내려치기
     this.enraged = false;
     this.slamT = 0;
     this.slamDur = (this.type.slamWindup || 1.5);
@@ -680,7 +680,7 @@ export class Mob {
     }
     if (m.coreHalo && m.coreHalo.material) m.coreHalo.material.color.setHex(0xff8a4a);
     if (m.eyeMat) m.eyeMat.color.setHex(0xffa050);
-    this.game.hud.banner('고대 곰렘 · 격노!', 1700);
+    this.game.hud.banner('고대 골렘 · 격노!', 1700);
     this.game.shake(0.75);
     this.game.sfx.boss();
     if (this.game.effects) {

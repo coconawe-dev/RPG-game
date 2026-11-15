@@ -633,7 +633,7 @@ export class Player {
     if (this.classId === 'warrior') {
       this.head.add(mk(new THREE.BoxGeometry(4.15, 0.9, 4.05), this.strapMat, 0, 3.35, 0));
       this.head.add(mk(new THREE.SphereGeometry(0.95, 8, 6), this.tunicDarkMat, 0, 3.1, -2.25));
-      this.head.add(mk(new THREE.BoxGeometry(1.0, 1.5, 0.4), this.tunicMat, 0, 3.9, 1.95));
+      this.head.add(mk(new THREE.BoxGeometry(1.1, 0.7, 0.5), this.tunicDarkMat, 0, 2.9, 2.0));
     } else if (this.classId === 'archer') {
       const hood = mk(new THREE.SphereGeometry(2.3, 10, 8), this.clothMat, 0, 2.9, -0.3);
       hood.scale.set(1.05, 0.9, 1.05);

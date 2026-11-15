@@ -107,7 +107,7 @@ check(counts.slime >= 10 && counts.zombie >= 10 && counts.hyena >= 8 && counts.g
 check(counts.raider >= 10, 'old_village raiders missing: ' + counts.raider);
 check(!game.mobManager.mobs.some((m) => m.typeId === 'raider' && regionAt(m.position.x, m.position.z) !== 'old_village'), 'raider spawned outside old_village');
 
-// 강화된 고대 곰렘
+// 강화된 고대 골렘
 check(MOB_TYPES.golem.hp === 3200, 'golem hp must be 3200, got ' + MOB_TYPES.golem.hp);
 check(MOB_TYPES.golem.damage === 54, 'golem damage must be 54');
 check(MOB_TYPES.golem.xp === 2500 && MOB_TYPES.golem.gold === 800, 'golem rewards must be xp 2500 / gold 800');
@@ -346,7 +346,7 @@ for (const classId of CLASS_ORDER) {
   check(p2.hp > 0, 'armor test player should survive 100 damage');
 }
 
-/* ------------------- 고대 곰렘: 격노 · 충격파 내려치기 ------------------- */
+/* ------------------- 고대 골렘: 격노 · 충격파 내려치기 ------------------- */
 {
   const g = game.mobManager.boss();
   const hero = new Player(game, 'warrior');
