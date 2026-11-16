@@ -1126,8 +1126,6 @@ class Game {
     // 함께 하기: 초대받은 사람은 호스트가 알려 준 자리에서 시작한다
     if (o.spawn) spawn = { x: o.spawn.x, z: o.spawn.z };
     this.player.spawnAt(spawn.x, spawn.z);
-    // 점검용 ?level=15 / ?level=20 — 필살기 해금 · 1차 진화 상태로 시작
-    if (this.startLevel > 1) this.player.setLevel(this.startLevel);
     if (biomeId === 'village' && !this.debugSpawn) this.player.facing = Math.PI;
     if (biomeId === 'village_w2' && !this.debugSpawn) this.player.facing = 0;
     this.setWorld(worldAt(spawn.x, spawn.z), { silent: true });
@@ -1156,6 +1154,8 @@ class Game {
     this.hud.hideEnd();
     this.sfx.init();
     this.hud.banner(CLASSES[classId].name + ' · ' + (startWorld === 2 ? '2세계 ' : '') + BIOMES[regionAt(spawn.x, spawn.z)].name, 2400);
+    // 점검용 ?level=15 / ?level=20 — 시작 안내 뒤에 필살기 해금 · 1차 진화 배너가 뜨게 마지막에 적용한다
+    if (this.startLevel > 1) this.player.setLevel(this.startLevel);
     // 터치 조작 안내는 시작 후 잠시 보여주고 사라진다
     const touchHint = document.getElementById('touch-hint');
     if (touchHint) {
