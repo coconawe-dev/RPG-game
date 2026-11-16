@@ -791,6 +791,15 @@ check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.pr
     check(seen.size >= 11, 'expected all 11 mob types in the world, saw ' + seen.size);
   }
 
+  // HP가 2배가 되어도 화면의 Lv. 표시는 그대로여야 한다 (아이언 골렘이 최종 보스보다 높으면 안 됨)
+  {
+    const lv = {};
+    for (const m of game.mobManager.mobs) if (!(m.typeId in lv)) lv[m.typeId] = m.level;
+    check(lv.slime === 1 && lv.zombie === 2 && lv.gorilla === 4 && lv.raider === 3, 'world 1 mob levels changed: ' + JSON.stringify(lv));
+    check(lv.goblin === 14 && lv.skeleton === 18 && lv.samurai === 29 && lv.iron_golem === 46, 'world 2 mob levels changed: ' + JSON.stringify(lv));
+    check(lv.iron_golem < lv.dark_mage, 'final boss must display a higher level than the iron golem: ' + lv.iron_golem + ' vs ' + lv.dark_mage);
+  }
+
   // 몹은 자기 바이옴 안에서만 산다
   const home = {
     goblin: 'goblin_forest', skeleton: 'misty_plains', samurai: 'sakura',

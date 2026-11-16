@@ -764,7 +764,8 @@ export class Mob {
     this.biome = BIOMES[biomeId] || null;
     this.maxHp = this.type.hp;
     this.hp = this.maxHp;
-    this.level = this.type.level || (this.type.boss ? 20 : Math.max(1, Math.round(this.type.hp / 40)));
+    // HP가 2배로 강화되어(2026-11-16) 표시 레벨이 함께 2배가 되지 않도록 80으로 나눈다 — 화면의 Lv. 는 예전과 같다
+    this.level = this.type.level || (this.type.boss ? 20 : Math.max(1, Math.round(this.type.hp / 80)));
     this.radius = this.type.radius;
     this.height = this.type.height;
     this.speed = this.type.speed;
