@@ -123,7 +123,8 @@ export class HUD {
     };
     bind(open, () => this.setMapOpen(true));
     bind(close, () => this.setMapOpen(false));
-    this.setMapOpen(true);
+    // 짧은 화면(가로로 든 휴대폰)에서는 지도가 오른쪽 대쉬 · 막기 버튼을 덮지 않도록 접힌 채로 시작한다
+    this.setMapOpen(window.innerHeight > 520);
   }
 
   setMapOpen(on) {
