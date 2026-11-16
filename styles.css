@@ -147,6 +147,26 @@ html, body {
 .xp { height: 10px; }
 .xp-fill { background: linear-gradient(90deg, #2f6f8f, #6fa8dc 70%, #a9d6f5); }
 
+/* 스태미나 — 평소 시안빛, 0 이 되어 지친 동안은 주황-빨강으로 깜박인다 */
+.bar.st { height: 12px; }
+.st-fill { background: linear-gradient(90deg, #14786f, #2fbfae 60%, #8ff3e2); }
+.st-row.exhausted .bar-label { color: #ffb37a; }
+.st-row.exhausted .bar.st { border-color: rgba(255, 138, 74, 0.7); }
+.st-row.exhausted .st-fill {
+  background: linear-gradient(90deg, #7a2a12, #e2662f 60%, #ffb36b);
+  animation: stPulse 0.85s ease-in-out infinite;
+}
+.st-row.exhausted .bar-text { color: #ffe0bd; }
+.bar.st.ready { animation: stReady 0.7s ease-out; }
+@keyframes stPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+@keyframes stReady {
+  0% { box-shadow: 0 0 0 0 rgba(143, 243, 226, 0.9); }
+  100% { box-shadow: 0 0 18px 5px rgba(143, 243, 226, 0); }
+}
+
 .bar-text {
   position: absolute;
   inset: 0;
@@ -173,6 +193,7 @@ html, body {
 }
 .buff.frost { color: #9fd8ff; background: rgba(111, 168, 220, 0.14); }
 .buff.rage { color: #ff9b7a; background: rgba(224, 87, 79, 0.14); }
+.buff.guard { color: #8ff3e2; background: rgba(63, 201, 183, 0.16); }
 
 .region-panel {
   text-align: center;
@@ -440,6 +461,8 @@ kbd {
 .floater.hurt { color: #ff8272; }
 .floater.heal { color: #8ce68a; }
 .floater.xp { color: #9fd8ff; font-size: 12px; }
+.floater.block { color: #8ff3e2; text-shadow: 0 2px 10px rgba(0, 90, 90, 0.9); }
+.floater.stam { color: #ffc98a; font-size: 12px; }
 
 .nameplate {
   position: absolute;
@@ -967,6 +990,12 @@ body.touch-mode .touch-hint.fade { opacity: 0; }
 .tbtn:active { transform: scale(0.94); }
 .tbtn.cooling { opacity: 0.55; }
 
+/* 대쉬 · 막기 버튼 */
+.tbtn.dash { color: #8ff3e2; border-color: rgba(120, 240, 220, 0.5); }
+.tbtn.block { color: #b8f0ff; border-color: rgba(150, 220, 255, 0.45); }
+.tbtn.dash .tico, .tbtn.block .tico { font-size: 15px; line-height: 1; }
+.tbtn.small .tlab { font-size: 9px; letter-spacing: 0.02em; color: inherit; }
+
 @media (max-width: 720px) {
   .joy { width: 124px; height: 124px; left: 14px; bottom: 16px; }
   .joy-knob { width: 56px; height: 56px; margin: -28px 0 0 -28px; }
@@ -1266,6 +1295,8 @@ body.touch-mode .hud-center { display: none; }
 
 .trow-potion { gap: 8px; }
 .tbtn.potion { font-size: 15px; color: #ffd7a0; }
+.tbtn.dash.exhausted { opacity: 0.42; border-color: rgba(255, 138, 74, 0.55); color: #ffb37a; }
+.tbtn.block.on { background: rgba(120, 240, 220, 0.24); border-color: #8ff3e2; box-shadow: 0 0 16px rgba(143, 243, 226, 0.55); transform: scale(0.97); }
 .tbtn.potion b { font-size: 11px; position: absolute; right: 2px; top: 0; color: #ffe08a; }
 .tbtn.potion.empty { opacity: 0.5; }
 .tbtn.potion.w2 { color: #d8c4ff; border-color: rgba(170, 130, 255, 0.5); }

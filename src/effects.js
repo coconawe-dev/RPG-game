@@ -119,6 +119,41 @@ export class Effects {
     return this.add(item);
   }
 
+  /* 대쉬 잔상 — 몸 실루엣이 뒤로 남았다가 빠르게 사라진다 (가산 혼합이라 낮에·밤에 모두 잘 보인다) */
+  dashStreak(pos, yaw, color, opts) {
+    const o = opts || {};
+    const count = o.count === undefined ? 3 : o.count;
+    const gap = o.gap === undefined ? 13 : o.gap;
+    const dur = o.duration === undefined ? 0.26 : o.duration;
+    const dx = Math.sin(yaw);
+    const dz = Math.cos(yaw);
+    for (let i = 0; i < count; i++) {
+      const geo = new THREE.BoxGeometry(8.4, 21, 5.4);
+      const mat = new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: 0.24, depthWrite: false, blending: THREE.AdditiveBlending,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      const back = gap * (i + 1);
+      mesh.position.set(pos.x - dx * back, pos.y + 11 - i * 0.9, pos.z - dz * back);
+      mesh.rotation.y = yaw;
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      const life = Math.max(0.08, dur * (1 - i * 0.2));
+      const item = {
+        t: 0, dur: life, kind: 'streak',
+        update: (dt) => {
+          this._tick(item, dt);
+          const p = clamp(item.t / life, 0, 1);
+          const fade = (1 - p) * (1 - p);
+          mat.opacity = 0.24 * fade;
+          mesh.scale.set(1 + p * 0.16, 1 + p * 0.06, 1 + p * 0.1);
+        },
+        dispose: () => { this.scene.remove(mesh); geo.dispose(); mat.dispose(); },
+      };
+      this.add(item);
+    }
+  }
+
   /* 오브젝트를 따라다니는 오라 (철벽 태세 등) */
   aura(target, color, duration, radius, yOffset) {
     const geo = new THREE.SphereGeometry(radius || 13, 18, 14);

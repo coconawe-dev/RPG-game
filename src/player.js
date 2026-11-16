@@ -6,6 +6,21 @@ import {
   clamp, damp, dampAngle, lerp, smoothstep, terrainHeight, clampToWorld, TAU, disposeObject,
 } from './utils.js';
 
+/* ------------------------- 스태미나 · 대쉬 · 막기 ------------------------- */
+// 스태미나 100칸: 대쉬 한 번에 5, 막은 한 번에 5가 빠진다. 쿨타임은 없다.
+// 0 이 되면(남은 양이 5보다 작아지면) '지침' 상태가 되어 100까지 다 차야 다시 대쉬 · 막기를 쓸 수 있다.
+// 회복 22/s + 사용 직후 0.35초 쉼 → 0 에서 100까지 약 4.9초.
+export const STAMINA = {
+  max: 100,
+  dashCost: 5,
+  blockCost: 5,
+  regen: 22,
+  regenDelay: 0.35,
+  dashDuration: 0.18,   // 순간 돌진 지속 시간(초)
+  blockDamageMul: 0.5,  // 막으면 받는 피해 50%
+  blockMoveMul: 0.55,   // 막는 동안 이동 속도
+};
+
 // 손에 쥐는 무기의 위치·회전 (직업별)
 // 무기 그룹의 원점은 곧 '손잡이를 쥔 지점'이라, p는 손 뼈의 주먹 중심(0,-0.5,0)에 거의 그대로 둔다.
 // r.x = 손 안에서 무기를 앞으로 눕히는 각(π/2면 무기가 손에서 정확히 앞(+Z)을 향한다).
@@ -464,6 +479,15 @@ export class Player {
     this.buffs = { fortress: 0, haste: 0, frost: 0, elixir: 0, rage: 0, guard: 0 };
     this.invuln = 0;
     this.dash = null;
+    // 스태미나 · 대쉬 · 막기 상태
+    this.maxStamina = STAMINA.max;
+    this.stamina = this.maxStamina;
+    this.staminaExhausted = false;
+    this.staminaRegenDelay = 0;
+    this.blocking = false;      // 입력으로 막기를 누르고 있는지
+    this.blockFlash = 0;        // 막은 순간의 반짝임
+    this._dashDenyAt = -9;
+    this.lastWish = new THREE.Vector3();   // 마지막 이동 입력 방향 (대쉬 방향)
     this.anim = { name: null, time: 0, duration: 1 };
     this.aimLock = 0;
     this.timers = [];
@@ -593,7 +617,36 @@ export class Player {
 
     // 그림자 접지
     this.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    this.buildGuardAura();
     this.game.scene.add(this.root);
+  }
+
+  /* --------------------------- 막기 방어막 (3D) --------------------------- */
+  // 막는 동안 가슴 앞에 반투명 방어막이 떠오른다 (그림자는 만들지 않는다)
+  buildGuardAura() {
+    const geo = new THREE.CircleGeometry(12, 24);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x9fe8ff, transparent: true, opacity: 0.2, depthWrite: false,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(0, 3.4, 4.6);
+    mesh.rotation.set(-0.12, 0, 0);
+    mesh.visible = false;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    const ringGeo = new THREE.TorusGeometry(12, 0.38, 6, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xd8f6ff, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.castShadow = false;
+    ring.receiveShadow = false;
+    mesh.add(ring);
+    this.torso.add(mesh);
+    this.guardMesh = mesh;
+    this.guardMat = mat;
+    this.guardRingMat = ringMat;
   }
 
   /* --------------------------- 무기 교체 --------------------------- */
@@ -796,10 +849,121 @@ export class Player {
     return new THREE.Vector3(Math.sin(this.facing), 0, Math.cos(this.facing));
   }
 
+  /* ------------------- 스태미나 · 대쉬 · 막기 API ------------------- */
+  // 지금 실제로 방어하고 있는지: 막기 입력 + 살아 있음 + 지치지 않음 + 스태미나 5 이상 + 돌진 중 아님
+  get isBlocking() {
+    return !!this.blocking && this.alive && !this.staminaExhausted
+      && this.stamina >= STAMINA.blockCost && !this.dash;
+  }
+
+  // 돌진 중인지 (친구 화면 · 자세 · HUD 에 쓰인다)
+  get dashing() { return !!this.dash; }
+
+  // 대쉬를 쓸 수 있는지 (쿨타임은 없다 — 스태미나와 지침 상태만 본다)
+  get dashReady() {
+    return this.alive && !this.staminaExhausted && this.stamina >= STAMINA.dashCost;
+  }
+
+  // 대쉬 방향: 지금 누르고 있는 이동 방향, 서 있으면 몸이 보는 방향
+  dashDirection() {
+    const w = this.lastWish;
+    if (w && w.lengthSq() > 0.01) return new THREE.Vector3(w.x, 0, w.z).normalize();
+    return this.forward();
+  }
+
+  // 대쉬 — 스태미나 5를 쓰고 0.18초 동안 그 방향으로 확 내닫는다 (쿨타임 없음, 연속 사용 가능)
+  tryDash() {
+    if (!this.alive) return { ok: false, reason: 'dead' };
+    // 스킬 돌진(돌진 일격 · 화살비 · 그림자 습격) 중에는 겹치지 않는다
+    if (this.dash && this.dash.kind !== 'burst') return { ok: false, reason: 'busy' };
+    if (this.staminaExhausted) { this.denyDash(); return { ok: false, reason: 'exhausted' }; }
+    if (this.stamina < STAMINA.dashCost) { this.denyDash(); return { ok: false, reason: 'stamina' }; }
+
+    const dir = this.dashDirection();
+    this.spendStamina(STAMINA.dashCost);
+    const distance = clamp(this.cls.speed * 1.9, 96, 150);
+    this.dash = { dir, distance, duration: STAMINA.dashDuration, time: 0, progress: 0, kind: 'burst' };
+    this.velocity.set(0, 0, 0);
+    this.speedNow = Math.max(this.speedNow, this.cls.speed * 1.4);
+    if (this.game.sfx && this.game.sfx.dash) this.game.sfx.dash();
+    if (this.game.effects) {
+      this.game.effects.dashStreak(this.position, this.facing, this.cls.color);
+      this.game.effects.burst(
+        new THREE.Vector3(this.position.x - dir.x * 9, this.position.y + 3, this.position.z - dir.z * 9),
+        0xe8dcc0, 10, { power: 18, size: 0.5, duration: 0.4, gravity: 20 },
+      );
+    }
+    return { ok: true, stamina: this.stamina };
+  }
+
+  // 스태미나 소모 — 5보다 적게 남으면 지침 상태가 되어 100까지 다 차야 풀린다
+  spendStamina(cost) {
+    const before = this.stamina;
+    this.stamina = Math.max(0, this.stamina - cost);
+    this.staminaRegenDelay = STAMINA.regenDelay;
+    if (this.stamina < STAMINA.dashCost && !this.staminaExhausted) this.exhaustStamina();
+    return before - this.stamina;
+  }
+
+  exhaustStamina() {
+    this.staminaExhausted = true;
+    this.blockFlash = 0;
+    if (this.game.hud && this.game.hud.banner) {
+      this.game.hud.banner('스태미나 소진! 회복될 때까지 대쉬 · 막기 불가', 2200);
+    }
+    if (this.game.sfx && this.game.sfx.staminaOut) this.game.sfx.staminaOut();
+    if (this.game.effects) {
+      this.game.effects.ring(this.position, 0xff8a4a, 34, { duration: 0.55, yOffset: 12 });
+    }
+  }
+
+  // 지쳐서 대쉬를 못 쓸 때 — 왜 안 되는지 작게 알려 준다 (연타에 시끄럽지 않게 0.55초에 한 번)
+  denyDash() {
+    if (this.time - this._dashDenyAt < 0.55) return;
+    this._dashDenyAt = this.time;
+    if (this.game.sfx && this.game.sfx.dashDeny) this.game.sfx.dashDeny();
+    if (this.game.hud && this.game.hud.floater) this.game.hud.floater('스태미나 회복 중…', this.position, 'stam', 2.1);
+  }
+
+  updateStamina(dt) {
+    if (this.staminaRegenDelay > 0) {
+      this.staminaRegenDelay = Math.max(0, this.staminaRegenDelay - dt);
+    } else if (this.stamina < this.maxStamina) {
+      this.stamina = Math.min(this.maxStamina, this.stamina + STAMINA.regen * dt);
+    }
+    // 100까지 다 차면 지침이 풀리고 다시 대쉬 · 막기를 쓸 수 있다
+    if (this.staminaExhausted && this.stamina >= this.maxStamina - 1e-6) {
+      this.staminaExhausted = false;
+      if (this.game.sfx && this.game.sfx.staminaReady) this.game.sfx.staminaReady();
+      if (this.game.hud && typeof this.game.hud.staminaReady === 'function') this.game.hud.staminaReady();
+    }
+    if (this.blockFlash > 0) this.blockFlash = Math.max(0, this.blockFlash - dt);
+  }
+
+  // 막기 방어막 표시 · 막은 순간의 반짝임
+  updateGuardFx() {
+    const m = this.guardMesh;
+    if (!m) return;
+    const on = this.isBlocking;
+    m.visible = on;
+    if (!on) return;
+    const flash = this.blockFlash > 0 ? this.blockFlash / 0.3 : 0;
+    this.guardMat.opacity = clamp(0.16 + Math.sin(this.time * 9) * 0.05 + flash * 0.35, 0.05, 0.85);
+    this.guardRingMat.opacity = clamp(0.3 + Math.sin(this.time * 7) * 0.1 + flash * 0.5, 0.1, 0.95);
+    m.scale.setScalar(1 + flash * 0.16);
+  }
+
   spawnAt(x, z) {
     this.anim.name = null;
     this.anim.time = 0;
     this.dash = null;
+    // 다시 일어나면 스태미나도 가득 찬 상태로 시작한다
+    this.stamina = this.maxStamina;
+    this.staminaExhausted = false;
+    this.staminaRegenDelay = 0;
+    this.blocking = false;
+    this.blockFlash = 0;
+    this._dashDenyAt = -9;
     this.buffs.fortress = 0;
     this.buffs.haste = 0;
     this.buffs.frost = 0;
@@ -875,7 +1039,10 @@ export class Player {
 
   takeDamage(amount, sourcePos) {
     if (!this.alive || this.invuln > 0) return 0;
+    // 막기: 스태미나 5 이상 · 대쉬/사망 상태가 아니면 받는 피해를 50%로 줄인다
+    const blocked = this.isBlocking;
     let dmg = amount;
+    if (blocked) dmg *= STAMINA.blockDamageMul;
     if (this.buffs.fortress > 0) dmg *= 0.4;
     // 완전 회복의 성수: 15초간 받는 피해 50% 감소
     if (this.buffs.guard > 0) dmg *= 0.5;
@@ -883,12 +1050,30 @@ export class Player {
     dmg = Math.max(1, Math.round(dmg));
     this.hp -= dmg;
     this.invuln = 0.42;
-    this.hurtTint = 0.32;
-    this.game.sfx.hurt();
-    this.game.hud.floater('-' + dmg, this.position, 'hurt', 3);
+    if (blocked) {
+      // 막은 한 번에 스태미나 5 — 다 쓰면 방어가 풀리고 지침 상태가 된다
+      this.spendStamina(STAMINA.blockCost);
+      this.blockFlash = 0.3;
+      this.hurtTint = 0.14;
+      if (this.game.sfx && this.game.sfx.block) this.game.sfx.block();
+      this.game.hud.floater('막기! -' + dmg, this.position, 'block', 2.8);
+      if (this.game.effects) {
+        const f = this.forward();
+        this.game.effects.ring(this.position, 0x9ff0ff, 40, { duration: 0.3, yOffset: 11, thickness: 0.06 });
+        this.game.effects.burst(
+          new THREE.Vector3(this.position.x + f.x * 13, this.position.y + 12, this.position.z + f.z * 13),
+          0xd8f6ff, 10, { power: 24, size: 0.45, duration: 0.32 },
+        );
+      }
+    } else {
+      this.hurtTint = 0.32;
+      this.game.sfx.hurt();
+      this.game.hud.floater('-' + dmg, this.position, 'hurt', 3);
+    }
     if (sourcePos) {
       const away = new THREE.Vector3().subVectors(this.position, sourcePos).setY(0).normalize();
-      this.position.addScaledVector(away, 3.5);
+      // 막아 낸 공격에는 밀려나는 거리도 줄어든다
+      this.position.addScaledVector(away, blocked ? 1.4 : 3.5);
     }
     if (this.hp <= 0) {
       this.hp = 0;
@@ -955,6 +1140,8 @@ export class Player {
 
   die() {
     this.state = 'dead';
+    this.blocking = false;
+    this.dash = null;
     this.anim.name = null;
     this.playAnim('death', 1.4);
     this.game.sfx.death();
@@ -995,6 +1182,8 @@ export class Player {
     if (this.buffs.elixir > 0) this.buffs.elixir = Math.max(0, this.buffs.elixir - dt);
     if (this.buffs.rage > 0) this.buffs.rage = Math.max(0, this.buffs.rage - dt);
     if (this.buffs.guard > 0) this.buffs.guard = Math.max(0, this.buffs.guard - dt);
+    // 스태미나 회복 · 지침 해제
+    this.updateStamina(dt);
     if (this.hurtTint > 0) {
       this.hurtTint = Math.max(0, this.hurtTint - dt);
       const t = clamp(this.hurtTint / 0.32, 0, 1);
@@ -1033,9 +1222,14 @@ export class Player {
         wish.addScaledVector(fwd, iz).addScaledVector(right, ix).normalize();
       }
 
-      let speed = this.moveSpeed * (input.sprint ? this.cls.sprintMul : 1);
+      let speed = this.moveSpeed * (input.sprint && !this.isBlocking ? this.cls.sprintMul : 1);
       if (this.anim.name && this.anim.name !== 'death') speed *= 0.45;
       if (this.anim.name === 'fortress') speed *= 0.35;
+      if (this.isBlocking) speed *= STAMINA.blockMoveMul;   // 막는 동안은 느리게
+      this.lastWish.copy(wish);
+
+      // 막기 입력 (우클릭 / R / 화면 🛡 버튼을 누르고 있는 동안)
+      this.blocking = !!input.block;
 
       if (this.dash) {
         this.dash.time += dt;
@@ -1069,6 +1263,7 @@ export class Player {
       else if (wish.lengthSq() > 0.01) desired = Math.atan2(wish.x, wish.z);
       this.facing = dampAngle(this.facing, desired, aiming ? 22 : 13, dt);
     } else {
+      this.blocking = false;
       this.velocity.multiplyScalar(0.9);
       this.vy -= 78 * dt;
       this.position.y += this.vy * dt;
@@ -1109,6 +1304,9 @@ export class Player {
     this.attackCooldown = Math.max(0, this.attackCooldown - dt);
     this.invuln = Math.max(0, this.invuln - dt);
     if (typeof s.yaw === 'number') this.facing = dampAngle(this.facing, s.yaw, 16, dt);
+    // 친구가 막기 · 대쉬 중이면 같은 자세 · 방어막이 보인다 (원격은 실제 이동은 보간으로 따라간다)
+    if (s.block !== undefined) this.blocking = !!s.block && this.alive;
+    this.dashLean = s.dashing ? STAMINA.dashDuration : Math.max(0, (this.dashLean || 0) - dt);
     if (s.anim && s.anim !== this.anim.name) {
       this.playAnim(s.anim, s.animDur || 0.6);
     }
@@ -1169,6 +1367,44 @@ export class Player {
       t.bodyY = 0.2;
     }
 
+    // 막기 · 대쉬 자세
+    if (this.isBlocking) {
+      // 방어 자세: 무기를 가슴 앞으로 세우고 몸을 살짝 낮춘다 (방패수는 방패를 앞에)
+      const guard = Math.sin(this.time * 8) * 0.03;
+      t.armRx = -1.52 + guard;
+      t.armRz = -0.6;
+      t.foreRx = -1.02;
+      t.handRx = -0.18;
+      t.armLx = -1.42;
+      t.armLz = 0.64;
+      t.foreLx = -0.98;
+      t.torsoYaw = 0.3;
+      t.torsoPitch = 0.2;
+      t.bodyPitch = 0.06;
+      t.bodyY = -0.55;
+      t.legLx = 0.34;
+      t.legRx = -0.28;
+      t.kneeLx = 0.26;
+      t.kneeRx = 0.2;
+      t.headPitch = 0.05;
+      t.headYaw = -0.12;
+    } else if ((this.dash || this.dashLean > 0) && !this.anim.name) {
+      // 대쉬: 앞으로 몸을 눕히고 팔을 뒤로 빼며 내닫는 자세
+      t.bodyPitch = 0.42;
+      t.torsoPitch = 0.18;
+      t.armLx = 0.22;
+      t.armRx = 0.22;
+      t.armLz = 0.95;
+      t.armRz = -0.95;
+      t.foreLx = -0.35;
+      t.foreRx = -0.35;
+      t.legLx = 0.92;
+      t.legRx = -0.72;
+      t.kneeLx = 0.55;
+      t.bodyY = 0.16;
+      t.headPitch = -0.1;
+    }
+
     // 클립 오버라이드
     let override = null;
     if (this.anim.name) {
@@ -1219,6 +1455,7 @@ export class Player {
     this.kneeL.rotation.x = p.kneeLx;
     this.kneeR.rotation.x = p.kneeRx;
     this.updateWeaponHold();
+    this.updateGuardFx();
   }
 
   // 클립별 무기 방향: 표가 있으면 몸통 기준 방향을 직접 지정하고,

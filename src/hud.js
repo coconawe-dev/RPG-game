@@ -18,6 +18,10 @@ export class HUD {
       hpText: $('hp-text'),
       xpFill: $('xp-fill'),
       xpText: $('xp-text'),
+      stRow: $('st-row'),
+      stBar: $('st-bar'),
+      stFill: $('st-fill'),
+      stText: $('st-text'),
       statRow: $('stat-row'),
       buffRow: $('buff-row'),
       regionName: $('region-name'),
@@ -84,6 +88,8 @@ export class HUD {
       e: document.getElementById('tcd-e'),
       qBtn: document.getElementById('tbtn-q'),
       eBtn: document.getElementById('tbtn-e'),
+      dashBtn: document.getElementById('tbtn-dash'),
+      blockBtn: document.getElementById('tbtn-block'),
     };
 
     this.buildCompass();
@@ -400,6 +406,7 @@ export class HUD {
       c.level = p.level;
       this.dom.levelText.textContent = 'Lv.' + p.level;
     }
+    this.refreshStamina(p, c);
     const dmg = p.damage.toFixed(1);
     const spd = Math.round(p.moveSpeed);
     const def = Math.round((p.armorDefense || 0) * 100);
@@ -411,6 +418,50 @@ export class HUD {
     }
     this.updateGold();
     this.refreshPotions();
+  }
+
+  /* --------------------------- 스태미나 바 --------------------------- */
+  // ST 100 / 100 — 평소엔 시안색, 지쳐서 대쉬가 잠긴 동안은 주황-빨강으로 깜박이며 이유를 알려 준다
+  refreshStamina(p, cache) {
+    if (!this.dom.stFill || !this.dom.stText) return;
+    const c = cache || this._bars || (this._bars = {});
+    const max = Math.max(1, p.maxStamina || 100);
+    const now = Math.max(0, Math.min(max, p.stamina === undefined ? max : p.stamina));
+    const shown = Math.floor(now);
+    const exhausted = !!p.staminaExhausted;
+    if (c.st !== shown || c.stMax !== max || c.stEx !== exhausted) {
+      c.st = shown; c.stMax = max; c.stEx = exhausted;
+      this.dom.stFill.style.width = ((now / max) * 100).toFixed(1) + '%';
+      this.dom.stText.textContent = exhausted
+        ? '회복 중… ' + shown + ' / ' + max
+        : shown + ' / ' + max;
+      if (this.dom.stRow) this.dom.stRow.classList.toggle('exhausted', exhausted);
+      if (this.dom.stBar) this.dom.stBar.classList.toggle('exhausted', exhausted);
+    }
+    // 휴대폰 대쉬 버튼도 지친 동안은 흐리게
+    if (this.touch.dashBtn) {
+      const off = exhausted || now < 5;
+      if (c.stBtn !== off) {
+        c.stBtn = off;
+        this.touch.dashBtn.classList.toggle('exhausted', off);
+      }
+    }
+    if (this.touch.blockBtn) {
+      const on = !!p.isBlocking;
+      if (c.blkBtn !== on) {
+        c.blkBtn = on;
+        this.touch.blockBtn.classList.toggle('on', on);
+      }
+    }
+  }
+
+  // 스태미나가 다 차서 대쉬가 다시 열린 순간 — 바를 한 번 반짝인다
+  staminaReady() {
+    const bar = this.dom.stBar;
+    if (!bar) return;
+    bar.classList.remove('ready');
+    void bar.offsetWidth;
+    bar.classList.add('ready');
   }
 
   update(dt) {
@@ -429,6 +480,7 @@ export class HUD {
     if (p.buffs.elixir > 0) buffs.push(['전투의 비약 +35% ' + Math.ceil(p.buffs.elixir) + 's', 'attack']);
     if (p.buffs.rage > 0) buffs.push(['광폭 +60% ' + Math.ceil(p.buffs.rage) + 's', 'attack']);
     if (p.buffs.guard > 0) buffs.push(['수호 -50% 피해 ' + Math.ceil(p.buffs.guard) + 's', 'frost']);
+    if (p.isBlocking) buffs.push(['🛡 막기 -50% 피해', 'guard']);
     const buffHtml = buffs.map((b) => '<span class="buff ' + b[1] + '">' + b[0] + '</span>').join('');
     if (buffHtml !== this._buffHtml) {
       this._buffHtml = buffHtml;
@@ -800,7 +852,7 @@ export class HUD {
   floater(text, worldPos, kind, scale) {
     if (this.floaters.length > 34) return;
     const el = document.createElement('div');
-    el.className = 'floater' + (kind === 'crit' ? ' crit' : kind === 'hurt' ? ' hurt' : kind === 'heal' ? ' heal' : kind === 'xp' ? ' xp' : kind === 'gold' ? ' gold' : '');
+    el.className = 'floater' + (kind === 'crit' ? ' crit' : kind === 'hurt' ? ' hurt' : kind === 'heal' ? ' heal' : kind === 'xp' ? ' xp' : kind === 'gold' ? ' gold' : kind === 'block' ? ' block' : kind === 'stam' ? ' stam' : '');
     el.textContent = text;
     this.dom.floaters.appendChild(el);
     const f = {

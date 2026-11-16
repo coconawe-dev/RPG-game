@@ -933,6 +933,139 @@ check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.pr
   mage.clearBolts();
 }
 
+/* -------------------- 대쉬 · 막기 · 스태미나 -------------------- */
+{
+  // 앞선 2세계 테스트가 worldId 를 바꿔 두었을 수 있다 — 이 검사는 1세계 기준으로 한다
+  const worldBefore = game.worldId;
+  game.worldId = 1;
+
+  // 1) 기본 상태: 100 / 100 · 지치지 않음 · 대쉬 준비
+  const p = new Player(game, 'warrior');
+  game.player = p;
+  p.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  input.forward = false; input.sprint = false; input.block = false; input.jump = false;
+  check(p.maxStamina === 100, 'max stamina must be 100, got ' + p.maxStamina);
+  check(p.stamina === 100, 'stamina must start at 100, got ' + p.stamina);
+  check(p.staminaExhausted === false, 'player must not start exhausted');
+  check(p.dashReady === true, 'dash must be ready at full stamina');
+
+  // 2) 대쉬 1회 = 스태미나 5 · 쿨타임 없음 (바로 연달 이을 수 있다)
+  const d1 = p.tryDash();
+  check(d1.ok, 'first dash failed at full stamina: ' + d1.reason);
+  check(Math.abs(p.stamina - 95) < 1e-6, 'a dash must cost 5 stamina, got ' + p.stamina);
+  const d2 = p.tryDash();
+  check(d2.ok, 'a second dash must fire immediately (no cooldown): ' + d2.reason);
+  check(Math.abs(p.stamina - 90) < 1e-6, 'second dash must cost 5 more, got ' + p.stamina);
+
+  // 대쉬는 실제로 그 방향으로 내닫는다 (거절되지 않은 돌진은 0.18초 동안 이동)
+  const ax = p.position.x, az = p.position.z;
+  for (let i = 0; i < 14; i++) p.update(1 / 60, input);
+  const dashed = Math.hypot(p.position.x - ax, p.position.z - az);
+  check(dashed > 50, 'dash must actually move the player, moved ' + dashed.toFixed(1));
+  check(p.dashing === false, 'dash must end after its short burst');
+  check(p.position.y >= terrainHeight(p.position.x, p.position.z) - 0.6, 'dash must not drop the player through the ground');
+
+  // 3) 20연속 대쉬로 스태미나를 다 쓰면 0 이 되고 대쉬가 잠긴다
+  p.stamina = 100; p.staminaExhausted = false; p.dash = null;
+  let fired = 0;
+  for (let i = 0; i < 20; i++) { if (p.tryDash().ok) fired++; }
+  check(fired === 20, 'twenty chained dashes must all fire, fired ' + fired);
+  check(Math.abs(p.stamina) < 1e-6, 'twenty dashes must drain stamina to 0, got ' + p.stamina);
+  check(p.staminaExhausted === true, 'running out of stamina must lock dash (staminaExhausted)');
+  const locked = p.tryDash();
+  check(!locked.ok, 'dash must be refused while exhausted');
+  check(Math.abs(p.stamina) < 1e-6, 'a refused dash must cost nothing, got ' + p.stamina);
+
+  // 지친 동안에도 스태미나는 차오르지만, 100이 되기 전에는 여전히 잠겨 있다
+  for (let i = 0; i < 60; i++) p.update(1 / 60, input);
+  check(p.stamina > 10, 'stamina must regenerate while exhausted, got ' + p.stamina);
+  check(p.staminaExhausted === true, 'dash must stay locked until stamina is full');
+  check(!p.tryDash().ok, 'dash must still be locked at partial stamina');
+
+  // 4) 0 → 100 회복은 약 4~5초 (공정한 회복 창)
+  let extra = 0;
+  while (p.staminaExhausted && extra < 12) { p.update(1 / 60, input); extra += 1 / 60; }
+  const refill = 1 + extra;
+  check(p.staminaExhausted === false, 'exhaustion must clear when stamina refills');
+  check(Math.abs(p.stamina - 100) < 1e-6, 'stamina must be exactly 100 when unlocked, got ' + p.stamina);
+  check(refill >= 4.0 && refill <= 5.6, 'refill 0→100 must take about 4~5s, took ' + refill.toFixed(2) + 's');
+  check(p.tryDash().ok, 'dash must work again after refilling');
+
+  // 5) 부활하면 스태미나도 가득 찬다
+  p.stamina = 12; p.staminaExhausted = true;
+  p.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  check(p.stamina === 100 && p.staminaExhausted === false, 'respawn must refill stamina');
+  game.worldId = worldBefore;
+}
+
+{
+  // 6) 막기: 받는 피해 50% · 막은 한 번에 스태미나 5
+  const worldBefore2 = game.worldId;
+  game.worldId = 1;
+  const b = new Player(game, 'warrior');
+  game.player = b;
+  b.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  input.forward = false; input.sprint = false; input.jump = false;
+  input.block = true;
+  b.update(1 / 60, input);
+  check(b.blocking === true, 'holding the block key must raise the guard');
+  check(b.isBlocking === true, 'guard must be active at full stamina');
+  b.invuln = 0; b.hp = b.maxHp;
+  const guarded = b.takeDamage(100, null);
+  check(Math.abs(guarded - 50) <= 1, 'block must halve incoming damage, took ' + guarded);
+  check(Math.abs(b.stamina - 95) < 1e-6, 'each blocked hit must cost 5 stamina, got ' + b.stamina);
+
+  // 막기는 갑옷 피해 감소와도 함께 적용된다: 100 → 50(막기) → 40(가죽 20%)
+  b.equipArmorTier(1);
+  b.invuln = 0; b.hp = b.maxHp;
+  const guardedArmor = b.takeDamage(100, null);
+  check(Math.abs(guardedArmor - 40) <= 1, 'block + leather armor must give 40 damage, took ' + guardedArmor);
+  check(Math.abs(b.stamina - 90) < 1e-6, 'blocked hit with armor must still cost 5, got ' + b.stamina);
+  b.equipArmorTier(0);
+
+  // 막을 때마다 5씩 빠진다 (4번 더 = 90 → 70)
+  for (let i = 0; i < 4; i++) { b.invuln = 0; b.hp = b.maxHp; b.takeDamage(100, null); }
+  check(Math.abs(b.stamina - 70) < 1e-6, 'six blocked hits must cost 30 stamina, got ' + b.stamina);
+
+  // 7) 스태미나가 5보다 작아지면 마지막 타격은 막지만, 방어가 풀리고 지침 상태가 된다
+  b.stamina = 7; b.staminaExhausted = false; b.invuln = 0; b.hp = b.maxHp;
+  const lastGuard = b.takeDamage(100, null);
+  check(Math.abs(lastGuard - 50) <= 1, 'the last block must still halve the hit, took ' + lastGuard);
+  check(Math.abs(b.stamina - 2) < 1e-6, 'block must spend 5 even when it empties the bar, got ' + b.stamina);
+  check(b.staminaExhausted === true, 'running out of stamina while blocking must set staminaExhausted');
+  check(b.isBlocking === false, 'guard must drop when stamina runs out');
+  b.invuln = 0; b.hp = b.maxHp;
+  const open = b.takeDamage(100, null);
+  check(Math.abs(open - 100) <= 1, 'with the guard down the hit must land fully, took ' + open);
+  check(!b.tryDash().ok, 'blocking to exhaustion must also lock dash');
+
+  // 8) 스태미나 5 미만 · 돌진 중에는 막기가 열리지 않는다
+  b.stamina = 4; b.staminaExhausted = false; b.update(1 / 60, input);
+  check(b.isBlocking === false, 'guard must not stay up below 5 stamina');
+  b.stamina = 100; b.staminaExhausted = false;
+  b.update(1 / 60, input);
+  check(b.isBlocking === true, 'guard must come back at full stamina');
+  b.tryDash();
+  b.update(1 / 60, input);
+  check(b.isBlocking === false, 'guard must be down during a dash');
+  b.dash = null;
+
+  // 9) 막기는 이동을 느리게 만든다 (방어 자세)
+  b.stamina = 100; b.staminaExhausted = false;
+  b.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  input.block = false; input.forward = true;
+  for (let i = 0; i < 30; i++) b.update(1 / 60, input);
+  const walk = Math.hypot(b.position.x - BIOMES.village.spawn.x, b.position.z - BIOMES.village.spawn.z);
+  b.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  input.block = true;
+  for (let i = 0; i < 30; i++) b.update(1 / 60, input);
+  const guardWalk = Math.hypot(b.position.x - BIOMES.village.spawn.x, b.position.z - BIOMES.village.spawn.z);
+  check(guardWalk < walk * 0.85, 'blocking must slow movement: ' + guardWalk.toFixed(1) + ' vs ' + walk.toFixed(1));
+  input.forward = false;
+  input.block = false;
+  game.worldId = worldBefore2;
+}
+
 /* ------------------- 멀티플레이: 직렬화 · 원격 처리 · 권한 ------------------- */
 {
   // 1) 메시지 인코딩 / 디코딩

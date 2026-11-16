@@ -35,7 +35,7 @@ class Game {
     this.timers = [];
     this.input = {
       forward: false, back: false, left: false, right: false,
-      sprint: false, jump: false,
+      sprint: false, jump: false, block: false,
     };
     this.camYaw = -Math.PI / 2;
     this.camPitch = 0.26;
@@ -394,6 +394,15 @@ class Game {
       if (k === 'a' || k === 'arrowleft') { this.input.left = true; }
       if (k === 'd' || k === 'arrowright') { this.input.right = true; }
       if (k === 'shift') this.input.sprint = true;
+      // 대쉬 (C) — 쿨타임 없이 스태미나 5씩 쓴다. 키를 계속 누르고 있어도 반복되지 않는다
+      if ((k === 'c') && !e.repeat) {
+        if (this.state === 'playing' && this.player) this.player.tryDash();
+        e.preventDefault();
+      }
+      // 막기 (R) — 누르고 있는 동안 (트랙패드 · 키보드용)
+      if (k === 'r') {
+        this.input.block = this.state === 'playing';
+      }
       if (e.code === 'Space') { this.input.jump = true; e.preventDefault(); }
       if (k === 'j') { if (this.state === 'playing' && this.player) this.player.attack(); }
       if (k === 'f') {
@@ -430,6 +439,7 @@ class Game {
       if (k === 'a' || k === 'arrowleft') this.input.left = false;
       if (k === 'd' || k === 'arrowright') this.input.right = false;
       if (k === 'shift') this.input.sprint = false;
+      if (k === 'r') this.input.block = false;
     });
 
     window.addEventListener('blur', () => {
@@ -438,6 +448,7 @@ class Game {
       this.input.left = false;
       this.input.right = false;
       this.input.sprint = false;
+      this.input.block = false;
     });
 
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -445,6 +456,12 @@ class Game {
     canvas.addEventListener('mousedown', (e) => {
       if (Date.now() - (this.lastTouchAt || 0) < 700) return; // 터치 뒤 합성 이벤트 무시
       if (this.state !== 'playing') return;
+      // 우클릭을 누르고 있는 동안은 막기 (contextmenu 는 아래에서 막아 둔다)
+      if (e.button === 2) {
+        this.input.block = true;
+        e.preventDefault();
+        return;
+      }
       if (e.button !== 0) return;
       if (document.pointerLockElement === canvas) {
         if (this.player) this.player.attack();
@@ -465,6 +482,10 @@ class Game {
     });
 
     window.addEventListener('mouseup', (e) => {
+      if (e && e.button === 2) {
+        this.input.block = false;
+        return;
+      }
       const wasDragging = this.mouseDragging;
       const moved = this.mouseDragMoved || 0;
       const quickTap = Date.now() - (this.mouseDragAt || 0) < 350;
@@ -722,12 +743,34 @@ class Game {
     bindBtn('tbtn-q', () => this.player.useSkill('q'));
     bindBtn('tbtn-e', () => this.player.useSkill('e'));
     bindBtn('tbtn-jump', () => { this.input.jump = true; });
+    // 휴대폰 · iPad: 💨 대쉬는 누를 때마다 (쿨타임 없이 쓸 수 있는 만큼), 🛡 막기는 누르고 있는 동안
+    bindBtn('tbtn-dash', () => this.player.tryDash());
     bindBtn('tbtn-potion-1', () => this.usePotion('potion-hp'));
     bindBtn('tbtn-potion-2', () => this.usePotion('potion-hp-big'));
     bindBtn('tbtn-potion-3', () => this.usePotion('potion-atk'));
     bindBtn('tbtn-potion-4', () => this.usePotion('potion-hp-supreme'));
     bindBtn('tbtn-potion-5', () => this.usePotion('potion-full-restore'));
     bindBtn('tbtn-potion-6', () => this.usePotion('potion-rage'));
+
+    // 🛡 막기: 누르고 있는 동안 방어 (touchstart ~ touchend/touchcancel)
+    const blockBtn = document.getElementById('tbtn-block');
+    if (blockBtn) {
+      const setBlock = (on) => (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        this.input.block = !!on && this.state === 'playing';
+        blockBtn.classList.toggle('on', this.input.block);
+      };
+      blockBtn.addEventListener('touchstart', setBlock(true), { passive: false });
+      blockBtn.addEventListener('touchend', setBlock(false), { passive: false });
+      blockBtn.addEventListener('touchcancel', setBlock(false), { passive: false });
+      blockBtn.addEventListener('mousedown', (e) => {
+        if (Date.now() - (this.lastTouchAt || 0) < 700) return;
+        if (e.button === 0) setBlock(true)(e);
+      });
+      window.addEventListener('mouseup', (e) => {
+        if (e && e.button === 0 && this.input.block) setBlock(false)(e);
+      });
+    }
 
     // 상점 프롬프트 자체가 버튼 (데스크톱 채팅 · iPad 탭 모두)
     const prompt = document.getElementById('shop-prompt');
@@ -1082,6 +1125,7 @@ class Game {
     this.camDist = 56;
     this.focused = true;
     this.state = 'playing';
+    this.input.block = false;
     this.playTime = 0;
     this.victoryTimer = -1;
     this.victoryKind = null;
@@ -1209,6 +1253,7 @@ class Game {
   }
 
   onPlayerDeath() {
+    this.input.block = false;
     this.deathTimer = 1.9;
     this.hud.banner('쓰러졌습니다…', 1800);
   }
@@ -1261,6 +1306,7 @@ class Game {
     this.input.right = false;
     this.input.sprint = false;
     this.input.jump = false;
+    this.input.block = false;
     if (document.exitPointerLock) document.exitPointerLock();
     if (this.shop) this.shop.open(def ? def.id : SHOP.id);
     this.sfx.shop();
@@ -1585,6 +1631,10 @@ class Game {
         classId: this.player.classId, hp: Math.round(this.player.hp), level: this.player.level,
         x: Math.round(this.player.position.x), z: Math.round(this.player.position.z),
         anim: this.player.anim.name,
+        stamina: Math.round(this.player.stamina * 10) / 10,
+        staminaExhausted: !!this.player.staminaExhausted,
+        blocking: !!this.player.isBlocking,
+        dashing: !!this.player.dashing,
         gold: this.gold,
         weaponTier: this.player.weaponTier,
         weaponName: this.player.weaponName,

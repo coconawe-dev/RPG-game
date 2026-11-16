@@ -60,6 +60,10 @@
           <span class="bar-label">XP</span>
           <div class="bar xp"><i class="bar-fill xp-fill" id="xp-fill"></i><b class="bar-text" id="xp-text">0 / 60</b></div>
         </div>
+        <div class="bar-row st-row" id="st-row">
+          <span class="bar-label">ST</span>
+          <div class="bar st" id="st-bar"><i class="bar-fill st-fill" id="st-fill"></i><b class="bar-text" id="st-text">100 / 100</b></div>
+        </div>
         <div class="stat-row" id="stat-row">공격력 22 · 이동속도 58</div>
         <div class="buff-row" id="buff-row"></div>
       </section>
@@ -115,6 +119,8 @@
           <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <span>이동 (방향키도 가능)</span></li>
           <li><kbd>Shift</kbd> <span>달리기</span></li>
           <li><kbd>Space</kbd> <span>점프</span></li>
+          <li><kbd>C</kbd> <span>대쉬 (스태미나 5 · 쿨타임 없음)</span></li>
+          <li><kbd>우클릭</kbd> / <kbd>R</kbd> <span>막기 (피해 50% 감소 · 막을 때마다 스태미나 5)</span></li>
           <li><kbd>마우스</kbd> <span>시점 회전 (클릭하면 고정)</span></li>
           <li><kbd>좌클릭</kbd> / <kbd>J</kbd> <span>기본 공격</span></li>
           <li><kbd>Q</kbd> <span id="ctrl-q">스킬 1</span></li>
@@ -163,7 +169,10 @@
           <button class="tbtn small potion w2" id="tbtn-potion-6" type="button"><span>🔥</span><b id="tpotion-6">0</b></button>
         </div>
         <div class="trow">
+          <button class="tbtn small dash" id="tbtn-dash" type="button"><span class="tico">💨</span><span class="tlab">대쉬</span></button>
+          <button class="tbtn small block" id="tbtn-block" type="button"><span class="tico">🛡</span><span class="tlab">막기</span></button>
           <button class="tbtn small" id="tbtn-jump" type="button">점프</button>
+        </div>
           <button class="tbtn" id="tbtn-q" type="button"><b>Q</b><span id="tcd-q"></span></button>
           <button class="tbtn" id="tbtn-e" type="button"><b>E</b><span id="tcd-e"></span></button>
         </div>
@@ -173,7 +182,7 @@
 
     <div class="crosshair" id="crosshair"></div>
     <div class="hint" id="hint">화면을 클릭하면 마우스 시점이 고정됩니다 · Esc로 해제</div>
-    <div class="touch-hint" id="touch-hint">왼쪽 조이스틱으로 이동 · 화면을 끌어 시점 회전 · 짧게 탭하면 공격</div>
+    <div class="touch-hint" id="touch-hint">왼쪽 조이스틱으로 이동 · 화면을 끌어 시점 회전 · 짧게 탭하면 공격 · 💨 대쉬 · 🛡 막기는 누르고 있기</div>
   </div>
 
   <div class="overlay" id="start-overlay">

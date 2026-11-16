@@ -84,6 +84,17 @@ export class Sfx {
   gate() { this.tone({ freq: 300, to: 420, dur: 0.4, type: 'sine', vol: 0.16 }); }
   coin() { this.tone({ freq: 880, dur: 0.09, type: 'triangle', vol: 0.2 }); this.tone({ freq: 1320, dur: 0.12, type: 'triangle', vol: 0.16, delay: 0.07 }); }
   potion() { this.tone({ freq: 300, to: 760, dur: 0.26, type: 'sine', vol: 0.22 }); this.noise(0.14, 0.08, 2600); }
+  // 대쉬: 바람을 가르고 내닫는 소리
+  dash() { this.noise(0.16, 0.26, 1900); this.tone({ freq: 620, to: 190, dur: 0.15, type: 'triangle', vol: 0.2 }); }
+  dashDeny() { this.tone({ freq: 150, to: 110, dur: 0.1, type: 'square', vol: 0.12 }); }
+  // 막기: 금속이 맞물리는 짧은 쇳소리
+  block() {
+    this.tone({ freq: 1580, to: 980, dur: 0.1, type: 'square', vol: 0.16 });
+    this.tone({ freq: 2520, to: 1500, dur: 0.16, type: 'triangle', vol: 0.11, delay: 0.01 });
+    this.noise(0.07, 0.18, 4200);
+  }
+  staminaOut() { this.tone({ freq: 200, to: 90, dur: 0.28, type: 'sawtooth', vol: 0.18 }); }
+  staminaReady() { this.tone({ freq: 520, to: 780, dur: 0.18, type: 'sine', vol: 0.14 }); this.tone({ freq: 780, dur: 0.12, type: 'sine', vol: 0.1, delay: 0.09 }); }
   shop() { this.tone({ freq: 660, dur: 0.1, type: 'triangle', vol: 0.18 }); this.tone({ freq: 990, dur: 0.16, type: 'triangle', vol: 0.14, delay: 0.08 }); }
   buy() { this.tone({ freq: 520, dur: 0.1, type: 'square', vol: 0.16 }); this.tone({ freq: 1040, dur: 0.2, type: 'triangle', vol: 0.18, delay: 0.09 }); }
 }

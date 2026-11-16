@@ -107,6 +107,8 @@ export function packPlayer(pid, p, extra) {
     e.nick || '',
     e.classId || p.classId || 'warrior',
     Math.round(p.armorTier || 0),
+    p.isBlocking ? 1 : 0,
+    p.dashing ? 1 : 0,
   ];
 }
 
@@ -129,6 +131,8 @@ export function unpackPlayer(a) {
     nick: a[13] ? String(a[13]) : '',
     classId: a[14] ? String(a[14]) : 'warrior',
     armorTier: Number(a[15]) || 0,
+    block: !!a[16],
+    dashing: !!a[17],
   };
 }
 
@@ -700,6 +704,8 @@ export class Net {
     }
     rec.alive = p.alive !== false;
     rec.speed = Number(p.spd) || 0;
+    rec.block = !!p.blk;
+    rec.dashing = !!p.dash;
     if (rec.nickValue) rec.nick = p.nick || rec.nick;
     rec.target.set(rec.x, 0, rec.z);
     rec.targetYaw = rec.yaw;
@@ -738,7 +744,7 @@ export class Net {
           classId: st.classId, weaponTier: st.weaponTier, armorTier: st.armorTier || 0, level: st.level,
           hp: st.hp, maxHp: st.maxHp, alive: st.alive,
           x: st.x, z: st.z, yaw: st.yaw, anim: st.anim, animDur: st.animDur,
-          speed: st.speed, rig,
+          speed: st.speed, rig, block: !!st.block, dashing: !!st.dashing,
           target: new THREE.Vector3(st.x, 0, st.z), targetYaw: st.yaw,
           lastAt: Date.now(),
         };
@@ -752,6 +758,8 @@ export class Net {
       rec.hp = st.hp; rec.maxHp = st.maxHp; rec.level = st.level;
       rec.alive = st.alive;
       rec.speed = st.speed;
+      rec.block = !!st.block;
+      rec.dashing = !!st.dashing;
       rec.nick = st.nick || rec.nick;
       if (st.weaponTier !== rec.weaponTier) {
         rec.weaponTier = st.weaponTier;
@@ -963,6 +971,7 @@ export class Net {
       ad: Math.round((p.anim.duration || 0) * 10),
       hp: p.hp, maxHp: p.maxHp, lvl: p.level, wt: p.weaponTier, at: p.armorTier || 0,
       spd: p.speedNow, alive: p.alive, w: this.game.worldId || 1,
+      blk: p.isBlocking ? 1 : 0, dash: p.dashing ? 1 : 0,
     }));
   }
 
@@ -1011,6 +1020,8 @@ export class Net {
       weaponTier: rec.weaponTier,
       armorTier: rec.armorTier || 0,
       alive: rec.alive,
+      block: !!rec.block,
+      dashing: !!rec.dashing,
     });
     if (!rec.alive && rig.state !== 'dead') {
       rig.state = 'dead';
@@ -1043,6 +1054,7 @@ export class Net {
         ANIM_CODES[rec.anim] || 0, Math.round((rec.animDur || 0) * 10),
         Math.round(rec.hp), Math.round(rec.maxHp), rec.level, rec.weaponTier,
         r1(rec.speed), rec.alive ? 1 : 0, 0, rec.nick, rec.classId, rec.armorTier || 0,
+        rec.block ? 1 : 0, rec.dashing ? 1 : 0,
       ]);
     }
     return list;
