@@ -39,6 +39,37 @@ function makeOrbMesh(color, size) {
   return g;
 }
 
+/* ------------------------------------------------------------------
+   몹 피격 판정 (실린더)
+   · 바닥: 몹 발밑(y = 몹 위치) · 천장: hitHeight(없으면 몸 높이의 1.05배)
+   · 슬라임처럼 납작한 몹은 hitHeight 로 위쪽 판정을 넓혀 둘 수 있다
+     (config.js MOB_TYPES.slime.hitHeight = 20)
+------------------------------------------------------------------ */
+function hitTop(mob) {
+  const h = mob.hitHeight !== undefined ? mob.hitHeight : (mob.height || 12) * 1.05;
+  return mob.position.y + h;
+}
+function hitBottom(mob) { return mob.position.y; }
+
+// 이동 구간(prev → next)이 몹의 피격 실린더를 스치는지
+// 원거리 투사체가 한 프레임에 몹을 지나쳐 버리는(터널링) 경우까지 잡아낸다.
+function segmentHitsMob(prev, next, mob, projectileRadius) {
+  const r = (mob.radius || 6) + (projectileRadius || 2);
+  const ax = prev.x, az = prev.z;
+  const dx = next.x - ax, dz = next.z - az;
+  const len2 = dx * dx + dz * dz;
+  let t = 0;
+  if (len2 > 1e-8) {
+    t = clamp(((mob.position.x - ax) * dx + (mob.position.z - az) * dz) / len2, 0, 1);
+  }
+  const cx = ax + dx * t, cz = az + dz * t;
+  const dist = Math.hypot(mob.position.x - cx, mob.position.z - cz);
+  if (dist > r) return false;
+  // 가장 가까워진 지점의 높이가 실린더(±투사체 반경) 안이어야 한다
+  const y = prev.y + (next.y - prev.y) * t;
+  return y >= hitBottom(mob) - r && y <= hitTop(mob) + r;
+}
+
 export class Combat {
   constructor(game) {
     this.game = game;
@@ -188,6 +219,8 @@ export class Combat {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life -= dt;
+      const prev = p.prev || (p.prev = new THREE.Vector3());
+      prev.copy(p.pos);
       if (p.fall) p.vy -= 90 * dt;
       p.pos.addScaledVector(p.vel, dt);
       if (p.fall) p.pos.y += p.vy * dt;
@@ -197,22 +230,20 @@ export class Combat {
       const mobs = this.game.mobManager.mobs;
       for (const mob of mobs) {
         if (mob.dead) continue;
+        if (!segmentHitsMob(prev, p.pos, mob, p.radius)) continue;
         const dx = mob.position.x - p.pos.x;
         const dz = mob.position.z - p.pos.z;
-        const dy = p.pos.y - (mob.position.y + mob.height * 0.55);
-        if (dx * dx + dz * dz < (mob.radius + p.radius) * (mob.radius + p.radius) && Math.abs(dy) < mob.height * 0.75) {
-          const dir = new THREE.Vector3(dx, 0, dz).normalize();
-          if (p.splash > 0) {
-            this.explode(new THREE.Vector3(p.pos.x, p.pos.y, p.pos.z), p.splash, p.damage, {
-              color: p.kind === 'orb' ? 0xb98cff : 0xffb15c, critChance: p.critChance, knock: 12,
-            });
-          } else {
-            this.applyDamage(mob, p.damage, { critChance: p.critChance, critMul: p.critMul, dir, knock: 6 });
-            this.game.effects.burst(p.pos, 0xffe0a8, 5, { power: 12, size: 0.4, duration: 0.35 });
-          }
-          if (p.pierce > 0) { p.pierce--; } else { remove = true; }
-          break;
+        const dir = new THREE.Vector3(dx, 0, dz).normalize();
+        if (p.splash > 0) {
+          this.explode(new THREE.Vector3(p.pos.x, p.pos.y, p.pos.z), p.splash, p.damage, {
+            color: p.kind === 'orb' ? 0xb98cff : 0xffb15c, critChance: p.critChance, knock: 12,
+          });
+        } else {
+          this.applyDamage(mob, p.damage, { critChance: p.critChance, critMul: p.critMul, dir, knock: 6 });
+          this.game.effects.burst(p.pos, 0xffe0a8, 5, { power: 12, size: 0.4, duration: 0.35 });
         }
+        if (p.pierce > 0) { p.pierce--; } else { remove = true; }
+        break;
       }
       // 지면 충돌
       if (p.fall && p.pos.y <= this.game.terrainHeightAt(p.pos.x, p.pos.z) + 1) {

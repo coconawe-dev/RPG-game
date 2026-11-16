@@ -1,6 +1,6 @@
 // 플레이어: 직업별 3D 리그, 이동, 절차적 애니메이션(공격/스킬/피격)
 import * as THREE from 'three';
-import { CLASSES, SHOP, allArmors, allPotions, MAX_ARMOR_TIER, MAX_WEAPON_TIER } from './config.js';
+import { CLASSES, SHOP, allArmors, allPotions, MAX_ARMOR_TIER, MAX_WEAPON_TIER, ULT_LEVEL, EVOLUTION_LEVEL, skillDefFor, isEvolvedAt } from './config.js';
 import { buildWeapons } from './weapons.js';
 import {
   clamp, damp, dampAngle, lerp, smoothstep, terrainHeight, clampToWorld, TAU, disposeObject,
@@ -390,6 +390,53 @@ const CLIPS = {
     0.8: { armRz: -1.1, armLz: 1.1, armRx: -1.5, armLx: -1.4, torsoPitch: -0.1, spinY: -6.0 },
     1.00: { spinY: -6.2832 },
   },
+
+  // 필살기(15레벨 해금) 전용 클립
+  // 검사: 천공의 일섬 — 크게 쳐들었다가 세 번 내리긋는 참격
+  heavenslash: {
+    0.00: { armRx: -1.0, armRz: -0.6, foreRx: -0.5, torsoYaw: -0.4 },
+    0.22: { armRx: -3.0, armRz: -0.25, foreRx: -0.7, torsoPitch: -0.3, bodyY: 0.8, headPitch: -0.2 },
+    0.34: { armRx: -1.4, armRz: 0.1, foreRx: -0.05, torsoPitch: 0.44, bodyY: -1.0, kneeLx: 0.7, kneeRx: 0.7 },
+    0.48: { armRx: -2.0, armRz: 0.6, foreRx: -0.2, torsoYaw: 0.55, torsoPitch: 0.1, bodyY: 0.2 },
+    0.70: { armRx: -3.0, armRz: -0.3, foreRx: -0.45, torsoPitch: -0.28, bodyY: 0.75, headPitch: -0.18 },
+    0.86: { armRx: -1.5, armRz: 0.2, foreRx: -0.05, torsoPitch: 0.42, bodyY: -0.9, kneeLx: 0.8, kneeRx: 0.8 },
+    1.00: { armRx: -1.2, armRz: 0.4, torsoYaw: 0.35 },
+  },
+  // 궁수: 유성 화살비 — 활을 하늘로 치켜들고 연달아 쏘아 올린다
+  meteorrain: {
+    0.00: { armLx: -1.5, armLz: 0.4, handLx: 1.5, armRx: -2.6, armRz: -0.3, foreRx: -0.8, torsoPitch: -0.35, headPitch: -0.2 },
+    0.40: { armLx: -2.2, armLz: 0.5, handLx: 1.6, armRx: -2.9, foreRx: -1.4, torsoPitch: -0.46, headPitch: -0.24 },
+    0.55: { armLx: -1.8, armLz: 0.4, handLx: 1.8, armRx: -1.2, foreRx: -0.2, torsoPitch: 0.2 },
+    0.72: { armLx: -2.0, armLz: 0.5, handLx: 1.6, armRx: -2.6, foreRx: -1.2, torsoPitch: -0.4 },
+    0.88: { armLx: -1.5, armLz: 0.35, handLx: 1.4, torsoPitch: -0.1 },
+    1.00: {},
+  },
+  // 도적: 그림자 절몸 — 몸을 낮게 웅크렸다가 그림자와 함께 회전 폭발
+  shadowburst: {
+    0.00: { kneeLx: 0.8, kneeRx: 0.8, bodyY: -0.8, torsoPitch: 0.3, armRx: -0.6, armLx: -0.6 },
+    0.18: { armRx: -0.1, armRz: -1.5, armLx: 0.1, armLz: 1.5, spinY: -1.2, torsoPitch: -0.1, bodyY: 0.6 },
+    0.45: { armRx: -1.8, armRz: 0.6, armLx: -1.8, armLz: -0.6, spinY: -3.6 },
+    0.72: { armRx: -1.4, armRz: -0.9, armLx: -1.4, armLz: 0.9, spinY: -5.0 },
+    1.00: { spinY: -6.2832, armRx: -0.8, armLx: -0.8 },
+  },
+  // 탱커: 불멸의 성역 — 방패와 팔을 치켜들어 성역을 세우고 내리친다
+  sanctuary: {
+    0.00: {},
+    0.22: { armLx: -1.5, armLz: 0.9, foreLx: -1.2, armRx: -1.5, armRz: -0.9, foreRx: -1.2, torsoPitch: -0.2, bodyY: 0.8, headPitch: -0.15 },
+    0.45: { armLx: -2.8, armLz: 0.4, foreLx: -0.2, armRx: -2.8, armRz: -0.4, foreRx: -0.2, bodyY: 1.1 },
+    0.62: { armLx: -0.4, armLz: 0.2, foreLx: -1.6, handLx: -0.5, armRx: -0.4, armRz: -0.2, foreRx: -1.6, torsoPitch: 0.42, bodyY: -1.1, kneeLx: 0.9, kneeRx: 0.9 },
+    0.85: { armLx: -1.4, armLz: 0.8, foreLx: -1.0, armRx: -1.4, armRz: -0.8, foreRx: -1.0, torsoPitch: 0.05, bodyY: 0.3 },
+    1.00: {},
+  },
+  // 마법사: 아케인 메테오 — 두 팔로 혜성을 끌어내려 내리꽃는다
+  arcanemeteor: {
+    0.00: {},
+    0.25: { armRx: -2.9, armRz: -0.15, foreRx: -0.3, armLx: -2.9, armLz: 0.15, foreLx: -0.3, torsoPitch: -0.3, bodyY: 0.9, headPitch: -0.2 },
+    0.55: { armRx: -3.0, armLx: -3.0, torsoPitch: -0.36, bodyY: 1.0, headPitch: -0.24 },
+    0.72: { armRx: -1.2, armRz: 0.05, foreRx: -0.1, armLx: -1.2, armLz: -0.05, foreLx: -0.1, torsoPitch: 0.46, bodyY: -1.1, kneeLx: 0.9, kneeRx: 0.9 },
+    0.90: { armRx: -1.5, foreRx: -0.3, armLx: -1.5, foreLx: -0.3, torsoPitch: 0.15, bodyY: -0.2 },
+    1.00: {},
+  },
   death: {
     0.00: {},
     0.35: { bodyPitch: -0.5, kneeLx: 1.2, kneeRx: 1.2, torsoPitch: 0.4, bodyY: -1.6 },
@@ -475,7 +522,11 @@ export class Player {
     this.comboIndex = 0;
 
     this.attackCooldown = 0;
-    this.cooldowns = { q: 0, e: 0 };
+    this.cooldowns = { q: 0, e: 0, ult: 0 };
+    // 성장 단계: 15레벨에 필살기(ult) 해금 · 20레벨에 1차 진화(Q · E 강화 스킬)
+    this.ultUnlocked = this.level >= ULT_LEVEL;
+    this.evolved = isEvolvedAt(this.level);
+    this.evolutionTier = this.evolved ? 1 : 0;
     this.buffs = { fortress: 0, haste: 0, frost: 0, elixir: 0, rage: 0, guard: 0 };
     this.invuln = 0;
     this.dash = null;
@@ -829,6 +880,85 @@ export class Player {
 
   /* ------------------------------ 상태 API ------------------------------ */
   get alive() { return this.state === 'alive'; }
+
+  /* --------------------------- 스킬 · 성장 단계 --------------------------- */
+  // 지금 레벨에서 실제로 쓰는 스킬 (15레벨 미만이면 ult 는 null · 20레벨부터 Q/E 는 진화 스킬)
+  skillFor(slot) {
+    if (slot === 'ult') return this.level >= ULT_LEVEL && this.ultUnlocked ? (this.cls.ult || null) : null;
+    return skillDefFor(this.classId, slot, this.level);
+  }
+
+  // 진화 배지·스킬바가 바로 바뀌도록 알린다
+  refreshSkillHud() {
+    const hud = this.game && this.game.hud;
+    if (hud && typeof hud.refreshSkillBar === 'function') hud.refreshSkillBar();
+  }
+
+  // 레벨이 오를 때마다 부른다 — 15레벨 필살기 해금 · 20레벨 1차 진화
+  checkProgression(opts) {
+    const silent = !!(opts && opts.silent);
+    const hud = this.game && this.game.hud;
+    const fx = this.game && this.game.effects;
+    const sfx = this.game && this.game.sfx;
+    let unlocked = null;
+
+    if (this.level >= ULT_LEVEL && !this.ultUnlocked) {
+      this.ultUnlocked = true;
+      this.cooldowns.ult = 0;
+      unlocked = 'ult';
+      if (!silent) {
+        if (hud) hud.banner('🔥 필살기 해금!  X 키 · 75초 쿨타임', 3000);
+        if (sfx && sfx.ultReady) sfx.ultReady();
+        if (fx) {
+          fx.pillar(this.position, 0xffd24a, 150, 1.3, 20);
+          fx.ring(this.position, 0xffd24a, 120, { duration: 0.9, thickness: 0.05 });
+          fx.burst(new THREE.Vector3(this.position.x, this.position.y + 12, this.position.z), 0xffe9a0, 30, { power: 42, size: 1.1 });
+        }
+        if (this.game.shake) this.game.shake(0.5);
+      }
+    }
+
+    if (this.level >= EVOLUTION_LEVEL && !this.evolved) {
+      this.evolved = true;
+      this.evolutionTier = 1;
+      // 진화 순간 Q · E 는 새 스킬로 바뀌므로 쿨타임을 비워 바로 쓸 수 있게 한다
+      this.cooldowns.q = 0;
+      this.cooldowns.e = 0;
+      unlocked = 'evolve';
+      if (!silent) {
+        if (hud) hud.banner('✨ 1차 진화 달성!  Q · E 스킬이 강화되었습니다', 3400);
+        if (sfx && sfx.evolve) sfx.evolve();
+        if (fx) {
+          fx.pillar(this.position, 0xffe9a0, 220, 1.7, 28);
+          fx.aura(this.root, 0xffd24a, 2.4, 20, 10);
+          fx.flash(new THREE.Vector3(this.position.x, this.position.y + 12, this.position.z), 0xffe9a0, 1000, 600, 0.6);
+          for (let i = 0; i < 3; i++) {
+            fx.ring(this.position, i === 1 ? 0xffffff : 0xffd24a, 90 + i * 45, { duration: 0.9 + i * 0.15, thickness: 0.04 });
+          }
+          fx.burst(new THREE.Vector3(this.position.x, this.position.y + 12, this.position.z), 0xffd98a, 40, { power: 58, size: 1.3 });
+        }
+        if (this.game.shake) this.game.shake(0.7);
+      }
+    }
+
+    if (unlocked) this.refreshSkillHud();
+    return unlocked;
+  }
+
+  // 점검용 · ?level=20 로 시작할 때 — 레벨을 올리고 해금 · 진화를 적용한다
+  setLevel(n, opts) {
+    const target = clamp(Math.round(n || 1), 1, 60);
+    while (this.level < target) {
+      this.level++;
+      this.xpNext = Math.round(this.xpNext * 1.35 + 18);
+      this.maxHp += 16;
+      this.baseDamage += 2.4;
+    }
+    this.hp = this.maxHp;
+    this.checkProgression(opts);
+    if (this.game.hud && this.game.hud.refreshBars) this.game.hud.refreshBars();
+    return this.level;
+  }
   // 기본 공격력 + 장비 보너스 · 전투의 비약(+35%) · 광폭의 영약(+60%)
   get damage() {
     let base = this.baseDamage + this.weaponBonus;
@@ -973,6 +1103,7 @@ export class Player {
     this.attackCooldown = 0;
     this.cooldowns.q = 0;
     this.cooldowns.e = 0;
+    this.cooldowns.ult = 0;
     this.position.set(x, terrainHeight(x, z), z);
     this.vy = 0;
     this.grounded = true;
@@ -1162,6 +1293,8 @@ export class Player {
       this.game.effects.ring(this.position, 0xffd98a, 60, { duration: 0.9 });
       this.game.hud.refreshBars();
     }
+    // 15레벨 필살기 해금 · 20레벨 1차 진화 (해당되면 여기서 배너 · 이펙트가 뜬다)
+    this.checkProgression();
     this.game.hud.refreshBars();
   }
 
@@ -1171,6 +1304,7 @@ export class Player {
     this.attackCooldown = Math.max(0, this.attackCooldown - dt);
     this.cooldowns.q = Math.max(0, this.cooldowns.q - dt);
     this.cooldowns.e = Math.max(0, this.cooldowns.e - dt);
+    this.cooldowns.ult = Math.max(0, this.cooldowns.ult - dt);
     this.invuln = Math.max(0, this.invuln - dt);
     this.aimLock = Math.max(0, this.aimLock - dt);
     if (this.buffs.fortress > 0) {

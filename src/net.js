@@ -27,6 +27,8 @@ export const ANIM_NAMES = [
   '', 'cleave', 'stab', 'bash', 'shoot', 'cast', 'whirlwind', 'dashstrike',
   'multishot', 'barrage', 'ambush', 'flurry', 'shieldslam', 'fortress',
   'explosion', 'nova', 'death',
+  // 필살기 애니메이션 (친구 화면에도 같은 동작이 보이도록)
+  'heavenslash', 'meteorrain', 'shadowburst', 'sanctuary', 'arcanemeteor',
 ];
 const ANIM_CODES = {};
 ANIM_NAMES.forEach((n, i) => { if (n) ANIM_CODES[n] = i; });

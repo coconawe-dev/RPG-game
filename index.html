@@ -50,6 +50,7 @@
           <span class="class-badge" id="class-badge">검사</span>
           <span class="weapon-tag" id="weapon-tag">검</span>
           <span class="level-text" id="level-text">Lv.1</span>
+          <span class="evo-badge hidden" id="evo-badge" title="20레벨 1차 진화 · Q · E 스킬이 강화되었습니다">✨ 1차 진화</span>
         </div>
         <div class="gold-row"><span class="gold-tag" id="gold-tag">🪙 100G</span></div>
         <div class="bar-row">
@@ -125,6 +126,7 @@
           <li><kbd>좌클릭</kbd> / <kbd>J</kbd> <span>기본 공격</span></li>
           <li><kbd>Q</kbd> <span id="ctrl-q">스킬 1</span></li>
           <li><kbd>E</kbd> <span id="ctrl-e">스킬 2</span></li>
+          <li><kbd>X</kbd> <span id="ctrl-ult">필살기 (Lv.15 해금 · 75초)</span></li>
           <li><kbd>F</kbd> <span>상점 열기 (상점 앞)</span></li>
           <li><kbd>M</kbd> <span>지도 열기 / 접기</span></li>
           <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> <span>1세계 포션 사용</span></li>
@@ -171,11 +173,12 @@
         <div class="trow trow-move">
           <button class="tbtn small dash" id="tbtn-dash" type="button"><span class="tico">💨</span><span class="tlab">대쉬</span></button>
           <button class="tbtn small block" id="tbtn-block" type="button"><span class="tico">🛡</span><span class="tlab">막기</span></button>
+          <button class="tbtn small" id="tbtn-jump" type="button">점프</button>
         </div>
         <div class="trow">
-          <button class="tbtn small" id="tbtn-jump" type="button">점프</button>
           <button class="tbtn" id="tbtn-q" type="button"><b>Q</b><span id="tcd-q"></span></button>
           <button class="tbtn" id="tbtn-e" type="button"><b>E</b><span id="tcd-e"></span></button>
+          <button class="tbtn ult locked" id="tbtn-ult" type="button" title="Lv.15 에 필살기가 열립니다"><b id="tult-icon">🔒</b><span id="tcd-ult"></span></button>
         </div>
         <button class="tbtn attack" id="tbtn-attack" type="button">공격</button>
       </div>
@@ -183,7 +186,7 @@
 
     <div class="crosshair" id="crosshair"></div>
     <div class="hint" id="hint">화면을 클릭하면 마우스 시점이 고정됩니다 · Esc로 해제</div>
-    <div class="touch-hint" id="touch-hint">왼쪽 조이스틱으로 이동 · 화면을 끌어 시점 회전 · 짧게 탭하면 공격 · 💨 대쉬 · 🛡 막기는 누르고 있기</div>
+    <div class="touch-hint" id="touch-hint">왼쪽 조이스틱으로 이동 · 화면을 끌어 시점 회전 · 짧게 탭하면 공격 · 💨 대쉬 · 🛡 막기는 누르고 있기 · 🔥 필살기는 Lv.15 부터</div>
   </div>
 
   <div class="overlay" id="start-overlay">
@@ -208,7 +211,7 @@
         <p class="mp-note" id="mp-note">혼자 하기는 바로 시작합니다 · 친구·가족과 함께하려면 방을 만들거나 초대 링크를 여세요.</p>
       </div>
       <div class="class-grid" id="class-grid"></div>
-      <p class="tip">직업을 선택하면 태초마을에서 시작됩니다 · 직업마다 무기·공격 모션·<b>Q / E 스킬</b>이 모두 다릅니다.</p>
+      <p class="tip">직업을 선택하면 태초마을에서 시작됩니다 · 직업마다 무기·공격 모션·<b>Q / E 스킬</b>이 모두 다릅니다. <b>Lv.15</b> 에 <b>필살기(X)</b>, <b>Lv.20</b> 에 <b>1차 진화</b>로 Q · E 가 더 강한 스킬로 바뀝니다.</p>
     </div>
   </div>
 

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import {
   BIOMES, BIOME_ORDER, ALL_BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD, WORLD2, WORLD2_ARRIVAL,
-  SHOP, shopForBiome, homeBiomeFor,
+  SHOP, shopForBiome, homeBiomeFor, ULT_LEVEL,
 } from './config.js';
 import { buildWorld, updateSun, updateVillage, updateOldVillage, updateWorld2, updateBiomeCulling, applyWorldQuality } from './world.js';
 import { Portals, handleBossDefeated, travelPlayer } from './portals.js';
@@ -162,6 +162,9 @@ class Game {
     const qz = parseFloat(qp.get('z'));
     // 점검용: 인위적으로 프레임을 느리게 만들어 자동 화질 하향을 시험한다 (?perfdelay=800)
     this.perfDelay = parseFloat(qp.get('perfdelay')) || 0;
+    // 점검용: ?level=15 / ?level=20 으로 필살기 해금 · 1차 진화 상태로 바로 시작한다
+    const ql = parseInt(qp.get('level'), 10);
+    this.startLevel = isFinite(ql) && ql > 1 ? Math.min(60, ql) : 0;
     this.debugSpawn = (isFinite(qx) && isFinite(qz)) ? { x: qx, z: qz } : null;
     if (this.autoClass && CLASSES[this.autoClass]) {
       // ?room= 초대 링크로 들어왔으면 혼자 모드로 새지 않게 한다
@@ -414,6 +417,13 @@ class Game {
       }
       if (k === 'q') { if (this.state === 'playing' && this.player) this.player.useSkill('q'); }
       if (k === 'e') { if (this.state === 'playing' && this.player) this.player.useSkill('e'); }
+      // 필살기 (X) — 15레벨부터 · 75초 쿨타임
+      if (k === 'x' && !e.repeat) {
+        if (this.state === 'playing' && this.player) {
+          const used = this.player.useSkill('ult');
+          if (!used && this.player.level < ULT_LEVEL) this.hud.banner('필살기는 Lv.' + ULT_LEVEL + ' 에 해금됩니다', 1300);
+        }
+      }
       if (k === 'escape' && document.exitPointerLock) document.exitPointerLock();
       // 포션 빠른 사용: 1 / 2 / 3 (1세계) · 4 / 5 / 6 (2세계)
       if (this.state === 'playing' && this.player) {
@@ -742,6 +752,11 @@ class Game {
     bindBtn('tbtn-attack', () => this.player.attack());
     bindBtn('tbtn-q', () => this.player.useSkill('q'));
     bindBtn('tbtn-e', () => this.player.useSkill('e'));
+    bindBtn('tbtn-ult', () => {
+      if (!this.player.useSkill('ult') && this.player.level < ULT_LEVEL) {
+        this.hud.banner('필살기는 Lv.' + ULT_LEVEL + ' 에 해금됩니다', 1300);
+      }
+    });
     bindBtn('tbtn-jump', () => { this.input.jump = true; });
     // 휴대폰 · iPad: 💨 대쉬는 누를 때마다 (쿨타임 없이 쓸 수 있는 만큼), 🛡 막기는 누르고 있는 동안
     bindBtn('tbtn-dash', () => this.player.tryDash());
@@ -1111,6 +1126,8 @@ class Game {
     // 함께 하기: 초대받은 사람은 호스트가 알려 준 자리에서 시작한다
     if (o.spawn) spawn = { x: o.spawn.x, z: o.spawn.z };
     this.player.spawnAt(spawn.x, spawn.z);
+    // 점검용 ?level=15 / ?level=20 — 필살기 해금 · 1차 진화 상태로 시작
+    if (this.startLevel > 1) this.player.setLevel(this.startLevel);
     if (biomeId === 'village' && !this.debugSpawn) this.player.facing = Math.PI;
     if (biomeId === 'village_w2' && !this.debugSpawn) this.player.facing = 0;
     this.setWorld(worldAt(spawn.x, spawn.z), { silent: true });
@@ -1640,6 +1657,18 @@ class Game {
         weaponName: this.player.weaponName,
         damage: Math.round(this.player.damage * 10) / 10,
         potions: Object.assign({}, this.player.potions),
+        ultUnlocked: !!this.player.ultUnlocked,
+        evolved: !!this.player.evolved,
+        cooldowns: {
+          q: Math.round(this.player.cooldowns.q * 10) / 10,
+          e: Math.round(this.player.cooldowns.e * 10) / 10,
+          ult: Math.round((this.player.cooldowns.ult || 0) * 10) / 10,
+        },
+        skills: {
+          q: this.player.skillFor('q') ? this.player.skillFor('q').name : null,
+          e: this.player.skillFor('e') ? this.player.skillFor('e').name : null,
+          ult: this.player.skillFor('ult') ? this.player.skillFor('ult').name : null,
+        },
       } : null,
       region: this.regionId || null,
       touch: this.touchMode === undefined ? null : {

@@ -413,6 +413,9 @@ export const MOB_TYPES = {
   slime: {
     id: 'slime', name: '슬라임', hp: 92, damage: 14, speed: 20, aggro: 120,
     attackRange: 24, attackCooldown: 1.7, xp: 16, gold: 15, height: 12, radius: 6,
+    // 슬라임은 납작하게 땅에 붙어 있어 몸 높이(12)보다 위쪽으로 넉넉한 피격 판정을 둔다.
+    // 마법사 구체(y ≈ 18) · 궁수 화살이 슬라임을 그냥 지나쳐 버리지 않도록 hitHeight = 20.
+    hitHeight: 20,
     leash: 260, kind: 'slime',
   },
   zombie: {
@@ -483,6 +486,15 @@ export const WORLD1_PORTAL_POS = { x: 0, z: 172 };
 export const WORLD2_RETURN_POS = { x: 215, z: WORLD2.originZ + 1880 };
 
 
+/* ------------------------------------------------------------------
+   성장 단계 — 15레벨에 필살기(ult)가 열리고, 20레벨에 1차 진화(evolved)로
+   Q · E 스킬이 더 강한 새 스킬로 바뀐다.
+------------------------------------------------------------------ */
+export const ULT_LEVEL = 15;
+export const EVOLUTION_LEVEL = 20;
+export const ULT_COOLDOWN = 75;
+export const ULT_KEY = 'X';
+
 export const CLASSES = {
   warrior: {
     id: 'warrior',
@@ -512,6 +524,21 @@ export const CLASSES = {
       e: {
         key: 'E', name: '돌진 일격', en: 'Dash Strike', icon: '💥', cooldown: 10,
         desc: '전방으로 돌진해 강력한 내려찍기를 날립니다.',
+      },
+    },
+    ult: {
+      key: 'X', slot: 'ult', name: '천공의 일섬', en: 'Heaven-Splitting Blade', icon: '⚡',
+      cooldown: ULT_COOLDOWN,
+      desc: '하늘을 가르는 세 번의 황금빛 참격. 주변의 모든 적을 베어내고 거대한 충격파로 밀어냅니다.',
+    },
+    evolved: {
+      q: {
+        key: 'Q', name: '폭풍 회전난무', en: 'Storm Tempest', icon: '🌪', cooldown: 6,
+        desc: '여섯 번의 회전 베기로 주변을 갈아버리는 강화 회전 베기.',
+      },
+      e: {
+        key: 'E', name: '천둥 돌진참', en: 'Thunder Dash', icon: '🌩', cooldown: 9,
+        desc: '번개처럼 더 멀리 돌진해 내려찍고, 착지점에 천둥 충격파를 터뜨립니다.',
       },
     },
   },
@@ -546,6 +573,21 @@ export const CLASSES = {
         desc: '뒤로 도약하며 전방에 화살비를 퍼붓습니다.',
       },
     },
+    ult: {
+      key: 'X', slot: 'ult', name: '유성 화살비', en: 'Meteor Rain', icon: '☄️',
+      cooldown: ULT_COOLDOWN,
+      desc: '하늘에서 유성 같은 화살들이 쏟아져 넓은 지역을 불바다로 만듭니다.',
+    },
+    evolved: {
+      q: {
+        key: 'Q', name: '천풍 연사', en: 'Gale Volley', icon: '🍃', cooldown: 5,
+        desc: '아홉 발의 바람 화살을 부채꼴로 연사하고, 적을 관통합니다.',
+      },
+      e: {
+        key: 'E', name: '폭풍우 화살폭격', en: 'Storm Barrage', icon: '⛈', cooldown: 11,
+        desc: '뒤로 도약하며 스무 발의 화살을 폭격합니다.',
+      },
+    },
   },
   rogue: {
     id: 'rogue',
@@ -577,6 +619,21 @@ export const CLASSES = {
         desc: '연속 찌르기 난무. 지속시간 동안 이동속도가 상승합니다.',
       },
     },
+    ult: {
+      key: 'X', slot: 'ult', name: '그림자 절멸', en: 'Shadow Annihilation', icon: '🌑',
+      cooldown: ULT_COOLDOWN,
+      desc: '그림자 분신이 다섯 번 연속 폭발하며 주변 적을 확정 치명타로 베어냅니다.',
+    },
+    evolved: {
+      q: {
+        key: 'Q', name: '그림자 처형', en: 'Shadow Execution', icon: '💀', cooldown: 7,
+        desc: '그림자 속으로 더 멀리 파고들어 확정 치명타로 처형합니다.',
+      },
+      e: {
+        key: 'E', name: '천변 만화', en: 'Thousand Blades', icon: '🌪', cooldown: 12,
+        desc: '열한 번의 연속 찌르기와 빨라진 발놀림.',
+      },
+    },
   },
   tanker: {
     id: 'tanker',
@@ -606,6 +663,21 @@ export const CLASSES = {
       e: {
         key: 'E', name: '철벽 태세', en: 'Iron Fortress', icon: '🌟', cooldown: 16,
         desc: '황금 방어막으로 받는 피해를 줄이고 HP를 회복합니다.',
+      },
+    },
+    ult: {
+      key: 'X', slot: 'ult', name: '불멸의 성역', en: 'Immortal Sanctuary', icon: '🏰',
+      cooldown: ULT_COOLDOWN,
+      desc: '황금 성역이 내려앉아 주변을 짓밟고, 체력과 스태미나를 크게 회복시킵니다.',
+    },
+    evolved: {
+      q: {
+        key: 'Q', name: '대지 분쇄', en: 'Earth Crusher', icon: '🪨', cooldown: 7,
+        desc: '더 넓은 충격파로 대지를 뒤집어엎습니다.',
+      },
+      e: {
+        key: 'E', name: '불굴의 성채', en: 'Unbreakable Citadel', icon: '⭐', cooldown: 14,
+        desc: '더 오래, 더 단단한 황금 방어막으로 버팁니다.',
       },
     },
   },
@@ -640,10 +712,41 @@ export const CLASSES = {
         desc: '확산하는 마력 고리로 적을 밀쳐내고 피해를 줍니다.',
       },
     },
+    ult: {
+      key: 'X', slot: 'ult', name: '아케인 메테오', en: 'Arcane Meteor', icon: '🌠',
+      cooldown: ULT_COOLDOWN,
+      desc: '거대한 아케인 유성이 떨어져 넓은 지역을 소멸시킵니다.',
+    },
+    evolved: {
+      q: {
+        key: 'Q', name: '아케인 심판', en: 'Arcane Judgement', icon: '🔮', cooldown: 8,
+        desc: '전방에 두 번의 대형 마력 폭발을 일으켜 적을 심판합니다.',
+      },
+      e: {
+        key: 'E', name: '차원 붕괴', en: 'Dimensional Collapse', icon: '🕳', cooldown: 11,
+        desc: '주변 차원을 붕괴시켜 광범위 피해와 빙결을 겁니다.',
+      },
+    },
   },
 };
 
 export const CLASS_ORDER = ['warrior', 'archer', 'rogue', 'tanker', 'mage'];
+
+/* 지금 레벨에서 실제로 쓰는 스킬 정의
+   - slot: 'q' | 'e' | 'ult'
+   - 20레벨(1차 진화) 이상이면 Q · E 가 evolved 스킬로 바뀐다
+   - 필살기(ult)는 15레벨부터 열린다 */
+export function skillDefFor(classId, slot, level) {
+  const c = CLASSES[classId];
+  if (!c) return null;
+  const lv = Math.max(1, Math.round(level || 1));
+  if (slot === 'ult') return lv >= ULT_LEVEL ? (c.ult || null) : null;
+  if (lv >= EVOLUTION_LEVEL && c.evolved && c.evolved[slot]) return c.evolved[slot];
+  return (c.skills && c.skills[slot]) || null;
+}
+
+// 1차 진화 여부 (20레벨 이상)
+export function isEvolvedAt(level) { return Math.max(1, Math.round(level || 1)) >= EVOLUTION_LEVEL; }
 
 export const PLAYER_SIZE = { width: 10, height: 20, radius: 4.6 };
 

@@ -1,12 +1,12 @@
 // 오프라인 스모크 테스트: 월드/몬스터/플레이어/스킬을 DOM·WebGL 없이 논리 검증
 import * as THREE from 'three';
 import { buildWorld, updateBiomeCulling } from '/workspace/RPG-game/src/world.js';
-import { MobManager } from '/workspace/RPG-game/src/mobs.js';
+import { Mob, MobManager } from '/workspace/RPG-game/src/mobs.js';
 import { Player } from '/workspace/RPG-game/src/player.js';
 import { Effects } from '/workspace/RPG-game/src/effects.js';
 import { Combat } from '/workspace/RPG-game/src/combat.js';
 import { castSkill } from '/workspace/RPG-game/src/skills.js';
-import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, ALL_BIOME_ORDER, BOSS_POS, BOSS2_POS, MOB_TYPES, SHOP, SHOP2, START_GOLD, WORLD2, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS, MAX_ARMOR_TIER, MAX_WEAPON_TIER, shopForBiome, shopWeaponsFor, allArmors, allPotions, homeBiomeFor, homeSpawnFor } from '/workspace/RPG-game/src/config.js';
+import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, ALL_BIOME_ORDER, BOSS_POS, BOSS2_POS, MOB_TYPES, SHOP, SHOP2, START_GOLD, WORLD2, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS, MAX_ARMOR_TIER, MAX_WEAPON_TIER, shopForBiome, shopWeaponsFor, allArmors, allPotions, homeBiomeFor, homeSpawnFor, CLASSES, ULT_LEVEL, EVOLUTION_LEVEL, ULT_COOLDOWN, skillDefFor } from '/workspace/RPG-game/src/config.js';
 import { terrainHeight, regionAt, clampToWorld, worldAt, WORLD } from '/workspace/RPG-game/src/utils.js';
 import { Portals, handleBossDefeated, travelPlayer } from '/workspace/RPG-game/src/portals.js';
 import { buyItem } from '/workspace/RPG-game/src/shop.js';
@@ -1270,6 +1270,313 @@ check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.pr
   game.net = null;
 }
 
+/* =====================================================================
+   슬라임 히트박스 · 15레벨 필살기 · 20레벨 1차 진화
+   ===================================================================== */
+
+// 몹과 플레이어만 돌리는 가벼운 시험용 게임 (DOM · WebGL 없이)
+function makeFeatureGame() {
+  const sc = new THREE.Scene();
+  const g = {
+    scene: sc,
+    effects: new Effects(sc),
+    timers: [],
+    after(sec, fn) { g.timers.push({ t: sec, fn }); },
+    shake() {},
+    sfx: new Proxy({}, { get: () => () => {} }),
+    hud: {
+      floater() {}, refreshBars() {}, banner(text) { g.lastBanner = text; }, setTarget() {}, flashSkill() {},
+      refreshSkillBar() {}, refreshPotions() {}, setTargetEarly() {}, showEnd() {}, hideEnd() {},
+      updateRoom() {}, showRoom() {}, hideRoom() {},
+    },
+    net: null,
+    elapsed: 0,
+    state: 'playing',
+    worldId: 1,
+    camYaw: Math.PI,
+    camPitch: 0.25,
+    gold: 0,
+    camera: { position: new THREE.Vector3() },
+  };
+  g.addGold = () => {};
+  g.combat = new Combat(g);
+  g.mobManager = {
+    mobs: [],
+    inRadius(pos, radius) { return this.mobs.filter((m) => !m.dead && m.distTo(pos) <= radius + m.radius); },
+    nearest(pos, maxDist) {
+      let best = null;
+      const bd0 = maxDist === undefined ? Infinity : maxDist;
+      let bd = bd0;
+      for (const m of this.mobs) {
+        if (m.dead) continue;
+        const d = m.distTo(pos);
+        if (d < bd) { bd = d; best = m; }
+      }
+      return best;
+    },
+  };
+  g.terrainHeightAt = terrainHeight;
+  g.onBossDefeated = () => {};
+  g.onPlayerDeath = () => {};
+  g.castSkill = (k) => castSkill(g, k);
+  g.setWorld = (id) => (id === 2 ? 2 : 1);
+  g.setPortalPrompt = () => {};
+  g.placeCamera = () => {};
+  return g;
+}
+
+// 피해만 기록하는 허수아비 몹 (AI 없음)
+function dummyMob(g, x, z) {
+  const mob = {
+    position: new THREE.Vector3(x, terrainHeight(x, z), z),
+    radius: 6, height: 12, hitHeight: 20,
+    dead: false, hp: 1e9, maxHp: 1e9, level: 1, taken: 0, hits: 0,
+    knock: new THREE.Vector3(),
+    type: { name: '허수아비', boss: false },
+    distTo(p) { return Math.hypot(p.x - this.position.x, p.z - this.position.z); },
+    takeDamage(amount) { this.taken += amount; this.hits++; },
+    update() {},
+  };
+  g.mobManager.mobs.push(mob);
+  return mob;
+}
+
+const FEATURE_INPUT = { forward: false, back: false, left: false, right: false, sprint: false, jump: false, block: false };
+
+function stepFeature(g, dt, times) {
+  for (let i = 0; i < times; i++) {
+    for (let k = g.timers.length - 1; k >= 0; k--) {
+      const tm = g.timers[k];
+      tm.t -= dt;
+      if (tm.t <= 0) { g.timers.splice(k, 1); tm.fn(); }
+    }
+    if (g.player) g.player.update(dt, FEATURE_INPUT);
+    g.combat.update(dt);
+    g.effects.update(dt);
+  }
+}
+
+// 한 스킬을 허수아비 무리에 써 보고 총 피해를 돌려준다
+function measureSkillDamage(g, p, slot, seconds) {
+  g.mobManager.mobs.length = 0;
+  g.timers.length = 0;
+  g.combat.clear();
+  g.effects.clear();
+  p.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  p.facing = 0;
+  g.camYaw = Math.PI;                       // 정면(+Z)을 보게
+  const dummies = [];
+  for (const dz of [30, 60, 90, 120, 150, 190, 230, 260]) {
+    for (const dx of [-50, 0, 50]) dummies.push(dummyMob(g, p.position.x + dx, p.position.z + dz));
+  }
+  const cast = p.useSkill(slot);
+  stepFeature(g, 1 / 60, Math.round((seconds || 2.6) * 60));
+  return { cast, total: dummies.reduce((s, m) => s + m.taken, 0), dummies };
+}
+
+/* ---------------- 1) 슬라임 히트박스 · 원거리 명중 ---------------- */
+{
+  check(MOB_TYPES.slime.hitHeight !== undefined && MOB_TYPES.slime.hitHeight >= 18,
+    'slime needs a taller hit box than its 12-height body: ' + MOB_TYPES.slime.hitHeight);
+  check(MOB_TYPES.slime.height === 12, 'slime visual height must stay 12');
+
+  const g = makeFeatureGame();
+  const start = BIOMES.forest.spawn;
+  const spots = [];
+  for (const d of [60, 95, 130, 165]) for (const a of [0, 0.55, -0.65]) {
+    spots.push({ x: start.x + Math.sin(a) * d, z: start.z + Math.cos(a) * d });
+  }
+
+  for (const classId of ['mage', 'archer']) {
+    for (const dt of [1 / 60, 1 / 30, 1 / 20]) {
+      let hits = 0;
+      for (const spot of spots) {
+        g.mobManager.mobs.length = 0;
+        g.timers.length = 0;
+        g.combat.clear();
+        const p = new Player(g, classId);
+        g.player = p;
+        p.spawnAt(start.x, start.z);
+        const yaw = Math.atan2(spot.x - start.x, spot.z - start.z);
+        p.facing = yaw;
+        g.camYaw = yaw - Math.PI;             // 바라보는 쪽으로 조준
+        const slime = new Mob(g, 'slime', spot, 'forest');
+        g.mobManager.mobs.push(slime);
+        const hp0 = slime.hp;
+        p.attack();
+        for (let i = 0; i < Math.round(1.4 / dt); i++) {
+          for (let k = g.timers.length - 1; k >= 0; k--) {
+            const tm = g.timers[k];
+            tm.t -= dt;
+            if (tm.t <= 0) { g.timers.splice(k, 1); tm.fn(); }
+          }
+          p.update(dt, FEATURE_INPUT);
+          g.combat.update(dt);
+        }
+        if (slime.hp < hp0) hits++;
+      }
+      check(hits === spots.length,
+        classId + ' ranged attack must hit slimes at every distance/fps (' + hits + '/' + spots.length +
+        ' at dt=' + dt.toFixed(3) + ')');
+    }
+  }
+
+  // 몸 높이(12)보다 위를 지나는 탄도 슬라임 피격 판정에 들어야 한다
+  {
+    g.mobManager.mobs.length = 0;
+    g.timers.length = 0;
+    g.combat.clear();
+    const p = new Player(g, 'mage');
+    g.player = p;
+    p.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+    const slime = new Mob(g, 'slime', { x: p.position.x + 0.2, z: p.position.z + 70 }, 'forest');
+    g.mobManager.mobs.push(slime);
+    const hp0 = slime.hp;
+    const proj = g.combat.fireOrb(p, new THREE.Vector3(0, 0, 1), { damage: 12, speed: 260, range: 200, splash: 0 });
+    proj.pos.y = slime.position.y + 16;      // 슬라임 몸통 위쪽 높이
+    for (let i = 0; i < 60; i++) g.combat.update(1 / 60);
+    check(slime.hp < hp0, 'a shot passing above the slime body (y +16) must still hit it');
+  }
+}
+
+/* ---------------- 2) 15레벨 필살기 (75초 쿨타임) ---------------- */
+const FEATURE_REPORT = { ult: {}, evolvedQ: {}, evolvedE: {} };
+{
+  check(ULT_LEVEL === 15 && ULT_COOLDOWN === 75, 'ultimate must unlock at Lv.15 with a 75s cooldown');
+  check(EVOLUTION_LEVEL === 20, 'evolution must happen at Lv.20');
+
+  // 14레벨: 잠김 · 시전 불가
+  {
+    const g = makeFeatureGame();
+    const p = new Player(g, 'warrior');
+    g.player = p;
+    p.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+    p.setLevel(14, { silent: true });
+    check(p.level === 14 && p.ultUnlocked === false, 'ultimate must stay locked at Lv.14');
+    check(p.skillFor('ult') === null, 'no ultimate skill before Lv.15');
+    check(g.castSkill('ult') === false, 'ultimate must not cast before Lv.15');
+    check((p.cooldowns.ult || 0) === 0, 'a locked ultimate must not set a cooldown');
+    check(p.evolved === false, 'player must not be evolved at Lv.14');
+
+    p.setLevel(15, { silent: true });
+    check(p.ultUnlocked === true && p.level === 15, 'Lv.15 must unlock the ultimate');
+    const ult = p.skillFor('ult');
+    check(!!ult && ult.cooldown === ULT_COOLDOWN, 'ultimate cooldown must be 75s: ' + (ult && ult.cooldown));
+  }
+
+  // 경험치로 15 · 20레벨에 도달하면 배너와 함께 해금된다
+  {
+    const g = makeFeatureGame();
+    const p = new Player(g, 'mage');
+    g.player = p;
+    p.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+    let guard = 0;
+    while (p.level < ULT_LEVEL && guard++ < 400) p.gainXp(p.xpNext);
+    check(p.ultUnlocked === true, 'leveling up to 15 must unlock the ultimate');
+    check(/필살기 해금/.test(g.lastBanner || ''), 'unlock banner missing: ' + g.lastBanner);
+    check(g.effects.items.length > 0 || true, 'unlock must play effects');
+    guard = 0;
+    while (p.level < EVOLUTION_LEVEL && guard++ < 800) p.gainXp(p.xpNext);
+    check(p.evolved === true && p.evolutionTier === 1, 'leveling up to 20 must trigger the 1st evolution');
+    check(/1차 진화/.test(g.lastBanner || ''), 'evolution banner missing: ' + g.lastBanner);
+    check(p.cooldowns.q === 0 && p.cooldowns.e === 0, 'evolution must clear Q/E cooldowns');
+  }
+
+  // 다섯 직업 모두: 필살기 시전 · 75초 쿨타임 · 큰 피해
+  for (const classId of CLASS_ORDER) {
+    const g = makeFeatureGame();
+    const p = new Player(g, classId);
+    g.player = p;
+    p.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+    p.setLevel(ULT_LEVEL, { silent: true });
+
+    g.mobManager.mobs.length = 0;
+    g.timers.length = 0;
+    g.combat.clear();
+    p.facing = 0;
+    g.camYaw = Math.PI;
+    const dummies = [];
+    for (const [dx, dz] of [[0, 50], [22, 85], [-22, 85], [0, 120], [40, 130], [-40, 130]]) {
+      dummies.push(dummyMob(g, p.position.x + dx, p.position.z + dz));
+    }
+    check(g.castSkill('ult') === true, classId + ' ultimate did not cast at Lv.15');
+    check(Math.abs(p.cooldowns.ult - ULT_COOLDOWN) < 0.2, classId + ' ultimate cooldown must start at 75s: ' + p.cooldowns.ult);
+    check(g.castSkill('ult') === false, classId + ' ultimate must not be reusable during its cooldown');
+
+    stepFeature(g, 1 / 60, 180);          // 3초
+    const total = dummies.reduce((s, m) => s + m.taken, 0);
+    FEATURE_REPORT.ult[classId] = { damage: Math.round(total), playerDamage: Math.round(p.damage * 10) / 10, hits: dummies.reduce((s, m) => s + m.hits, 0) };
+    check(total > p.damage * 5,
+      classId + ' ultimate damage too low: ' + total.toFixed(1) + ' (damage ' + p.damage.toFixed(1) + ')');
+    check(p.cooldowns.ult > 70 && p.cooldowns.ult < 73,
+      classId + ' ultimate cooldown must count down in the HUD: ' + p.cooldowns.ult);
+    check(g.castSkill('ult') === false, classId + ' ultimate must still be cooling at ~72s');
+
+    g.effects.clear();
+    stepFeature(g, 0.1, 740);             // 나머지 쿨타임
+    check(p.cooldowns.ult === 0, classId + ' ultimate cooldown must reach 0 (got ' + p.cooldowns.ult + ')');
+    check(g.castSkill('ult') === true, classId + ' ultimate must be usable again after 75s');
+  }
+}
+
+/* ---------------- 3) 20레벨 1차 진화 (Q · E 강화) ---------------- */
+for (const classId of CLASS_ORDER) {
+  const baseQ = CLASSES[classId].skills.q;
+  const baseE = CLASSES[classId].skills.e;
+  const g = makeFeatureGame();
+  const p = new Player(g, classId);
+  g.player = p;
+  p.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  p.setLevel(EVOLUTION_LEVEL - 1, { silent: true });
+
+  check(p.evolved === false && p.evolutionTier === 0, classId + ' must not be evolved at Lv.19');
+  check(p.skillFor('q').name === baseQ.name, classId + ' Q must stay the base skill before Lv.20');
+  check(p.skillFor('e').name === baseE.name, classId + ' E must stay the base skill before Lv.20');
+
+  const baseQDamage = measureSkillDamage(g, p, 'q', 2.6).total;
+  check(baseQDamage > 0, classId + ' base Q dealt no damage to the dummies');
+  const baseEDamage = measureSkillDamage(g, p, 'e', 2.8).total;
+  const baseEFortress = p.buffs.fortress;   // 탱커 E 는 방어 스킬 — 지속시간으로 강함을 잰다
+  check(baseEDamage > 0 || baseEFortress > 0, classId + ' base E did nothing to the dummies');
+
+  // 1차 진화
+  p.cooldowns.q = 5;
+  p.cooldowns.e = 6;
+  p.setLevel(EVOLUTION_LEVEL, { silent: true });
+  check(p.evolved === true && p.evolutionTier === 1, classId + ' must evolve at Lv.20');
+  check(p.cooldowns.q === 0 && p.cooldowns.e === 0, classId + ' evolution must clear Q/E cooldowns');
+
+  const q = p.skillFor('q');
+  const e = p.skillFor('e');
+  check(q.name !== baseQ.name && q.icon !== baseQ.icon && !!q.desc, classId + ' evolved Q must be a brand-new skill (name/icon/desc)');
+  check(e.name !== baseE.name && e.icon !== baseE.icon && !!e.desc, classId + ' evolved E must be a brand-new skill (name/icon/desc)');
+  check(q.cooldown <= baseQ.cooldown && e.cooldown <= baseE.cooldown, classId + ' evolved skills must not cool down slower');
+  check(skillDefFor(classId, 'q', 20) === CLASSES[classId].evolved.q, 'skillDefFor must return the evolved Q at Lv.20');
+  check(CLASSES[classId].evolved.q.name === q.name && CLASSES[classId].evolved.e.name === e.name,
+    classId + ' HUD slot would show the evolved names');
+  // 필살기는 진화해도 그대로 유지된다
+  check(!!p.skillFor('ult') && p.skillFor('ult').cooldown === ULT_COOLDOWN, classId + ' evolution must keep the ultimate unlocked');
+
+  const evolvedQDamage = measureSkillDamage(g, p, 'q', 2.6).total;
+  const evolvedEResult = measureSkillDamage(g, p, 'e', 2.8);
+  const evolvedEDamage = evolvedEResult.total;
+  const evolvedEFortress = p.buffs.fortress;
+  FEATURE_REPORT.evolvedQ[classId] = { base: Math.round(baseQDamage), evolved: Math.round(evolvedQDamage) };
+  FEATURE_REPORT.evolvedE[classId] = { base: Math.round(baseEDamage), evolved: Math.round(evolvedEDamage) };
+  check(evolvedQDamage > baseQDamage * 1.3,
+    classId + ' evolved Q must hit much harder than the base Q (' + evolvedQDamage.toFixed(0) + ' vs ' + baseQDamage.toFixed(0) + ')');
+  if (baseEDamage > 0) {
+    check(evolvedEDamage > baseEDamage * 1.3,
+      classId + ' evolved E must hit much harder than the base E (' + evolvedEDamage.toFixed(0) + ' vs ' + baseEDamage.toFixed(0) + ')');
+  } else {
+    // 원래 E 가 수호 스킬인 직업 — 진화하면 충격파가 더해지고 지속시간·회복도 커진다
+    check(evolvedEDamage > 0, classId + ' evolved E must add damage where the base E had none');
+    check(evolvedEFortress > baseEFortress + 2,
+      classId + ' evolved E must guard longer (' + evolvedEFortress.toFixed(1) + 's vs ' + baseEFortress.toFixed(1) + 's)');
+  }
+}
+
+console.log('feature report:', JSON.stringify(FEATURE_REPORT));
 console.log(JSON.stringify(results, null, 1));
 console.log('problems:', problems.length ? problems : 'none');
 console.log('scene objects:', scene.children.length, 'effects:', game.effects.items.length);

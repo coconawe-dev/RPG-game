@@ -187,6 +187,34 @@ export class Effects {
     return item;
   }
 
+  /* 수직 빛기둥 — 필살기 · 1차 진화 연출 */
+  pillar(pos, color, height, duration, radius) {
+    const h = height || 140;
+    const r = radius || 18;
+    const geo = new THREE.CylinderGeometry(r, r * 1.3, h, 14, 1, true);
+    const mat = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x, pos.y + h * 0.5, pos.z);
+    mesh.frustumCulled = false;
+    this.scene.add(mesh);
+    const dur = duration || 1.2;
+    const item = {
+      t: 0, dur, kind: 'pillar',
+      update: (dt) => {
+        this._tick(item, dt);
+        const p = clamp(item.t / dur, 0, 1);
+        mesh.scale.set(1 + p * 0.45, 1 + p * 0.2, 1 + p * 0.45);
+        mat.opacity = 0.62 * (1 - p) * (0.55 + 0.45 * Math.sin(item.t * 20));
+        mesh.rotation.y += dt * 0.8;
+      },
+      dispose: () => { this.scene.remove(mesh); geo.dispose(); mat.dispose(); },
+    };
+    return this.add(item);
+  }
+
   /* 잠깐 반짝이는 빛 (점광원 대신 가산 혼합 후광 메시 — 재질 재컴파일·조명 비용 없음) */
   flash(pos, color, intensity, distance, duration) {
     const power = intensity || 400;

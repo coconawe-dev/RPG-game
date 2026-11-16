@@ -443,6 +443,37 @@ kbd {
   100% { box-shadow: 0 0 22px 6px rgba(232, 194, 106, 0); }
 }
 .slot.attack-slot { border-color: rgba(224, 87, 79, 0.4); }
+/* 필살기(X) 슬롯 — 15레벨 전에는 잠긐, 해금되면 불꽃빛 */
+.slot.ult-slot { border-color: rgba(255, 138, 74, 0.5); }
+.slot.ult-slot .slot-key { color: #ffb37a; }
+.slot.ult-slot.locked { opacity: 0.6; border-style: dashed; }
+.slot.ult-slot.locked .slot-icon { font-size: 15px; opacity: 0.85; }
+.slot.ult-slot.locked .slot-name { color: #ffc48a; }
+.slot.evolved { border-color: rgba(255, 214, 120, 0.75); box-shadow: 0 0 14px rgba(255, 210, 120, 0.28), var(--shadow); }
+.slot.evolved .slot-name { color: var(--gold-soft); }
+
+/* 1차 진화 배지 */
+.evo-badge {
+  margin-left: 2px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #2b1d06;
+  background: linear-gradient(135deg, #ffe9a8, #e8c26a 60%, #ffd88a);
+  border: 1px solid rgba(255, 240, 190, 0.85);
+  box-shadow: 0 0 12px rgba(232, 194, 106, 0.55);
+  white-space: nowrap;
+  animation: evoPulse 2.4s ease-in-out infinite;
+}
+@keyframes evoPulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(232, 194, 106, 0.4); }
+  50% { box-shadow: 0 0 18px rgba(255, 226, 150, 0.75); }
+}
+
+.cc-skill.ult { color: #ffc48a; }
+.cc-skill.ult span { margin-left: 4px; }
 
 .floaters, .nameplates { position: absolute; inset: 0; overflow: hidden; }
 
@@ -995,6 +1026,11 @@ body.touch-mode .touch-hint.fade { opacity: 0; }
 .tbtn.block { color: #b8f0ff; border-color: rgba(150, 220, 255, 0.45); }
 .tbtn.dash .tico, .tbtn.block .tico { font-size: 15px; line-height: 1; }
 .tbtn.small .tlab { font-size: 9px; letter-spacing: 0.02em; color: inherit; }
+/* 필살기(X) — 15레벨 전에는 잠긐, 해금되면 불꽃빛, 진화하면 금빛 */
+.tbtn.ult { color: #ffb37a; border-color: rgba(255, 150, 90, 0.5); }
+.tbtn.ult.locked { opacity: 0.45; border-style: dashed; }
+.tbtn.ult.evolved { color: #ffe6a8; border-color: rgba(255, 214, 120, 0.75); }
+.tbtn.evolved { border-color: rgba(255, 214, 120, 0.7); color: #ffe6a8; }
 
 @media (max-width: 720px) {
   .joy { width: 124px; height: 124px; left: 14px; bottom: 16px; }

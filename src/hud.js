@@ -1,6 +1,6 @@
 // HUD: 상태창 · 지역 표시 · 미니맵 · 나침반 · 스킬바 · 네임플레이트 · 데미지 숫자
 import * as THREE from 'three';
-import { CLASSES, CLASS_ORDER, BIOMES, COMPASS_ORDER, BIOME_ORDER, SHOP, compassOrderFor, biomeOrderFor, allPotions } from './config.js';
+import { CLASSES, CLASS_ORDER, BIOMES, COMPASS_ORDER, BIOME_ORDER, SHOP, compassOrderFor, biomeOrderFor, allPotions, ULT_LEVEL, ULT_KEY } from './config.js';
 import { regionAt } from './utils.js';
 
 const $ = (id) => document.getElementById(id);
@@ -11,6 +11,7 @@ export class HUD {
     this.dom = {
       classBadge: $('class-badge'),
       weaponTag: $('weapon-tag'),
+      evoBadge: $('evo-badge'),
       goldTag: $('gold-tag'),
       potionBar: $('potion-bar'),
       levelText: $('level-text'),
@@ -53,6 +54,7 @@ export class HUD {
       controlsToggle: $('controls-toggle'),
       ctrlQ: $('ctrl-q'),
       ctrlE: $('ctrl-e'),
+      ctrlUlt: $('ctrl-ult'),
       crosshair: $('crosshair'),
       hint: $('hint'),
       classGrid: $('class-grid'),
@@ -86,8 +88,11 @@ export class HUD {
     this.touch = {
       q: document.getElementById('tcd-q'),
       e: document.getElementById('tcd-e'),
+      ult: document.getElementById('tcd-ult'),
       qBtn: document.getElementById('tbtn-q'),
       eBtn: document.getElementById('tbtn-e'),
+      ultBtn: document.getElementById('tbtn-ult'),
+      ultIcon: document.getElementById('tult-icon'),
       dashBtn: document.getElementById('tbtn-dash'),
       blockBtn: document.getElementById('tbtn-block'),
     };
@@ -210,6 +215,7 @@ export class HUD {
         '<div class="cc-skills">' +
         '<div class="cc-skill"><b>Q</b>' + c.skills.q.name + ' <span style="opacity:.6">(' + c.skills.q.cooldown + '초)</span></div>' +
         '<div class="cc-skill"><b>E</b>' + c.skills.e.name + ' <span style="opacity:.6">(' + c.skills.e.cooldown + '초)</span></div>' +
+        (c.ult ? '<div class="cc-skill ult"><b>' + ULT_KEY + '</b>' + c.ult.icon + ' ' + c.ult.name + '<span style="opacity:.6">Lv.' + ULT_LEVEL + ' 해금</span></div>' : '') +
         '</div>';
       card.addEventListener('click', () => {
         if (this.game.requestStart) this.game.requestStart(id);
@@ -224,11 +230,12 @@ export class HUD {
   }
 
   /* ----------------------------- 스킬바 ----------------------------- */
+  // 레벨 · 진화 단계에 따라 Q · E · X(필살기) 슬롯을 다시 그린다
   buildSkillBar(player) {
     const bar = this.dom.skillbar;
     bar.innerHTML = '';
     this.skillSlots = {};
-    if (!player) return;
+    if (!player) { this._skillSig = ''; return; }
     const c = player.cls;
     const mkSlot = (key, keyLabel, icon, name, extra) => {
       const slot = document.createElement('div');
@@ -241,16 +248,63 @@ export class HUD {
       bar.appendChild(slot);
       return slot;
     };
+    const q = player.skillFor('q');
+    const e = player.skillFor('e');
+    const ult = c.ult;
+    const ultOpen = !!player.skillFor('ult');
+    const evolved = !!player.evolved;
+
     const sAtk = mkSlot('attack', '좌클릭', c.glyph, '기본 공격', ' attack-slot');
-    const sQ = mkSlot('q', 'Q', c.skills.q.icon, c.skills.q.name);
-    const sE = mkSlot('e', 'E', c.skills.e.icon, c.skills.e.name);
+    const sQ = mkSlot('q', 'Q', q.icon, q.name, evolved ? ' evolved' : '');
+    const sE = mkSlot('e', 'E', e.icon, e.name, evolved ? ' evolved' : '');
+    const sUlt = mkSlot('ult', ULT_KEY, ultOpen ? ult.icon : '🔒', ultOpen ? ult.name : 'Lv.' + ULT_LEVEL + ' 해금',
+      ' ult-slot' + (ultOpen ? '' : ' locked'));
+    sQ.title = q.name + ' · ' + q.desc;
+    sE.title = e.name + ' · ' + e.desc;
+    sUlt.title = ultOpen ? ult.name + ' · ' + ult.desc : 'Lv.' + ULT_LEVEL + ' 에 필살기가 열립니다';
+
     this.skillSlots = {
       attack: { el: sAtk, cd: sAtk.querySelector('.slot-cd') },
       q: { el: sQ, cd: sQ.querySelector('.slot-cd') },
       e: { el: sE, cd: sE.querySelector('.slot-cd') },
+      ult: { el: sUlt, cd: sUlt.querySelector('.slot-cd') },
     };
-    this.dom.ctrlQ.textContent = 'Q · ' + c.skills.q.name;
-    this.dom.ctrlE.textContent = 'E · ' + c.skills.e.name;
+    if (this.dom.ctrlQ) this.dom.ctrlQ.textContent = 'Q · ' + q.name;
+    if (this.dom.ctrlE) this.dom.ctrlE.textContent = 'E · ' + e.name;
+    if (this.dom.ctrlUlt) {
+      this.dom.ctrlUlt.textContent = ultOpen
+        ? ULT_KEY + ' · ' + ult.name + ' (필살기 · ' + ult.cooldown + '초)'
+        : ULT_KEY + ' · 필살기 (Lv.' + ULT_LEVEL + ' 해금)';
+    }
+    this._skillSig = player.classId + '|' + (evolved ? 1 : 0) + '|' + (ultOpen ? 1 : 0);
+    this.refreshSkillButtons(player);
+  }
+
+  // 레벨 업 · 진화로 스킬이 바뀌면 스킬바를 다시 그린다
+  refreshSkillBar() {
+    const p = this.game.player;
+    if (!p) return;
+    const sig = p.classId + '|' + (p.evolved ? 1 : 0) + '|' + (p.skillFor('ult') ? 1 : 0);
+    if (sig !== this._skillSig) this.buildSkillBar(p);
+  }
+
+  // 휴대폰 Q · E · 필살기 버튼: 진화하면 아이콘이 바뀌고, 15레벨 전에는 필살기가 잠겨 있다
+  refreshSkillButtons(player) {
+    const t = this.touch;
+    const set = (btn, iconEl, def, fallback, cls) => {
+      if (!btn) return;
+      const label = def ? (player.evolved ? def.icon : fallback) : '🔒';
+      if (iconEl) {
+        if (iconEl.textContent !== label) iconEl.textContent = label;
+      }
+      btn.title = def ? def.name + ' · ' + def.desc : 'Lv.' + ULT_LEVEL + ' 에 필살기가 열립니다';
+      btn.classList.toggle('locked', !def);
+      btn.classList.toggle('evolved', !!player.evolved && !!def);
+      if (cls) btn.classList.add(cls);
+    };
+    set(t.qBtn, t.qBtn ? t.qBtn.querySelector('b') : null, player.skillFor('q'), 'Q');
+    set(t.eBtn, t.eBtn ? t.eBtn.querySelector('b') : null, player.skillFor('e'), 'E');
+    set(t.ultBtn, t.ultIcon || (t.ultBtn ? t.ultBtn.querySelector('b') : null), player.skillFor('ult'), '🔥');
   }
 
   /* ---------------------------- 포션 바 ---------------------------- */
@@ -407,6 +461,12 @@ export class HUD {
       c.level = p.level;
       this.dom.levelText.textContent = 'Lv.' + p.level;
     }
+    // 1차 진화 배지 (20레벨) · Q/E/X 슬롯 갱신
+    if (c.evolved !== !!p.evolved) {
+      c.evolved = !!p.evolved;
+      if (this.dom.evoBadge) this.dom.evoBadge.classList.toggle('hidden', !p.evolved);
+    }
+    this.refreshSkillBar();
     this.refreshStamina(p, c);
     const dmg = p.damage.toFixed(1);
     const spd = Math.round(p.moveSpeed);
@@ -543,10 +603,10 @@ export class HUD {
 
     // 스킬 쿨다운 (숫자가 바뀔 때만 글씨 교체)
     const cd = this._cd || (this._cd = {});
-    for (const key of ['attack', 'q', 'e']) {
+    for (const key of ['attack', 'q', 'e', 'ult']) {
       const slot = this.skillSlots[key];
       if (!slot) continue;
-      const value = key === 'attack' ? p.attackCooldown : p.cooldowns[key];
+      const value = key === 'attack' ? p.attackCooldown : (p.cooldowns[key] || 0);
       const cooling = value > 0.05;
       if (slot._cooling !== cooling) {
         slot._cooling = cooling;
@@ -563,12 +623,19 @@ export class HUD {
     if (this.touch.q) {
       const cq = p.cooldowns.q;
       const ce = p.cooldowns.e;
+      const cu = p.cooldowns.ult || 0;
       const tq = cq > 0.05 ? (cq >= 1 ? String(Math.ceil(cq)) : cq.toFixed(1)) : '';
       const te = ce > 0.05 ? (ce >= 1 ? String(Math.ceil(ce)) : ce.toFixed(1)) : '';
+      const tu = cu > 0.05 ? (cu >= 1 ? String(Math.ceil(cu)) : cu.toFixed(1)) : '';
       if (cd.tq !== tq) { cd.tq = tq; this.touch.q.textContent = tq; }
       if (cd.te !== te) { cd.te = te; this.touch.e.textContent = te; }
+      if (this.touch.ult && cd.tu !== tu) { cd.tu = tu; this.touch.ult.textContent = tu; }
       if (cd.tqc !== (cq > 0.05)) { cd.tqc = cq > 0.05; this.touch.qBtn.classList.toggle('cooling', cq > 0.05); }
       if (cd.tec !== (ce > 0.05)) { cd.tec = ce > 0.05; this.touch.eBtn.classList.toggle('cooling', ce > 0.05); }
+      if (this.touch.ultBtn && cd.tuc !== (cu > 0.05)) {
+        cd.tuc = cu > 0.05;
+        this.touch.ultBtn.classList.toggle('cooling', cu > 0.05);
+      }
     }
 
     // 미니맵 · 나침반은 화면을 보는 데 지장 없는 8fps 로만 다시 그린다

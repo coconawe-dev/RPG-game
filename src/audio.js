@@ -97,4 +97,28 @@ export class Sfx {
   staminaReady() { this.tone({ freq: 520, to: 780, dur: 0.18, type: 'sine', vol: 0.14 }); this.tone({ freq: 780, dur: 0.12, type: 'sine', vol: 0.1, delay: 0.09 }); }
   shop() { this.tone({ freq: 660, dur: 0.1, type: 'triangle', vol: 0.18 }); this.tone({ freq: 990, dur: 0.16, type: 'triangle', vol: 0.14, delay: 0.08 }); }
   buy() { this.tone({ freq: 520, dur: 0.1, type: 'square', vol: 0.16 }); this.tone({ freq: 1040, dur: 0.2, type: 'triangle', vol: 0.18, delay: 0.09 }); }
+
+  /* 15레벨 · 20레벨 성장 연출과 필살기 */
+  // 필살기 해금 — 밝게 올라가는 종소리
+  ultReady() {
+    [392, 523, 659, 784, 1046].forEach((f, i) => this.tone({ freq: f, dur: 0.32, type: 'triangle', vol: 0.2, delay: i * 0.09 }));
+    this.noise(0.26, 0.12, 2800);
+  }
+  // 필살기 시동 — 낮게 깔리는 웅장한 소리
+  ultCast() {
+    this.tone({ freq: 120, to: 58, dur: 0.7, type: 'sawtooth', vol: 0.28 });
+    this.tone({ freq: 470, to: 1180, dur: 0.5, type: 'square', vol: 0.14 });
+    this.noise(0.5, 0.22, 1800);
+  }
+  // 필살기 타격
+  ultBlast() {
+    this.tone({ freq: 74, to: 36, dur: 0.55, type: 'square', vol: 0.3 });
+    this.noise(0.42, 0.26, 720);
+  }
+  // 1차 진화
+  evolve() {
+    [523, 659, 784, 1046, 1318, 1568].forEach((f, i) => this.tone({ freq: f, dur: 0.44, type: 'sine', vol: 0.22, delay: i * 0.11 }));
+    this.tone({ freq: 130, to: 262, dur: 1.0, type: 'sawtooth', vol: 0.14 });
+    this.noise(0.5, 0.12, 3200);
+  }
 }
