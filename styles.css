@@ -1297,6 +1297,7 @@ body.touch-mode .hud-center { display: none; }
 .tbtn.potion { font-size: 15px; color: #ffd7a0; }
 .tbtn.dash.exhausted { opacity: 0.42; border-color: rgba(255, 138, 74, 0.55); color: #ffb37a; }
 .tbtn.block.on { background: rgba(120, 240, 220, 0.24); border-color: #8ff3e2; box-shadow: 0 0 16px rgba(143, 243, 226, 0.55); transform: scale(0.97); }
+.trow-move { gap: 8px; }
 .tbtn.potion b { font-size: 11px; position: absolute; right: 2px; top: 0; color: #ffe08a; }
 .tbtn.potion.empty { opacity: 0.5; }
 .tbtn.potion.w2 { color: #d8c4ff; border-color: rgba(170, 130, 255, 0.5); }
