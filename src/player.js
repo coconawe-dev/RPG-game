@@ -624,20 +624,20 @@ export class Player {
   /* --------------------------- 막기 방어막 (3D) --------------------------- */
   // 막는 동안 가슴 앞에 반투명 방어막이 떠오른다 (그림자는 만들지 않는다)
   buildGuardAura() {
-    const geo = new THREE.CircleGeometry(12, 24);
+    const geo = new THREE.CircleGeometry(9.2, 24);
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x9fe8ff, transparent: true, opacity: 0.2, depthWrite: false,
+      color: 0x9fe8ff, transparent: true, opacity: 0.14, depthWrite: false,
       blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(0, 3.4, 4.6);
+    mesh.position.set(0, 3.6, 4.4);
     mesh.rotation.set(-0.12, 0, 0);
     mesh.visible = false;
     mesh.castShadow = false;
     mesh.receiveShadow = false;
-    const ringGeo = new THREE.TorusGeometry(12, 0.38, 6, 32);
+    const ringGeo = new THREE.TorusGeometry(9.2, 0.3, 6, 32);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xd8f6ff, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending,
+      color: 0xd8f6ff, transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending,
     });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.castShadow = false;
@@ -948,8 +948,8 @@ export class Player {
     m.visible = on;
     if (!on) return;
     const flash = this.blockFlash > 0 ? this.blockFlash / 0.3 : 0;
-    this.guardMat.opacity = clamp(0.16 + Math.sin(this.time * 9) * 0.05 + flash * 0.35, 0.05, 0.85);
-    this.guardRingMat.opacity = clamp(0.3 + Math.sin(this.time * 7) * 0.1 + flash * 0.5, 0.1, 0.95);
+    this.guardMat.opacity = clamp(0.13 + Math.sin(this.time * 9) * 0.035 + flash * 0.3, 0.04, 0.7);
+    this.guardRingMat.opacity = clamp(0.24 + Math.sin(this.time * 7) * 0.08 + flash * 0.45, 0.08, 0.9);
     m.scale.setScalar(1 + flash * 0.16);
   }
 
