@@ -1222,14 +1222,14 @@ export class Player {
         wish.addScaledVector(fwd, iz).addScaledVector(right, ix).normalize();
       }
 
+      // 막기 입력 (우클릭 / R / 화면 🛡 버튼을 누르고 있는 동안)
+      this.blocking = !!input.block;
+
       let speed = this.moveSpeed * (input.sprint && !this.isBlocking ? this.cls.sprintMul : 1);
       if (this.anim.name && this.anim.name !== 'death') speed *= 0.45;
       if (this.anim.name === 'fortress') speed *= 0.35;
       if (this.isBlocking) speed *= STAMINA.blockMoveMul;   // 막는 동안은 느리게
       this.lastWish.copy(wish);
-
-      // 막기 입력 (우클릭 / R / 화면 🛡 버튼을 누르고 있는 동안)
-      this.blocking = !!input.block;
 
       if (this.dash) {
         this.dash.time += dt;
