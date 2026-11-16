@@ -73,8 +73,8 @@ function buildZombie() {
 
   const armL = new THREE.Group();
   const armR = new THREE.Group();
-  armL.position.set(3.0, 12.5, 0);
-  armR.position.set(-3.0, 12.5, 0);
+  armL.position.set(3.0, 5.6, 0);
+  armR.position.set(-3.0, 5.6, 0);
   for (const arm of [armL, armR]) {
     arm.rotation.x = -1.45;
     arm.add(mkMesh(new THREE.BoxGeometry(1.6, 5.6, 1.7), skinMat, 0, -2.8, 0));

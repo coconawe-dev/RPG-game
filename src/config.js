@@ -411,32 +411,32 @@ export const START_GOLD = 100;
 
 export const MOB_TYPES = {
   slime: {
-    id: 'slime', name: '슬라임', hp: 46, damage: 7, speed: 20, aggro: 120,
+    id: 'slime', name: '슬라임', hp: 92, damage: 14, speed: 20, aggro: 120,
     attackRange: 24, attackCooldown: 1.7, xp: 16, gold: 15, height: 12, radius: 6,
     leash: 260, kind: 'slime',
   },
   zombie: {
-    id: 'zombie', name: '좀비', hp: 74, damage: 11, speed: 30, aggro: 150,
+    id: 'zombie', name: '좀비', hp: 148, damage: 22, speed: 30, aggro: 150,
     attackRange: 28, attackCooldown: 1.9, xp: 26, gold: 30, height: 18, radius: 6,
     leash: 300, kind: 'humanoid',
   },
   hyena: {
-    id: 'hyena', name: '하이에나', hp: 82, damage: 13, speed: 54, aggro: 190,
+    id: 'hyena', name: '하이에나', hp: 164, damage: 26, speed: 54, aggro: 190,
     attackRange: 26, attackCooldown: 1.35, xp: 32, gold: 45, height: 12, radius: 6,
     leash: 360, kind: 'quadruped',
   },
   gorilla: {
-    id: 'gorilla', name: '고릴라', hp: 158, damage: 19, speed: 38, aggro: 170,
+    id: 'gorilla', name: '고릴라', hp: 316, damage: 38, speed: 38, aggro: 170,
     attackRange: 32, attackCooldown: 2.1, xp: 52, gold: 70, height: 20, radius: 8,
     leash: 320, kind: 'gorilla',
   },
   raider: {
-    id: 'raider', name: '약탈자', hp: 135, damage: 18, speed: 44, aggro: 190,
+    id: 'raider', name: '약탈자', hp: 270, damage: 36, speed: 44, aggro: 190,
     attackRange: 30, attackCooldown: 1.5, xp: 48, gold: 65, height: 20, radius: 7,
     leash: 340, kind: 'raider',
   },
   golem: {
-    id: 'golem', name: '고대 골렘', hp: 3200, damage: 54, speed: 28, aggro: 340,
+    id: 'golem', name: '고대 골렘', hp: 6400, damage: 108, speed: 28, aggro: 340,
     attackRange: 82, attackCooldown: 2.1, xp: 2500, gold: 800, height: 48, radius: 18,
     leash: 660, kind: 'golem', boss: true, level: 20,
     enrageAt: 0.5, slamEvery: 3, slamRadius: 200, slamWindup: 1.5, slamCooldown: 9,
@@ -444,27 +444,27 @@ export const MOB_TYPES = {
 
   /* ---------------------- 2번째 세계의 몹 — 훨씬 강하다 ---------------------- */
   goblin: {
-    id: 'goblin', name: '고블린', hp: 540, damage: 29, speed: 64, aggro: 210,
+    id: 'goblin', name: '고블린', hp: 1080, damage: 58, speed: 64, aggro: 210,
     attackRange: 32, attackCooldown: 1.25, xp: 300, gold: 150, height: 17, radius: 6,
     leash: 360, kind: 'goblin',
   },
   skeleton: {
-    id: 'skeleton', name: '스켈레톤', hp: 720, damage: 37, speed: 52, aggro: 220,
+    id: 'skeleton', name: '스켈레톤', hp: 1440, damage: 74, speed: 52, aggro: 220,
     attackRange: 42, attackCooldown: 1.6, xp: 450, gold: 230, height: 19, radius: 6,
     leash: 380, kind: 'skeleton',
   },
   samurai: {
-    id: 'samurai', name: '사무라이', hp: 1150, damage: 49, speed: 56, aggro: 240,
+    id: 'samurai', name: '사무라이', hp: 2300, damage: 98, speed: 56, aggro: 240,
     attackRange: 46, attackCooldown: 1.45, xp: 700, gold: 330, height: 21, radius: 7,
     leash: 420, kind: 'samurai',
   },
   iron_golem: {
-    id: 'iron_golem', name: '아이언 골렘', hp: 1850, damage: 60, speed: 36, aggro: 280,
+    id: 'iron_golem', name: '아이언 골렘', hp: 3700, damage: 120, speed: 36, aggro: 280,
     attackRange: 70, attackCooldown: 2.0, xp: 1200, gold: 620, height: 46, radius: 16,
     leash: 600, kind: 'iron_golem',
   },
   dark_mage: {
-    id: 'dark_mage', name: '흑마법사', hp: 6800, damage: 78, speed: 32, aggro: 380,
+    id: 'dark_mage', name: '흑마법사', hp: 13600, damage: 156, speed: 32, aggro: 380,
     attackRange: 170, attackCooldown: 2.3, xp: 6500, gold: 2600, height: 40, radius: 12,
     leash: 640, kind: 'dark_mage', boss: true, level: 60,
     enemyProjectile: 'dark_orb',

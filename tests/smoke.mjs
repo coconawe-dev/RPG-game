@@ -204,16 +204,16 @@ check(cl3.x === -2000 && cl3.z === 400, 'clamp moved a valid village position');
   const W1_MOBS = ['slime', 'zombie', 'hyena', 'gorilla', 'raider'];
   const w1Strongest = Math.max(...W1_MOBS.map((id) => MOB_TYPES[id].hp));
   check(w1Strongest === MOB_TYPES.gorilla.hp, 'strongest world 1 normal mob should be the gorilla');
-  check(MOB_TYPES.goblin.hp >= 450 && MOB_TYPES.goblin.hp <= 600, 'goblin hp out of range: ' + MOB_TYPES.goblin.hp);
-  check(MOB_TYPES.goblin.damage >= 25 && MOB_TYPES.goblin.damage <= 32, 'goblin damage out of range');
-  check(MOB_TYPES.skeleton.hp >= 650 && MOB_TYPES.skeleton.hp <= 800, 'skeleton hp out of range: ' + MOB_TYPES.skeleton.hp);
-  check(MOB_TYPES.skeleton.damage >= 33 && MOB_TYPES.skeleton.damage <= 40, 'skeleton damage out of range');
-  check(MOB_TYPES.samurai.hp >= 1000 && MOB_TYPES.samurai.hp <= 1200, 'samurai hp out of range: ' + MOB_TYPES.samurai.hp);
-  check(MOB_TYPES.samurai.damage >= 44 && MOB_TYPES.samurai.damage <= 52, 'samurai damage out of range');
-  check(MOB_TYPES.iron_golem.hp >= 1700 && MOB_TYPES.iron_golem.hp <= 2000, 'iron golem hp out of range: ' + MOB_TYPES.iron_golem.hp);
-  check(MOB_TYPES.iron_golem.damage >= 55 && MOB_TYPES.iron_golem.damage <= 65, 'iron golem damage out of range');
-  check(MOB_TYPES.dark_mage.hp >= 6500, 'dark mage hp must be at least 6500');
-  check(MOB_TYPES.dark_mage.damage >= 75, 'dark mage damage must be at least 75');
+  check(MOB_TYPES.goblin.hp >= 900 && MOB_TYPES.goblin.hp <= 1200, 'goblin hp out of range: ' + MOB_TYPES.goblin.hp);
+  check(MOB_TYPES.goblin.damage >= 50 && MOB_TYPES.goblin.damage <= 64, 'goblin damage out of range');
+  check(MOB_TYPES.skeleton.hp >= 1300 && MOB_TYPES.skeleton.hp <= 1600, 'skeleton hp out of range: ' + MOB_TYPES.skeleton.hp);
+  check(MOB_TYPES.skeleton.damage >= 66 && MOB_TYPES.skeleton.damage <= 80, 'skeleton damage out of range');
+  check(MOB_TYPES.samurai.hp >= 2000 && MOB_TYPES.samurai.hp <= 2400, 'samurai hp out of range: ' + MOB_TYPES.samurai.hp);
+  check(MOB_TYPES.samurai.damage >= 88 && MOB_TYPES.samurai.damage <= 104, 'samurai damage out of range');
+  check(MOB_TYPES.iron_golem.hp >= 3400 && MOB_TYPES.iron_golem.hp <= 4000, 'iron golem hp out of range: ' + MOB_TYPES.iron_golem.hp);
+  check(MOB_TYPES.iron_golem.damage >= 110 && MOB_TYPES.iron_golem.damage <= 130, 'iron golem damage out of range');
+  check(MOB_TYPES.dark_mage.hp >= 13000, 'dark mage hp must be at least 13000');
+  check(MOB_TYPES.dark_mage.damage >= 150, 'dark mage damage must be at least 150');
   check(MOB_TYPES.dark_mage.boss === true, 'dark mage must be a boss');
   check(MOB_TYPES.dark_mage.enemyProjectile === 'dark_orb', 'dark mage must throw dark orbs');
   check(MOB_TYPES.dark_mage.slamRadius >= 200, 'dark mage needs a wide shockwave');
@@ -271,10 +271,24 @@ check(counts.raider >= 10, 'old_village raiders missing: ' + counts.raider);
 check(!game.mobManager.mobs.some((m) => m.typeId === 'raider' && regionAt(m.position.x, m.position.z) !== 'old_village'), 'raider spawned outside old_village');
 
 // 강화된 고대 골렘
-check(MOB_TYPES.golem.hp === 3200, 'golem hp must be 3200, got ' + MOB_TYPES.golem.hp);
-check(MOB_TYPES.golem.damage === 54, 'golem damage must be 54');
+check(MOB_TYPES.golem.hp === 6400, 'golem hp must be 6400, got ' + MOB_TYPES.golem.hp);
+check(MOB_TYPES.golem.damage === 108, 'golem damage must be 108');
 check(MOB_TYPES.golem.xp === 2500 && MOB_TYPES.golem.gold === 800, 'golem rewards must be xp 2500 / gold 800');
-check(MOB_TYPES.raider.hp === 135 && MOB_TYPES.raider.attackRange === 30 && MOB_TYPES.raider.speed === 44, 'raider stats wrong');
+check(MOB_TYPES.raider.hp === 270 && MOB_TYPES.raider.attackRange === 30 && MOB_TYPES.raider.speed === 44, 'raider stats wrong');
+
+// 모든 몹 2배 강화: HP · 공격력이 기존 수치의 정확히 2배 (XP · 골드는 그대로)
+const MOB_BASE_STATS = {
+  slime: [46, 7], zombie: [74, 11], hyena: [82, 13], gorilla: [158, 19], raider: [135, 18],
+  golem: [3200, 54], goblin: [540, 29], skeleton: [720, 37], samurai: [1150, 49],
+  iron_golem: [1850, 60], dark_mage: [6800, 78],
+};
+for (const [id, base] of Object.entries(MOB_BASE_STATS)) {
+  check(MOB_TYPES[id].hp === base[0] * 2, id + ' hp must be doubled to ' + base[0] * 2 + ', got ' + MOB_TYPES[id].hp);
+  check(MOB_TYPES[id].damage === base[1] * 2, id + ' damage must be doubled to ' + base[1] * 2 + ', got ' + MOB_TYPES[id].damage);
+}
+check(MOB_TYPES.goblin.xp === 300 && MOB_TYPES.goblin.gold === 150, 'goblin rewards must stay 300 xp / 150 gold');
+check(MOB_TYPES.golem.xp === 2500 && MOB_TYPES.golem.gold === 800, 'golem rewards must stay 2500 xp / 800 gold');
+
 
 const boss = game.mobManager.boss();
 check(Math.abs(boss.position.x - BOSS_POS.x) < 60 && Math.abs(boss.position.z - BOSS_POS.z) < 60, 'boss not in temple');
@@ -747,6 +761,35 @@ check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.pr
   check((c2.samurai || 0) >= 8, 'samurai population missing: ' + c2.samurai);
   check((c2.iron_golem || 0) >= 4, 'iron golem population missing: ' + c2.iron_golem);
   check(c2.dark_mage === 1, 'dark mage must spawn exactly once, got ' + c2.dark_mage);
+
+  // 팔 · 다리가 몸에서 떨어져 공중에 뜬 몹이 없어야 한다 (두 세계의 모든 몹)
+  {
+    const limbNames = ['armL', 'armR', 'legL', 'legR'];
+    const seen = new Set();
+    for (const m of game.mobManager.mobs) {
+      if (seen.has(m.typeId)) continue;
+      seen.add(m.typeId);
+      const model = m.model;
+      const root = model.root;
+      root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(root);
+      const pts = [];
+      for (const n of limbNames) if (model[n]) pts.push([n, model[n]]);
+      if (model.legs) model.legs.forEach((leg, i) => pts.push(['legs[' + i + ']', leg]));
+      const v = new THREE.Vector3();
+      for (const [name, node] of pts) {
+        node.getWorldPosition(v);
+        check(box.containsPoint(v), m.typeId + ' ' + name + ' floats outside the body at y=' + v.y.toFixed(1));
+      }
+      // 좀비 팔은 어깨 높이(몸통 위쪽)에 붙어 있어야 한다 — 머리 위로 뜨면 안 된다
+      if (m.typeId === 'zombie') {
+        check(Math.abs(model.armL.position.y - model.armR.position.y) < 1e-6, 'zombie arms must sit at the same height');
+        check(model.armL.position.y > 0 && model.armL.position.y < 6.4, 'zombie shoulders must sit on the torso, y=' + model.armL.position.y);
+        check(model.armL.position.y < model.height, 'zombie shoulders must stay below the head, y=' + model.armL.position.y);
+      }
+    }
+    check(seen.size >= 11, 'expected all 11 mob types in the world, saw ' + seen.size);
+  }
 
   // 몹은 자기 바이옴 안에서만 산다
   const home = {
