@@ -1900,6 +1900,14 @@ for (const classId of CLASS_ORDER) {
   check(otherMob.dist > 6000, 'a mob in another world must be culled from the teammate: dist=' + Math.round(otherMob.dist));
 }
 
+/* =====================================================================
+   함께 하기 (끝까지): 두 Net 인스턴스를 메모리 중계로 실제로 잇는다
+   ===================================================================== */
+{
+  const { runMpLoopbackChecks } = await import('/workspace/RPG-game/tests/mp-loopback.mjs');
+  runMpLoopbackChecks(check);
+}
+
 console.log('feature report:', JSON.stringify(FEATURE_REPORT));
 console.log(JSON.stringify(results, null, 1));
 console.log('problems:', problems.length ? problems : 'none');

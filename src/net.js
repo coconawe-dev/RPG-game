@@ -534,7 +534,11 @@ export class Net {
   _dispatch(raw) {
     const msg = decodeMsg(raw);
     if (!msg) return;
-    if (msg.p && msg.p.pid === this.pid) return;  // 내가 보낸 메시지 무시
+    // 내가 보낸 메시지 무시 — 보낸이는 봉투(f)에 적힌다.
+    // 짐(p) 안의 pid 는 '대상'일 수 있어서(hitp · full) 절대 보낸이 판별에 쓰면 안 된다.
+    // 예전에는 p.pid === this.pid 를 걸러서, 몹이 친구를 때릴 때 보내는 hitp 가
+    // 정작 맞는 친구에게서 전부 버려졌다 (친구가 절대 피해를 받지 못한 원인).
+    if (msg.f !== undefined && msg.f === this.pid) return;
     if (msg.f !== undefined && msg.s !== undefined) {
       if (this._seenAlready(msg.f + ':' + msg.s)) return;
     }
@@ -576,10 +580,11 @@ export class Net {
       this._applyReward(msg.p || {});
     } else if (msg.t === 'hitp') {
       const p = msg.p || {};
-      if (p.pid !== this.pid) return;
+      if (p.pid !== this.pid) return;          // 다른 친구를 맞힌 피해는 무시
       const pl = this.game.player;
       if (!pl || !pl.alive) return;
-      const src = p.x === undefined ? null : new THREE.Vector3(p.x, 0, p.z);
+      const hasSrc = Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.z)) && p.x !== null && p.z !== null;
+      const src = hasSrc ? new THREE.Vector3(Number(p.x), 0, Number(p.z)) : null;
       pl.takeDamage(Number(p.d) || 1, src);
     } else if (msg.t === 'bye') {
       if (msg.p && msg.p.pid === this.hostPid) this._hostGone();
@@ -637,9 +642,18 @@ export class Net {
     };
     this.remotes.set(p.pid, rec);
     this._sendWelcome(p.pid);
+    this._ensureWorldMobs(this.game.worldId === 2 ? 2 : 1);
     this._broadcastWorld(true);
     this.game.hud.banner(rec.nick + ' 님이 들어왔습니다', 2000);
     this.game.sfx.levelup();
+  }
+
+  // 이 세계의 몹이 호스트 쪽에 준비되어 있는지 확인한다 (친구가 간 세계)
+  _ensureWorldMobs(worldId) {
+    if (!this.isHost) return;
+    const mm = this.game && this.game.mobManager;
+    if (!mm || typeof mm.spawnWorld !== 'function') return;
+    mm.spawnWorld(worldId === 2 ? 2 : 1);
   }
 
   _sendWelcome(pid) {
@@ -688,6 +702,9 @@ export class Net {
     if (w !== rec.world) {
       rec.world = w;
       if (rec.rig) rec.rig.root.visible = (w === (this.game.worldId || 1));
+      // 친구가 넘어간 세계의 몹도 세워 둔다 — 안 그러면 그 세계에는 아무 몹도 없어서
+      // 친구가 몹에게 맞을 수조차 없다 (호스트가 그 세계에 가 본 적 없을 때)
+      this._ensureWorldMobs(w);
     }
     rec.anim = typeof p.anim === 'string' ? p.anim : (ANIM_NAMES[p.anim] || '');
     rec.animDur = (Number(p.ad) || 0) / 10 || 0;
@@ -896,12 +913,10 @@ export class Net {
 
   hitGuest(pid, amount, srcPos) {
     if (!this.isHost) return;
-    this.publish('g', encodeMsg('hitp', {
-      pid,
-      d: Math.max(1, Math.round(amount)),
-      x: srcPos ? Math.round(srcPos.x) : 0,
-      z: srcPos ? Math.round(srcPos.z) : 0,
-    }));
+    const p = { pid, d: Math.max(1, Math.round(amount)) };
+    // 출처를 모르면 좌표를 아예 넣지 않는다 (0,0 을 기준으로 밀려나지 않게)
+    if (srcPos) { p.x = Math.round(srcPos.x); p.z = Math.round(srcPos.z); }
+    this.publish('g', encodeMsg('hitp', p));
   }
 
   // 게스트가 몹에게 입힌 피해 → 호스트가 검증·적용

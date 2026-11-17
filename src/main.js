@@ -1504,6 +1504,13 @@ class Game {
       }
     }
 
+    // 내가 쓰러져 결말 화면이 떠 있어도, 함께 하는 친구를 노리는 몹은 계속 싸운다
+    // (방장이 죽은 동안 몹 AI 가 멈추면 친구는 아무 몹에게도 맞지 않는다)
+    if (this.state === 'dead' && this.net && this.net.active && this.net.isHost && this.mobManager) {
+      this.mobManager.update(dt);
+      this.effects.update(dt);
+    }
+
     // 멀티플레이 동기화 (원격 캐릭터 · 몹 스냅샷 · 방 정보)
     if (this.net && this.net.active) {
       this.net.update(dt);
