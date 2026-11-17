@@ -112,8 +112,39 @@ export const WORLD2 = {
   southCell: 2000,     // 2세계 태초마을 중심의 local z
 };
 
-// 어느 세계의 좌표인지 (1 | 2)
+/* ------------------------------------------------------------------
+   3번째 세계 (World 3)
+   2번째 세계와 같은 십자 구조로, 더 남쪽(z 16000)에 완전히 떨어뜨려 놓는다.
+   - z 를 originZ 만큼 밀어 두면 두 세계가 절대 겹치지 않는다.
+   - 안쪽 좌표는 local (z = 0 이 부패한 도시 중심) 로 계산한다.
+     · 중앙: 부패한 도시(z 0)      · 북: 점령당한 목장(z -1000)
+     · 남: 선사시대 숲(z +1000)    · 서: 비밀동굴(x -1000) · 동: 판타지숲(x +1000)
+     · 남쪽 끝: 3세계 태초마을(z +2000) — 선사시대 숲 남문 너머의 안전 지대
+------------------------------------------------------------------ */
+export const WORLD3 = {
+  id: 3,
+  name: '3번째 세계',
+  originZ: 16000,
+  zSplit: 12000,       // 이 z 보다 크면 3번째 세계 좌표
+  cell: 1000,
+  halfCell: 500,
+  xMin: -1470,
+  xMax: 1470,
+  zMin: 16000 - 1470,
+  // 남쪽은 3세계 태초마을(z +2000 ~ +2500)의 끝까지
+  zMax: 16000 + 2470,
+  southCell: 2000,     // 3세계 태초마을 중심의 local z
+};
+
+// 세계 번호를 1 · 2 · 3 중 하나로 맞춘다 (모르는 값은 1번째 세계)
+export function normWorld(w) {
+  const n = Number(w);
+  return n === 3 ? 3 : (n === 2 ? 2 : 1);
+}
+
+// 어느 세계의 좌표인지 (1 | 2 | 3)
 export function worldAt(x, z) {
+  if (z > WORLD3.zSplit) return 3;
   return (z > WORLD2.zSplit) ? 2 : 1;
 }
 
@@ -174,12 +205,58 @@ function terrainHeight2Local(x, z) {
   return h;
 }
 
+/* 3번째 세계 지형 — local 좌표(z = 0 이 부패한 도시 중심) */
+function terrainHeight3Local(x, z) {
+  let h = 0;
+  h += Math.sin(x * 0.0053) * Math.cos(z * 0.0046) * 8.6;
+  h += Math.sin((x + z) * 0.0101 + 0.6) * 3.4;
+  h += Math.cos(x * 0.021 + 1.2) * Math.sin(z * 0.018) * 1.7;
+  h += Math.sin(x * 0.062 + z * 0.049) * 0.55;
+
+  // 부패한 도시 중앙 광장(투기장)은 평평하게
+  const dCity = Math.hypot(x, z);
+  h *= 1 - smoothstep(560, 320, dCity) * 0.96;
+
+  // 점령당한 목장 — 강하닭이 서는 넓은 마당은 평평하게
+  const dRanch = Math.hypot(x, z + 1000);
+  h *= 1 - smoothstep(540, 330, dRanch) * 0.95;
+
+  // 비밀동굴은 움푹 파인 분지
+  const dCave = Math.hypot(x + 1000, z);
+  h -= smoothstep(640, 260, dCave) * 6.5;
+
+  // 선사시대 숲 남쪽 길목과 3세계 태초마을로 올라서는 길은 평평하게
+  const dArrive = Math.hypot(x, z - 1400);
+  h *= 1 - smoothstep(320, 170, dArrive) * 0.96;
+
+  // 3세계 태초마을 · 상점 터도 평평하게 (건물을 올리기 위해)
+  const dVillage3 = Math.hypot(x, z - 2000);
+  h *= 1 - smoothstep(540, 320, dVillage3) * 0.94;
+
+  // 세계 외곽(가장자리)은 완만하게 낮춤. 3세계 태초마을은 남쪽으로 한 칸 더 길다.
+  const southWall = 1500 + 1000 * smoothstep(620, 380, Math.abs(x));
+  const border = Math.min(x + 1500, 1500 - x, z + 1500, southWall - z);
+  h *= smoothstep(0, 90, border);
+  return h;
+}
+
 export function terrainHeight(x, z) {
+  if (z > WORLD3.zSplit) return terrainHeight3Local(x, z - WORLD3.originZ);
   if (z > WORLD2.zSplit) return terrainHeight2Local(x, z - WORLD2.originZ);
   return terrainHeight1(x, z);
 }
 
 export function regionAt(x, z) {
+  if (z > WORLD3.zSplit) {
+    const lz = z - WORLD3.originZ;
+    if (Math.abs(x) <= WORLD3.halfCell && Math.abs(lz) <= WORLD3.halfCell) return 'corrupted_city';
+    if (lz < -WORLD3.halfCell) return 'occupied_ranch';
+    // 남쪽 끝의 3세계 태초마을 (선사시대 숲보다 먼저 확인해야 한다)
+    if (lz > WORLD3.halfCell * 3) return 'village_w3';
+    if (lz > WORLD3.halfCell) return 'annoying_forest';
+    if (x > WORLD3.halfCell) return 'fantasy_forest';
+    return 'secret_cave';
+  }
   if (z > WORLD2.zSplit) {
     const lz = z - WORLD2.originZ;
     if (Math.abs(x) <= WORLD2.halfCell && Math.abs(lz) <= WORLD2.halfCell) return 'dark_realm';
@@ -200,6 +277,20 @@ export function regionAt(x, z) {
 
 // 십자 형태의 통행 가능 영역으로 위치를 제한 (worldId 를 주면 그 세계 기준)
 export function clampToWorld(p, worldId) {
+  if (worldId === 3) {
+    p.x = clamp(p.x, WORLD3.xMin, WORLD3.xMax);
+    p.z = clamp(p.z, WORLD3.zMin, WORLD3.zMax);
+    const ax = Math.abs(p.x);
+    const lz = p.z - WORLD3.originZ;
+    if (ax > WORLD3.halfCell && Math.abs(lz) > WORLD3.halfCell) {
+      if (ax - WORLD3.halfCell < Math.abs(lz) - WORLD3.halfCell) {
+        p.x = Math.sign(p.x) * (WORLD3.halfCell - 4);
+      } else {
+        p.z = WORLD3.originZ + Math.sign(lz) * (WORLD3.halfCell - 4);
+      }
+    }
+    return p;
+  }
   if (worldId === 2) {
     p.x = clamp(p.x, WORLD2.xMin, WORLD2.xMax);
     p.z = clamp(p.z, WORLD2.zMin, WORLD2.zMax);
@@ -228,6 +319,10 @@ export function clampToWorld(p, worldId) {
 }
 
 export function isInsideWorld(x, z, worldId) {
+  if (worldId === 3) {
+    if (x < WORLD3.xMin || x > WORLD3.xMax || z < WORLD3.zMin || z > WORLD3.zMax) return false;
+    return Math.abs(x) <= WORLD3.halfCell || Math.abs(z - WORLD3.originZ) <= WORLD3.halfCell;
+  }
   if (worldId === 2) {
     if (x < WORLD2.xMin || x > WORLD2.xMax || z < WORLD2.zMin || z > WORLD2.zMax) return false;
     // 십자 통로(수직 · 수평) + 남쪽 2세계 태초마을 길

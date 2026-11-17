@@ -3,6 +3,7 @@
 //   · 지금 진행 중인 퀘스트의 몹만 센다 (순서를 건너뛰고 잡아도 미리 채워지지 않는다)
 //   · 화면(DOM)도 three.js 도 쓰지 않는 순수 로직이라 tests/smoke.mjs 에서 그대로 검증한다
 import { MOB_TYPES } from './config.js';
+import { normWorld } from './utils.js';
 
 // 퀘스트 목록 — 순서가 곧 진행 순서다
 export const QUEST_CHAINS = {
@@ -21,6 +22,14 @@ export const QUEST_CHAINS = {
     { id: 'w2_q4', mobType: 'iron_golem', target: 6, rewardGold: 2400 },
     { id: 'w2_q5', mobType: 'dark_mage', target: 1, rewardGold: 4500 },
   ],
+  3: [
+    { id: 'w3_q1', mobType: 'dragon', target: 8, rewardGold: 8000 },
+    { id: 'w3_q2', mobType: 'wyvern', target: 10, rewardGold: 10000 },
+    { id: 'w3_q3', mobType: 'tyrannosaurus', target: 8, rewardGold: 13000 },
+    { id: 'w3_q4', mobType: 'spinosaurus', target: 8, rewardGold: 15000 },
+    { id: 'w3_q5', mobType: 'fallen_hero', target: 10, rewardGold: 20000 },
+    { id: 'w3_q6', mobType: 'strong_chicken', target: 1, rewardGold: 35000 },
+  ],
 };
 
 // 몹 id → 화면에 쓰는 이름 (모르는 id 는 id 그대로)
@@ -38,13 +47,13 @@ export function questGoalText(quest) {
 }
 
 export function worldQuestLabel(worldId) {
-  return (worldId === 2 ? 2 : 1) + '세계';
+  return normWorld(worldId) + '세계';
 }
 
 // 한 세계의 퀘스트 줄 — 지금 몇 번째인지 · 몇 마리 잡았는지
 export class QuestChain {
   constructor(worldId, quests) {
-    this.worldId = worldId === 2 ? 2 : 1;
+    this.worldId = normWorld(worldId);
     this.quests = quests || QUEST_CHAINS[this.worldId] || [];
     this.index = 0;   // 지금 진행 중인 퀘스트 (0부터)
     this.count = 0;   // 그 퀘스트로 잡은 수
@@ -85,17 +94,18 @@ export class QuestChain {
   }
 }
 
-// 두 세계의 퀘스트 줄을 함께 들고 있는 기록장
+// 세 세계의 퀘스트 줄을 함께 들고 있는 기록장
 export class QuestLog {
   constructor(chains) {
     const src = chains || QUEST_CHAINS;
     this.chains = {
       1: new QuestChain(1, src[1]),
       2: new QuestChain(2, src[2]),
+      3: new QuestChain(3, src[3]),
     };
   }
 
-  chainFor(worldId) { return this.chains[worldId === 2 ? 2 : 1]; }
+  chainFor(worldId) { return this.chains[normWorld(worldId)]; }
 
   // 그 세계에서 몹 하나를 잡았을 때
   recordKill(worldId, mobType) {

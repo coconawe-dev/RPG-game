@@ -249,6 +249,9 @@ const ARMOR_STYLE = {
   // 2세계 갑옷 — 별빛 미스릴(보랏빛 룬) · 차원의 불멸(금빛 불꽃 룬)
   4: { plate: 0x8f7fd0, trim: 0xd8ccff, rune: 0xa87cff, glow: 2.1, rough: 0.24, metal: 0.96 },
   5: { plate: 0x2e2846, trim: 0xffd98a, rune: 0xff9a3c, glow: 2.9, rough: 0.18, metal: 0.98 },
+  // 3세계 갑옷 — 용비늘(에메랄드 룬) · 창세의 성갑(백금빛 룬)
+  6: { plate: 0x2f6b4e, trim: 0x9ff0c0, rune: 0x4fffa8, glow: 3.2, rough: 0.2, metal: 0.97 },
+  7: { plate: 0xf2ecd8, trim: 0xfff2b0, rune: 0xfff6c8, glow: 3.8, rough: 0.1, metal: 1.0 },
 };
 
 /* 키프레임 보간: frames = [{t:0, p:{...}}, ...] */
@@ -528,6 +531,9 @@ export class Player {
     this.evolved = isEvolvedAt(this.level);
     this.evolutionTier = this.evolved ? 1 : 0;
     this.buffs = { fortress: 0, haste: 0, frost: 0, elixir: 0, rage: 0, guard: 0 };
+    // 포션마다 다른 배율 — 3세계 영약은 더 강한 광폭 · 수호를 준다
+    this.buffRageMul = 1.6;
+    this.buffGuardMul = 0.5;
     this.invuln = 0;
     this.dash = null;
     // 스태미나 · 대쉬 · 막기 상태
@@ -822,7 +828,6 @@ export class Player {
     const slim = tier === 1 ? 0.94 : 1;
     const hi = tier >= 3;          // 룬 · 발광 장식을 두르는 상위 갑옷
     const mythic = tier >= 4;      // 2세계 갑옷은 견갑 · 룬이 한 단계 더 크다
-
     // 흉갑 · 목 가리개 · 허리대
     add(chest, new THREE.BoxGeometry(8.2 * slim, 5.9 * slim, 4.6 * slim), plate, 0, 3.5, 0);
     add(chest, new THREE.BoxGeometry(5.9 * slim, 1.2, 4.65 * slim), trim, 0, 6.6, 0);
@@ -964,7 +969,7 @@ export class Player {
     let base = this.baseDamage + this.weaponBonus;
     if (this.buffs) {
       if (this.buffs.elixir > 0) base *= 1.35;
-      if (this.buffs.rage > 0) base *= 1.6;
+      if (this.buffs.rage > 0) base *= this.buffRageMul;
     }
     return base;
   }
@@ -1175,8 +1180,8 @@ export class Player {
     let dmg = amount;
     if (blocked) dmg *= STAMINA.blockDamageMul;
     if (this.buffs.fortress > 0) dmg *= 0.4;
-    // 완전 회복의 성수: 15초간 받는 피해 50% 감소
-    if (this.buffs.guard > 0) dmg *= 0.5;
+    // 완전 회복의 성수 · 불굴의 성수: 잠깐 받는 피해가 크게 줄어든다 (포션마다 배율이 다르다)
+    if (this.buffs.guard > 0) dmg *= this.buffGuardMul;
     if (this.armorDefense > 0) dmg *= (1 - this.armorDefense);
     dmg = Math.max(1, Math.round(dmg));
     this.hp -= dmg;
@@ -1250,6 +1255,8 @@ export class Player {
     }
     if (def.buff) {
       this.buffs[def.buff] = def.duration || 15;
+      if (def.buff === 'rage') this.buffRageMul = def.mult || 1.6;
+      if (def.buff === 'guard') this.buffGuardMul = def.defense === undefined ? 0.5 : (1 - def.defense);
       if (def.mult) notes.push('공격력 +' + Math.round((def.mult - 1) * 100) + '%');
       if (def.defense) notes.push('받는 피해 ' + Math.round(def.defense * 100) + '% 감소');
       notes.push(def.duration + '초');

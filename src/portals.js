@@ -4,9 +4,10 @@
 //  · 이동 직후에는 바로 되돌아가지 않도록 잠시 잠근다 (armed).
 import * as THREE from 'three';
 import {
-  BIOMES, WORLD2, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS,
+  BIOMES, WORLD2, WORLD3, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS,
+  WORLD2_PORTAL_POS, WORLD3_ARRIVAL, WORLD3_RETURN_POS,
 } from './config.js';
-import { terrainHeight, clamp } from './utils.js';
+import { terrainHeight, clamp, worldAt, normWorld } from './utils.js';
 
 const PORTAL_RADIUS = 120;       // 안내가 뜨는 거리
 const ENTER_RADIUS = 46;         // 걸어 들어가면 바로 넘어가는 거리
@@ -210,6 +211,52 @@ export class Portals {
       target: { world: 1, x: 0, z: 330, yaw: Math.PI },
     });
     this.list.push(this.returnPortal);
+
+    // 3) 흑마법사를 쓰러뜨리면 열리는 3번째 세계 포털 (암흑지역 제단 뒤)
+    //    도착지는 3세계 태초마을 광장 — 몬스터가 없는 안전 지대다
+    this.world3Portal = new Portal(this.game, {
+      id: 'world3',
+      label: '3번째 세계 포털',
+      sub: 'ENTER THE THIRD WORLD',
+      color: 0x4fffa8,
+      x: WORLD2_PORTAL_POS.x,
+      z: WORLD2_PORTAL_POS.z,
+      open: false,
+      target: {
+        world: 3,
+        x: WORLD3_ARRIVAL.x,
+        z: WORLD3_ARRIVAL.z,
+        yaw: Math.PI,               // 광장 남쪽(3세계 상점)을 바라본다
+      },
+    });
+    this.list.push(this.world3Portal);
+
+    // 4) 3세계 태초마을 광장의 2번째 세계 귀환 포털
+    this.returnPortalW3 = new Portal(this.game, {
+      id: 'return_w3',
+      label: '2번째 세계 귀환 포털',
+      sub: 'RETURN TO THE DARK REALM',
+      color: 0x6fd8ff,
+      x: WORLD3_RETURN_POS.x,
+      z: WORLD3_RETURN_POS.z,
+      open: true,
+      target: { world: 2, x: 0, z: WORLD2.originZ + 1880, yaw: Math.PI },
+    });
+    this.list.push(this.returnPortalW3);
+  }
+
+  // 흑마법사 처치 → 3번째 세계 포털 개방
+  openWorld3() {
+    if (this.world3Portal.open) return false;
+    this.world3Portal.setOpen(true);
+    const p = this.world3Portal.group.position;
+    if (this.game.effects) {
+      this.game.effects.ring(new THREE.Vector3(p.x, p.y + 2, p.z), 0x4fffa8, 220, { duration: 1.5, thickness: 0.03 });
+      this.game.effects.burst(new THREE.Vector3(p.x, p.y + 40, p.z), 0x4fffa8, 32, { power: 52, size: 1.8 });
+    }
+    this.game.world3Unlocked = true;
+    if (this.game.mobManager) this.game.mobManager.ensureWorld(3);
+    return true;
   }
 
   // 고대 골렘 처치 → 포털 개방
@@ -272,7 +319,7 @@ export class Portals {
 export function handleBossDefeated(game, boss) {
   const typeId = boss && (boss.typeId || (boss.type && boss.type.id));
   if (typeId === 'dark_mage') {
-    if (game.hud) game.hud.banner('흑마법사를 쓰러뜨렸습니다!', 3600);
+    if (game.hud) game.hud.banner('흑마법사를 쓰러뜨렸습니다! 3번째 세계로 가는 포털이 열렸습니다', 4200);
     if (game.sfx) game.sfx.victory();
     if (game.shake) game.shake(1.2);
     if (game.effects && boss) {
@@ -285,8 +332,30 @@ export function handleBossDefeated(game, boss) {
         0xd8a0ff, 40, { power: 70, size: 2.2 }
       );
     }
+    // 흑마법사를 쓰러뜨리면 3번째 세계 포털이 열린다 (축하 화면은 그대로 보여 준다)
+    if (game.portals) game.portals.openWorld3();
     game.victoryKind = 'world2';
     if (game.victoryTimer !== undefined) game.victoryTimer = 3.4;
+    return 'victory';
+  }
+
+  // 3번째 세계 최종 보스 강하닭 → 세상을 모두 구한 진짜 엔딩
+  if (typeId === 'strong_chicken') {
+    if (game.hud) game.hud.banner('거대 강하닭을 쓰러뜨렸습니다! 세 세계가 모두 평화를 되찾았습니다', 5000);
+    if (game.sfx) game.sfx.victory();
+    if (game.shake) game.shake(1.4);
+    if (game.effects && boss) {
+      game.effects.ring(
+        new THREE.Vector3(boss.position.x, boss.position.y + 2, boss.position.z),
+        0xffd24a, 420, { duration: 2.0, thickness: 0.02 }
+      );
+      game.effects.burst(
+        new THREE.Vector3(boss.position.x, boss.position.y + 50, boss.position.z),
+        0xffe08a, 56, { power: 82, size: 2.6 }
+      );
+    }
+    game.victoryKind = 'world3';
+    if (game.victoryTimer !== undefined) game.victoryTimer = 3.8;
     return 'victory';
   }
 
@@ -314,7 +383,7 @@ export function travelPlayer(game, target) {
   if (!p || !target) return false;
   const hp = p.hp;
   const xp = p.xp;
-  const world = target.world || (target.z > WORLD2.zSplit ? 2 : 1);
+  const world = target.world !== undefined ? normWorld(target.world) : worldAt(target.x, target.z);
   p.spawnAt(target.x, target.z);
   p.hp = Math.min(p.maxHp, Math.max(1, hp));
   p.xp = xp;
@@ -332,7 +401,7 @@ export function travelPlayer(game, target) {
   if (game.setPortalPrompt) game.setPortalPrompt(null);
 
   const region = regionOf(p.position.x, p.position.z);
-  const worldName = world === 2 ? WORLD2.name : '1번째 세계';
+  const worldName = world === 3 ? WORLD3.name : (world === 2 ? WORLD2.name : '1번째 세계');
   const regionName = region && BIOMES[region] ? BIOMES[region].name : '';
   if (game.hud) {
     game.hud.banner(worldName + ' · ' + regionName, 2800);

@@ -1,7 +1,7 @@
 // HUD: 상태창 · 지역 표시 · 미니맵 · 나침반 · 스킬바 · 네임플레이트 · 데미지 숫자
 import * as THREE from 'three';
 import { CLASSES, CLASS_ORDER, BIOMES, COMPASS_ORDER, BIOME_ORDER, SHOP, compassOrderFor, biomeOrderFor, allPotions, ULT_LEVEL, ULT_KEY } from './config.js';
-import { regionAt } from './utils.js';
+import { regionAt, normWorld } from './utils.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -153,11 +153,11 @@ export class HUD {
     const q = this.game && this.game.quests;
     const d = this.dom;
     if (!q || !d.questPanel || !d.questTitle) return;
-    const st = q.status(this.game.worldId === 2 ? 2 : 1);
+    const st = q.status(normWorld(this.game.worldId));
     const sig = [st.world, st.id, st.index, st.progress, st.done, this.questCollapsed ? 1 : 0].join('|');
     if (!force && sig === this._questSig) return;
     this._questSig = sig;
-    const label = (st.world === 2 ? '2세계' : '1세계');
+    const label = st.world + '세계';
     if (st.done) {
       d.questTitle.textContent = '📜 퀘스트 ' + st.total + '/' + st.total + ' · 완료';
       d.questGoal.textContent = '✨ ' + label + ' 모든 퀘스트 완료!';
@@ -391,7 +391,9 @@ export class HUD {
     for (const pt of allPotions()) {
       const slot = document.createElement('button');
       slot.type = 'button';
-      slot.className = 'slot potion-slot' + (pt.key >= '4' ? ' w2' : '');
+      const keyNum = parseInt(pt.key, 10) || 1;
+      const worldClass = keyNum >= 7 ? ' w3' : (keyNum >= 4 ? ' w2' : '');
+      slot.className = 'slot potion-slot' + worldClass;
       slot.setAttribute('data-potion', pt.id);
       slot.innerHTML =
         '<span class="slot-key">' + pt.key + '</span>' +
@@ -418,10 +420,12 @@ export class HUD {
     if (sig === (this._potionSig || '')) return;
     this._potionSig = sig;
     let w2Any = 0;
+    let w3Any = 0;
     for (const pt of list) {
       const s = this.potionSlots[pt.id];
       const n = p.potionCount(pt.id);
-      if (pt.key >= '4') w2Any += n;
+      if (pt.key >= '7') w3Any += n;
+      else if (pt.key >= '4') w2Any += n;
       if (!s) continue;
       s.count.textContent = '×' + n;
       s.el.classList.toggle('empty', n <= 0);
@@ -433,6 +437,9 @@ export class HUD {
     // 2세계 포션 줄은 하나라도 갖고 있을 때만 휴대폰 화면에 나온다
     const w2Row = document.getElementById('trow-potion-w2');
     if (w2Row) w2Row.classList.toggle('on', w2Any > 0);
+    // 3세계 포션 줄도 마찬가지
+    const w3Row = document.getElementById('trow-potion-w3');
+    if (w3Row) w3Row.classList.toggle('on', w3Any > 0);
   }
 
   updateGold() {
@@ -486,7 +493,7 @@ export class HUD {
 
   // 세계가 바뀌면 미니맵 · 나침반을 그 세계 것으로 다시 그린다
   setWorld(worldId) {
-    const id = worldId === 2 ? 2 : 1;
+    const id = normWorld(worldId);
     if (id === this.worldId) return id;
     this.worldId = id;
     this.lastRegion = null;
@@ -1045,10 +1052,15 @@ export class HUD {
     const o = opts || {};
     d.endOverlay.classList.remove('hidden');
     if (kind === 'victory') {
-      if (o.kind === 'world2') {
+      if (o.kind === 'world3') {
+        d.endEyebrow.textContent = 'TRUE VICTORY · 강하닭';
+        d.endTitle.textContent = '거대 강하닭을 쓰러뜨렸습니다!';
+        d.endLead.textContent = '세 번째 세계의 주인이 쓰러졌습니다. 세 세계가 모두 평화를 되찾았으니, 원하는 만큼 더 돌아다니며 즐겨 보세요. 포털로 세 세계를 오갈 수 있습니다.';
+        d.endPrimary.textContent = '계속 탐험하기';
+      } else if (o.kind === 'world2') {
         d.endEyebrow.textContent = 'VICTORY · 흑마법사';
         d.endTitle.textContent = '흑마법사를 쓰러뜨렸습니다!';
-        d.endLead.textContent = '두 세계를 모두 구했습니다. 2번째 세계의 어둠이 걷혔으니, 원하는 만큼 더 돌아다니며 즐겨 보세요. 포털로 두 세계를 오갈 수 있습니다.';
+        d.endLead.textContent = '2번째 세계의 어둠이 걷혔습니다. 암흑지역에 3번째 세계로 가는 포털이 열렸으니, 이어서 세 번째 세계로 떠나 보세요. 포털로 두 세계를 오갈 수 있습니다.';
         d.endPrimary.textContent = '계속 탐험하기';
       } else {
         d.endEyebrow.textContent = 'VICTORY · 정글 사원';

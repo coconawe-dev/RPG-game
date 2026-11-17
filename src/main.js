@@ -1,10 +1,10 @@
 // 게임 진입점: 렌더러 · 월드 · 입력 · 카메라 · 상태 관리
 import * as THREE from 'three';
 import {
-  BIOMES, BIOME_ORDER, ALL_BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD, WORLD2, WORLD2_ARRIVAL,
+  BIOMES, BIOME_ORDER, ALL_BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD, WORLD2, WORLD3, WORLD2_ARRIVAL,
   SHOP, shopForBiome, homeBiomeFor, ULT_LEVEL,
 } from './config.js';
-import { buildWorld, updateSun, updateVillage, updateOldVillage, updateWorld2, updateBiomeCulling, applyWorldQuality } from './world.js';
+import { buildWorld, updateSun, updateVillage, updateOldVillage, updateWorld2, updateWorld3, updateBiomeCulling, applyWorldQuality } from './world.js';
 import { Portals, handleBossDefeated, travelPlayer } from './portals.js';
 import { Player } from './player.js';
 import { MobManager } from './mobs.js';
@@ -18,7 +18,7 @@ import { QuestLog } from './quests.js';
 import {
   Net, normalizeRoomCode, isValidRoomCode, playerListForHud, MAX_PLAYERS,
 } from './net.js';
-import { terrainHeight, clamp, damp, lerp, biomeWeights, regionAt, worldAt } from './utils.js';
+import { terrainHeight, clamp, damp, lerp, biomeWeights, regionAt, worldAt, normWorld } from './utils.js';
 
 // 터치 목록에서 identifier가 같은 손가락을 찾는다.
 // (멀티터치에서 손가락마다 다른 일을 시키기 위한 추적용 — 조이스틱과 시점 회전이 서로를 방해하지 않게 한다)
@@ -46,9 +46,10 @@ class Game {
     this.elapsed = 0;
     this.player = null;
     this.gold = START_GOLD;
-    // 어느 세계에 있는지 (1 | 2) · 고대 골렘을 잡으면 2번째 세계가 열린다
+    // 어느 세계에 있는지 (1 | 2 | 3) · 고대 골렘을 잡으면 2번째 세계, 흑마법사를 잡으면 3번째 세계가 열린다
     this.worldId = 1;
     this.world2Unlocked = false;
+    this.world3Unlocked = false;
     this.nearPortal = false;
     this.portals = null;
     this.victoryKind = null;
@@ -160,7 +161,7 @@ class Game {
     this.startBiome = qp.get('biome');
     this.autoClass = qp.get('class');
     const qw = parseInt(qp.get('world'), 10);
-    this.startWorld = qw === 2 ? 2 : 1;
+    this.startWorld = normWorld(isFinite(qw) ? qw : 1);
     const qx = parseFloat(qp.get('x'));
     const qz = parseFloat(qp.get('z'));
     // 점검용: 인위적으로 프레임을 느리게 만들어 자동 화질 하향을 시험한다 (?perfdelay=800)
@@ -433,6 +434,7 @@ class Game {
         const pid = {
           '1': 'potion-hp', '2': 'potion-hp-big', '3': 'potion-atk',
           '4': 'potion-hp-supreme', '5': 'potion-full-restore', '6': 'potion-rage',
+          '7': 'potion-hp-legend', '8': 'potion-fortress', '9': 'potion-ascend',
         }[k];
         if (pid) { this.usePotion(pid); e.preventDefault(); return; }
       }
@@ -769,6 +771,9 @@ class Game {
     bindBtn('tbtn-potion-4', () => this.usePotion('potion-hp-supreme'));
     bindBtn('tbtn-potion-5', () => this.usePotion('potion-full-restore'));
     bindBtn('tbtn-potion-6', () => this.usePotion('potion-rage'));
+    bindBtn('tbtn-potion-7', () => this.usePotion('potion-hp-legend'));
+    bindBtn('tbtn-potion-8', () => this.usePotion('potion-fortress'));
+    bindBtn('tbtn-potion-9', () => this.usePotion('potion-ascend'));
 
     // 🛡 막기: 누르고 있는 동안 방어 (touchstart ~ touchend/touchcancel)
     const blockBtn = document.getElementById('tbtn-block');
@@ -1101,11 +1106,18 @@ class Game {
       this.effects.clear();
     }
     this.player = new Player(this, classId);
-    // 기본 시작 지점은 태초마을 (디버그 ?biome= / ?x=&z= / ?world=2 로 바꿀 수 있다)
-    let startWorld = this.startWorld === 2 ? 2 : 1;
-    let biomeId = (this.startBiome && BIOMES[this.startBiome]) ? this.startBiome : 'village';
-    if (startWorld === 1 && BIOMES[biomeId] && BIOMES[biomeId].world === 2) startWorld = 2;
-    if (startWorld === 2 && (!BIOMES[biomeId] || BIOMES[biomeId].world !== 2)) biomeId = 'village_w2';
+    // 기본 시작 지점은 태초마을 (디버그 ?biome= / ?x=&z= / ?world=3 으로 바꿀 수 있다)
+    let startWorld = normWorld(this.startWorld);
+    let biomeId = 'village';
+    if (this.startBiome && BIOMES[this.startBiome]) {
+      // ?biome= 을 주면 그 지역이 속한 세계에서 시작한다
+      biomeId = this.startBiome;
+      startWorld = normWorld(BIOMES[biomeId].world);
+    } else if (startWorld === 3) {
+      biomeId = 'village_w3';
+    } else if (startWorld === 2) {
+      biomeId = 'village_w2';
+    }
     let spawn;
     let yaw = -Math.PI / 2 + 0.25;
     if (this.debugSpawn) {
@@ -1120,9 +1132,13 @@ class Game {
       // 2세계 태초마을: 광장에서 남쪽 2세계 대장간을 바라본다 (북쪽으로 나가면 고블린 숲)
       spawn = BIOMES.village_w2.spawn;
       yaw = Math.PI;
+    } else if (biomeId === 'village_w3') {
+      // 3세계 태초마을: 광장에서 남쪽 3세계 상점을 바라본다 (북쪽으로 나가면 선사시대 숲)
+      spawn = BIOMES.village_w3.spawn;
+      yaw = Math.PI;
     } else if (BIOMES[biomeId].spawn) {
       spawn = BIOMES[biomeId].spawn;
-      if (startWorld === 2) yaw = 0; // 북쪽(암흑지역)을 바라본다
+      if (startWorld > 1) yaw = 0; // 북쪽(그 세계 중심)을 바라본다
     } else {
       spawn = BIOMES[biomeId].center;
     }
@@ -1130,11 +1146,17 @@ class Game {
     if (o.spawn) spawn = { x: o.spawn.x, z: o.spawn.z };
     this.player.spawnAt(spawn.x, spawn.z);
     if (biomeId === 'village' && !this.debugSpawn) this.player.facing = Math.PI;
-    if (biomeId === 'village_w2' && !this.debugSpawn) this.player.facing = 0;
+    if ((biomeId === 'village_w2' || biomeId === 'village_w3') && !this.debugSpawn) this.player.facing = 0;
     this.setWorld(worldAt(spawn.x, spawn.z), { silent: true });
     if (startWorld === 2) {
       this.world2Unlocked = true;
       if (this.mobManager) this.mobManager.ensureWorld(2);
+    }
+    if (startWorld === 3) {
+      // 3세계로 바로 들어오는 점검 경로 — 앞의 두 세계도 이미 지난 것으로 친다
+      this.world2Unlocked = true;
+      this.world3Unlocked = true;
+      if (this.mobManager) this.mobManager.ensureWorld(3);
     }
     this.gold = START_GOLD;
     // 새로 시작하면 퀘스트도 처음부터 (1세계 · 2세계 모두)
@@ -1159,7 +1181,7 @@ class Game {
     }
     this.hud.hideEnd();
     this.sfx.init();
-    this.hud.banner(CLASSES[classId].name + ' · ' + (startWorld === 2 ? '2세계 ' : '') + BIOMES[regionAt(spawn.x, spawn.z)].name, 2400);
+    this.hud.banner(CLASSES[classId].name + ' · ' + (startWorld > 1 ? startWorld + '세계 ' : '') + BIOMES[regionAt(spawn.x, spawn.z)].name, 2400);
     // 점검용 ?level=15 / ?level=20 — 시작 안내 뒤에 필살기 해금 · 1차 진화 배너가 뜨게 마지막에 적용한다
     if (this.startLevel > 1) this.player.setLevel(this.startLevel);
     // 터치 조작 안내는 시작 후 잠시 보여주고 사라진다
@@ -1181,21 +1203,22 @@ class Game {
   resetRun() {
     if (!this.player) return;
     // 부활하면 그 세계의 태초마을(광장 앞)에서 체력을 회복하고 다시 시작한다
-    // (2번째 세계에서 죽었다면 2세계 태초마을로 — 사자마자 다시 포털을 찾아가지 않도록)
-    const inW2 = this.worldId === 2;
-    const home = homeBiomeFor(inW2 ? 2 : 1);
+    // (2·3번째 세계에서 죽었다면 그 세계 태초마을로 — 사자마자 다시 포털을 찾아가지 않도록)
+    const inW = normWorld(this.worldId);
+    const home = homeBiomeFor(inW);
     const spawn = home.spawn;
     this.player.spawnAt(spawn.x, spawn.z);
-    this.player.facing = inW2 ? 0 : Math.PI;
+    this.player.facing = inW > 1 ? 0 : Math.PI;
     this.player.root.rotation.y = this.player.facing;
     this.player.hp = this.player.maxHp;
     this.mobManager.resetAggro();
-    this.setWorld(inW2 ? 2 : 1, { silent: true });
+    this.setWorld(inW, { silent: true });
     this.camYaw = this.player.facing + Math.PI;
     this.placeCamera(true);
     this.hud.hideEnd();
     this.hud.refreshBars();
-    this.hud.banner(inW2 ? '2세계 태초마을에서 다시 일어났습니다' : '태초마을에서 다시 일어났습니다', 2000);
+    this.hud.banner(inW === 3 ? '3세계 태초마을에서 다시 일어났습니다'
+      : (inW === 2 ? '2세계 태초마을에서 다시 일어났습니다' : '태초마을에서 다시 일어났습니다'), 2000);
     this.state = 'playing';
     this.deathTimer = -1;
   }
@@ -1211,10 +1234,15 @@ class Game {
   /* --------------------------- 세계 이동 (포털) --------------------------- */
   // 지금 있는 세계를 기록하고, 그 세계의 몹 · 미니맵 · 나침반을 맞춘다
   setWorld(worldId, opts) {
-    const id = worldId === 2 ? 2 : 1;
+    const id = normWorld(worldId);
     const changed = id !== this.worldId;
     this.worldId = id;
     if (id === 2) this.world2Unlocked = true;
+    if (id === 3) {
+      // 3번째 세계에 왔다는 것은 앞의 두 세계를 이미 지났다는 뜻이다
+      this.world2Unlocked = true;
+      this.world3Unlocked = true;
+    }
     if (this.mobManager) this.mobManager.ensureWorld(id);
     if (this.hud && this.hud.setWorld) this.hud.setWorld(id);
     if (changed && this.world && this.player) {
@@ -1286,7 +1314,8 @@ class Game {
   activeShopBiome() {
     const p = this.player;
     if (!p || !p.alive) return null;
-    const order = worldAt(p.position.x, p.position.z) === 2 ? ['village_w2'] : ['village'];
+    const w = worldAt(p.position.x, p.position.z);
+    const order = w === 3 ? ['village_w3'] : (w === 2 ? ['village_w2'] : ['village']);
     for (const id of order) {
       const b = BIOMES[id];
       if (!b || !b.shop || !b.shop.interact) continue;
@@ -1311,7 +1340,10 @@ class Game {
         const b = this.activeShopBiome();
         const def = b ? shopForBiome(b.id) : null;
         const txt = el.querySelector('.sp-text');
-        if (txt) txt.textContent = def && def.kind === 'world2' ? '2세계 대장간 열기' : '상점 열기';
+        if (txt) {
+          txt.textContent = def && def.kind === 'world3' ? '3세계 상점 열기'
+            : (def && def.kind === 'world2' ? '2세계 대장간 열기' : '상점 열기');
+        }
       }
     }
     const tBtn = document.getElementById('tbtn-shop');
@@ -1367,7 +1399,7 @@ class Game {
   recordKill(mobType, worldId) {
     const q = this.quests;
     if (!q || !mobType) return null;
-    const res = q.recordKill(worldId === 2 ? 2 : 1, mobType);
+    const res = q.recordKill(normWorld(worldId), mobType);
     if (!res) return null;
     if (this.hud && this.hud.refreshQuest) this.hud.refreshQuest(true);
     if (!res.completed) return res;
@@ -1378,7 +1410,7 @@ class Game {
       this.hud.questFlash();
     }
     if (res.chainDone) {
-      const label = (res.world === 2 ? 2 : 1) + '세계';
+      const label = normWorld(res.world) + '세계';
       this.after(2.7, () => {
         if (this.state !== 'playing' && this.state !== 'shop') return;
         this.hud.banner('✨ ' + label + ' 모든 퀘스트 완료!', 3200);
@@ -1532,6 +1564,7 @@ class Game {
     updateVillage(this.world, dt, this.elapsed);
     updateOldVillage(this.world, dt, this.elapsed);
     updateWorld2(this.world, dt, this.elapsed, p.position);
+    updateWorld3(this.world, dt, this.elapsed, p.position);
 
     // 타이머 상태 전환
     if (this.deathTimer > 0) {

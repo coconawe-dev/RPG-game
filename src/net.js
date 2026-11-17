@@ -7,7 +7,7 @@ import { Player } from './player.js';
 import { Mob } from './mobs.js';
 import { MOB_TYPES, CLASSES, MAX_WEAPON_TIER, MAX_ARMOR_TIER } from './config.js';
 import { bossSkillCode, bossSkillByCode } from './config.js';
-import { clamp, damp, dampAngle, rand, terrainHeight } from './utils.js';
+import { clamp, damp, dampAngle, rand, terrainHeight, normWorld } from './utils.js';
 
 /* ------------------------------ 설정값 ------------------------------ */
 export const BROKERS = [
@@ -37,10 +37,13 @@ ANIM_NAMES.forEach((n, i) => { if (n) ANIM_CODES[n] = i; });
 export const MOB_CODES = [
   'slime', 'zombie', 'hyena', 'gorilla', 'raider', 'golem',
   'goblin', 'skeleton', 'samurai', 'iron_golem', 'dark_mage',
+  'dragon', 'wyvern', 'spinosaurus', 'tyrannosaurus', 'fallen_hero', 'strong_chicken',
 ];
 const BIOME_OF_TYPE = {
   slime: 'forest', zombie: 'graveyard', hyena: 'savanna', gorilla: 'jungle', raider: 'old_village', golem: 'temple',
   goblin: 'goblin_forest', skeleton: 'misty_plains', samurai: 'sakura', iron_golem: 'ominous_cave', dark_mage: 'dark_realm',
+  dragon: 'fantasy_forest', wyvern: 'secret_cave', spinosaurus: 'annoying_forest',
+  tyrannosaurus: 'annoying_forest', fallen_hero: 'corrupted_city', strong_chicken: 'occupied_ranch',
 };
 
 // 스냅샷 주기
@@ -651,7 +654,7 @@ export class Net {
     };
     this.remotes.set(p.pid, rec);
     this._sendWelcome(p.pid);
-    this._ensureWorldMobs(this.game.worldId === 2 ? 2 : 1);
+    this._ensureWorldMobs(normWorld(this.game.worldId));
     this._broadcastWorld(true);
     this.game.hud.banner(rec.nick + ' 님이 들어왔습니다', 2000);
     this.game.sfx.levelup();
@@ -662,8 +665,9 @@ export class Net {
     if (!this.isHost) return;
     const mm = this.game && this.game.mobManager;
     if (!mm) return;
-    if (typeof mm.ensureWorld === 'function') { mm.ensureWorld(worldId === 2 ? 2 : 1); return; }
-    if (typeof mm.spawnWorld === 'function') mm.spawnWorld(worldId === 2 ? 2 : 1);
+    const w = normWorld(worldId);
+    if (typeof mm.ensureWorld === 'function') { mm.ensureWorld(w); return; }
+    if (typeof mm.spawnWorld === 'function') mm.spawnWorld(w);
   }
 
   _sendWelcome(pid) {
@@ -708,7 +712,7 @@ export class Net {
     rec.z = Number(p.z) || 0;
     rec.yaw = Number(p.yaw) || 0;
     // 친구가 다른 세계로 넘어갔으면 그 모습은 그 세계에서만 보인다
-    const w = Number(p.w) === 2 ? 2 : 1;
+    const w = normWorld(p.w);
     if (w !== rec.world) {
       rec.world = w;
       if (rec.rig) rec.rig.root.visible = (w === (this.game.worldId || 1));
@@ -896,7 +900,7 @@ export class Net {
     const gold = Number(p.gold) || 0;
     // 퀘스트: 호스트가 알려 준 처치를 내 퀘스트 줄에도 센다 (t = 몹 종류)
     if (p.t && typeof this.game.recordKill === 'function') {
-      this.game.recordKill(String(p.t), Number(p.w) === 2 ? 2 : 1);
+      this.game.recordKill(String(p.t), normWorld(p.w));
     }
     this._grant(xp, gold, p.x, p.z);
   }
@@ -946,7 +950,7 @@ export class Net {
         radius: (rec.rig && rec.rig.radius) || 4.6,
         position: new THREE.Vector3(rec.x, 0, rec.z),
         // 친구가 어느 세계에 있는지 — 몹은 같은 세계의 플레이어만 노린다
-        world: rec.world === 2 ? 2 : 1,
+        world: normWorld(rec.world),
       });
     }
     return out;
@@ -1005,7 +1009,7 @@ export class Net {
     const gold = (mob.type && mob.type.gold) || 0;
     // 호스트 자신의 퀘스트도 이 처치를 센다
     if (typeof this.game.recordKill === 'function' && mob.typeId) {
-      this.game.recordKill(mob.typeId, mob.worldId === 2 ? 2 : 1);
+      this.game.recordKill(mob.typeId, normWorld(mob.worldId));
     }
     this._grant(xp, gold, mob.position.x, mob.position.z);
     this.publish('g', encodeMsg('rw', {
@@ -1013,7 +1017,7 @@ export class Net {
       x: Math.round(mob.position.x),
       z: Math.round(mob.position.z),
       t: mob.typeId || '',
-      w: mob.worldId === 2 ? 2 : 1,
+      w: normWorld(mob.worldId),
     }));
     return true;
   }

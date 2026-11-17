@@ -6,7 +6,9 @@ import {
 /* ------------------------------ 구매 로직 ------------------------------ */
 // 순수 로직: DOM 없이도 검증 가능 (tests/smoke.mjs)
 export function findWeapon(classId, itemId) {
-  return shopWeaponsFor(classId, 'shop_w1').concat(shopWeaponsFor(classId, 'shop_w2'))
+  return shopWeaponsFor(classId, 'shop_w1')
+    .concat(shopWeaponsFor(classId, 'shop_w2'))
+    .concat(shopWeaponsFor(classId, 'shop_w3'))
     .find((w) => w.id === itemId) || null;
 }
 
@@ -89,7 +91,7 @@ export function buyItem(game, itemId) {
 /* -------------------------------- 모달 UI -------------------------------- */
 const $ = (id) => document.getElementById(id);
 
-const ARMOR_ICONS = { 1: '🦺', 2: '🛡', 3: '👑', 4: '💠', 5: '🔥' };
+const ARMOR_ICONS = { 1: '🦺', 2: '🛡', 3: '👑', 4: '💠', 5: '🔥', 6: '🐲', 7: '🌟' };
 
 export class Shop {
   constructor(game) {
@@ -152,9 +154,9 @@ export class Shop {
     if (this.eyebrowEl) this.eyebrowEl.textContent = shop.eyebrow || '태초마을 · 상점';
     if (this.titleEl) this.titleEl.textContent = shop.title || '무기 · 갑옷 · 포션 상점';
     if (this.potionHintEl) {
-      this.potionHintEl.textContent = shop.kind === 'world2'
-        ? '숫자키 4 · 5 · 6 으로 바로 사용'
-        : '숫자키 1 · 2 · 3 으로 바로 사용';
+      this.potionHintEl.textContent = shop.kind === 'world3'
+        ? '숫자키 7 · 8 · 9 로 바로 사용'
+        : (shop.kind === 'world2' ? '숫자키 4 · 5 · 6 으로 바로 사용' : '숫자키 1 · 2 · 3 으로 바로 사용');
     }
     if (this.keeperEl) {
       this.keeperEl.innerHTML = '<b>' + shop.keeper.name + '</b> · ' + shop.keeper.role

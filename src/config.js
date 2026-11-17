@@ -1,7 +1,7 @@
 // 월드 · 직업 · 스킬 정의
-import { WORLD2 } from './utils.js';
+import { WORLD2, WORLD3 } from './utils.js';
 
-export { WORLD2 };
+export { WORLD2, WORLD3 };
 
 export const GROUND_Y = 0;
 
@@ -373,17 +373,205 @@ export const BIOMES_W2 = {
   },
 };
 
+/* ------------------------------------------------------------------
+   3번째 세계 — 흑마법사를 쓰러뜨리면 열리는 땅
+   중앙 부패한 도시(타락한 영웅) + 네 방향(북 점령당한 목장 · 남 선사시대 숲
+   · 서 비밀동굴 · 동 판타지숲) + 그 남쪽 끝의 3세계 태초마을(안전 지대 · 상점)
+   좌표는 앞의 두 세계와 겹치지 않게 WORLD3.originZ 만큼 밀어 둔 절대 좌표다.
+------------------------------------------------------------------ */
+const W3 = WORLD3.originZ;
+
+export const BIOMES_W3 = {
+  // 3세계 태초마을 — 3번째 세계에 들어온 사람이 처음 발을 딛는 안전 지대.
+  // 선사시대 숲 바로 남쪽(마을 z W3+1500 ~ W3+2500)에 1000x1000 으로 놓는다.
+  village_w3: {
+    id: 'village_w3',
+    world: 3,
+    name: '태초마을',
+    en: 'Starter Village III',
+    short: '3세계 마을',
+    center: { x: 0, z: W3 + 2000 },
+    bounds: { x0: -500, x1: 500, z0: W3 + 1500, z1: W3 + 2500 },
+    ground: 0x5c7a4e,
+    ground2: 0x47613d,
+    edge: 0x3a5233,
+    minimap: '#7fa96b',
+    sky: 0x3a3560,
+    fog: 0x50496f,
+    fogNear: 300,
+    fogFar: 1350,
+    sun: 0xffd9a0,
+    sunIntensity: 1.85,
+    hemiSky: 0xc9bde8,
+    hemiGround: 0x27301f,
+    hemiIntensity: 0.84,
+    mob: null,
+    mobCount: 0,
+    peaceful: true,
+    landmark: '새벽 광장',
+    landmarkPos: { x: 0, z: W3 + 2000 },
+    spawn: { x: -60, z: W3 + 1925 },
+    // 3세계 상점(대상단) — 광장 남쪽, 문은 광장(북쪽)을 향한다
+    shop: {
+      id: 'shop_w3',
+      x: 0, z: W3 + 2150, radius: 138, facing: -1,
+      interact: { x: 0, z: W3 + 2086, radius: 78 },
+    },
+  },
+  annoying_forest: {
+    id: 'annoying_forest',
+    world: 3,
+    name: '선사시대 숲',
+    en: 'Prehistoric Forest',
+    short: '선사시대 숲',
+    center: { x: 0, z: W3 + 1000 },
+    bounds: { x0: -500, x1: 500, z0: W3 + 500, z1: W3 + 1500 },
+    ground: 0x53603a,
+    ground2: 0x3d4a2a,
+    edge: 0x2f3a20,
+    minimap: '#76854a',
+    sky: 0x7f8a5e,
+    fog: 0x6f7a52,
+    fogNear: 150,
+    fogFar: 860,
+    sun: 0xd8e0a0,
+    sunIntensity: 1.4,
+    hemiSky: 0xa8b878,
+    hemiGround: 0x1f2614,
+    hemiIntensity: 0.66,
+    // 가시덤불 숲에는 두 공룡이 함께 산다 (같이 소환)
+    mob: 'tyrannosaurus',
+    mobs: ['tyrannosaurus', 'spinosaurus'],
+    mobCount: 12,
+    landmark: '가시덩굴 둥지',
+    landmarkPos: { x: 0, z: W3 + 900 },
+    spawn: { x: 0, z: W3 + 1320 },
+  },
+  secret_cave: {
+    id: 'secret_cave',
+    world: 3,
+    name: '비밀동굴',
+    en: 'Secret Cave',
+    short: '비밀동굴',
+    center: { x: -1000, z: W3 },
+    bounds: { x0: -1500, x1: -500, z0: W3 - 500, z1: W3 + 500 },
+    ground: 0x2a2a3d,
+    ground2: 0x1a1a2a,
+    edge: 0x121220,
+    minimap: '#3d4a72',
+    sky: 0x1a1c2e,
+    fog: 0x232840,
+    fogNear: 120,
+    fogFar: 700,
+    sun: 0x9fd8ff,
+    sunIntensity: 1.1,
+    hemiSky: 0x6f8fd0,
+    hemiGround: 0x0d0f18,
+    hemiIntensity: 0.62,
+    mob: 'wyvern',
+    mobCount: 12,
+    landmark: '수정 둥지',
+    landmarkPos: { x: -1000, z: W3 },
+    spawn: { x: -740, z: W3 },
+  },
+  fantasy_forest: {
+    id: 'fantasy_forest',
+    world: 3,
+    name: '판타지숲',
+    en: 'Fantasy Forest',
+    short: '판타지숲',
+    center: { x: 1000, z: W3 },
+    bounds: { x0: 500, x1: 1500, z0: W3 - 500, z1: W3 + 500 },
+    ground: 0x3f7a52,
+    ground2: 0x2d5c3d,
+    edge: 0x24492f,
+    minimap: '#4f9b64',
+    sky: 0x4d7f6a,
+    fog: 0x3f6b58,
+    fogNear: 230,
+    fogFar: 1150,
+    sun: 0xfff0b0,
+    sunIntensity: 2.0,
+    hemiSky: 0xa8e0c0,
+    hemiGround: 0x1d3524,
+    hemiIntensity: 0.7,
+    mob: 'dragon',
+    mobCount: 8,
+    landmark: '용의 둥지',
+    landmarkPos: { x: 1000, z: W3 },
+    spawn: { x: 740, z: W3 },
+  },
+  corrupted_city: {
+    id: 'corrupted_city',
+    world: 3,
+    name: '부패한 도시',
+    en: 'Corrupted City',
+    short: '부패 도시',
+    center: { x: 0, z: W3 },
+    bounds: { x0: -500, x1: 500, z0: W3 - 500, z1: W3 + 500 },
+    ground: 0x5a5262,
+    ground2: 0x433d4c,
+    edge: 0x352f3c,
+    minimap: '#7a7088',
+    sky: 0x4a3f55,
+    fog: 0x574a63,
+    fogNear: 240,
+    fogFar: 1150,
+    sun: 0xe0c8ff,
+    sunIntensity: 1.5,
+    hemiSky: 0xb8a0d8,
+    hemiGround: 0x201a28,
+    hemiIntensity: 0.72,
+    mob: 'fallen_hero',
+    mobCount: 10,
+    landmark: '부패한 성문',
+    landmarkPos: { x: 0, z: W3 },
+    spawn: { x: 0, z: W3 + 400 },
+  },
+  occupied_ranch: {
+    id: 'occupied_ranch',
+    world: 3,
+    name: '점령당한 목장',
+    en: 'Occupied Ranch',
+    short: '목장',
+    center: { x: 0, z: W3 - 1000 },
+    bounds: { x0: -500, x1: 500, z0: W3 - 1500, z1: W3 - 500 },
+    ground: 0x7a6a42,
+    ground2: 0x5f5232,
+    edge: 0x4a4028,
+    minimap: '#a08b55',
+    sky: 0x6a4a44,
+    fog: 0x7a5a4a,
+    fogNear: 220,
+    fogFar: 1050,
+    sun: 0xffc08a,
+    sunIntensity: 1.7,
+    hemiSky: 0xe0b090,
+    hemiGround: 0x2a2014,
+    hemiIntensity: 0.7,
+    mob: 'strong_chicken',
+    mobCount: 1,
+    landmark: '거대한 닭 둥지',
+    landmarkPos: { x: 0, z: W3 - 940 },
+    spawn: { x: 0, z: W3 - 620 },
+  },
+};
+
 // 2번째 세계 지역 순서 (도착지인 2세계 태초마을이 먼저 — 북쪽으로 고블린 숲 → 암흑지역)
 export const BIOME_ORDER_W2 = ['village_w2', 'goblin_forest', 'misty_plains', 'sakura', 'ominous_cave', 'dark_realm'];
 
 // 1번째 세계 지역 순서
 export const BIOME_ORDER = ['village', 'forest', 'graveyard', 'savanna', 'old_village', 'jungle', 'temple'];
 
-// 두 세계를 한 곳에서 찾을 수 있게 합쳐 둔다 (지역 이름 · 색 · 경계 조회용)
-Object.assign(BIOMES, BIOMES_W2);
+// 3번째 세계 지역 순서 (도착지인 3세계 태초마을이 먼저 — 북쪽으로 선사시대 숲 → 부패한 도시 → 목장)
+export const BIOME_ORDER_W3 = ['village_w3', 'annoying_forest', 'secret_cave', 'fantasy_forest', 'corrupted_city', 'occupied_ranch'];
 
-// 두 세계를 모두 포함한 목록 — 몹 스폰 · 바이옴 컬링 · 환경 색 계산용
-export const ALL_BIOME_ORDER = BIOME_ORDER.concat(BIOME_ORDER_W2);
+// 세 세계를 한 곳에서 찾을 수 있게 합쳐 둔다 (지역 이름 · 색 · 경계 조회용)
+Object.assign(BIOMES, BIOMES_W2);
+Object.assign(BIOMES, BIOMES_W3);
+
+// 세 세계를 모두 포함한 목록 — 몹 스폰 · 바이옴 컬링 · 환경 색 계산용
+export const ALL_BIOME_ORDER = BIOME_ORDER.concat(BIOME_ORDER_W2).concat(BIOME_ORDER_W3);
 
 // 두 세계의 바이옴 정의를 한 곳에서 찾는다
 export function biomeById(id) {
@@ -392,6 +580,7 @@ export function biomeById(id) {
 
 // 세계별 지역 목록
 export function biomeOrderFor(worldId) {
+  if (worldId === 3) return BIOME_ORDER_W3;
   return worldId === 2 ? BIOME_ORDER_W2 : BIOME_ORDER;
 }
 
@@ -402,7 +591,11 @@ export const COMPASS_ORDER = ['temple', 'village', 'forest', 'graveyard', 'savan
 // 2번째 세계 나침반 (보스가 있는 암흑지역을 맨 위에 · 안전 지대인 2세계 태초마을도 표시)
 export const COMPASS_ORDER_W2 = ['dark_realm', 'goblin_forest', 'misty_plains', 'sakura', 'ominous_cave', 'village_w2'];
 
+// 3번째 세계 나침반 (최종 보스가 있는 목장을 맨 위에 · 3세계 태초마을도 표시)
+export const COMPASS_ORDER_W3 = ['occupied_ranch', 'fantasy_forest', 'annoying_forest', 'corrupted_city', 'secret_cave', 'village_w3'];
+
 export function compassOrderFor(worldId) {
+  if (worldId === 3) return COMPASS_ORDER_W3;
   return worldId === 2 ? COMPASS_ORDER_W2 : COMPASS_ORDER;
 }
 
@@ -474,6 +667,41 @@ export const MOB_TYPES = {
     enrageAt: 0.55, slamEvery: 3, slamRadius: 230, slamWindup: 1.4, slamCooldown: 8,
     slamLabel: '어둠의 충격파!',
   },
+
+  /* ---------------------- 3번째 세계의 몹 — 두 번째 세계보다 훨씬 강하다 ---------------------- */
+  dragon: {
+    id: 'dragon', name: '용', hp: 5200, damage: 190, speed: 46, aggro: 300,
+    attackRange: 62, attackCooldown: 1.9, xp: 2600, gold: 1800, height: 44, radius: 16,
+    leash: 520, kind: 'dragon',
+  },
+  wyvern: {
+    id: 'wyvern', name: '와이번', hp: 4200, damage: 160, speed: 74, aggro: 290,
+    attackRange: 54, attackCooldown: 1.5, xp: 2100, gold: 1500, height: 32, radius: 12,
+    leash: 480, kind: 'wyvern',
+  },
+  spinosaurus: {
+    id: 'spinosaurus', name: '스피노사우루스', hp: 6000, damage: 210, speed: 46, aggro: 300,
+    attackRange: 68, attackCooldown: 2.0, xp: 3000, gold: 2000, height: 42, radius: 15,
+    leash: 540, kind: 'spinosaurus',
+  },
+  tyrannosaurus: {
+    id: 'tyrannosaurus', name: '티라노사우루스', hp: 5400, damage: 230, speed: 62, aggro: 310,
+    attackRange: 58, attackCooldown: 1.7, xp: 2900, gold: 2000, height: 44, radius: 15,
+    leash: 540, kind: 'tyrannosaurus',
+  },
+  fallen_hero: {
+    id: 'fallen_hero', name: '타락한 영웅', hp: 7600, damage: 260, speed: 60, aggro: 320,
+    attackRange: 58, attackCooldown: 1.4, xp: 4200, gold: 2800, height: 24, radius: 8,
+    leash: 560, kind: 'fallen_hero',
+  },
+  // 최종 보스 — 거대 강하닭 (한 마리만 · 사용자 요청: "강하닭은 크게만들어야되")
+  strong_chicken: {
+    id: 'strong_chicken', name: '강하닭', hp: 46000, damage: 360, speed: 42, aggro: 420,
+    attackRange: 120, attackCooldown: 2.2, xp: 20000, gold: 12000, height: 58, radius: 22,
+    leash: 720, kind: 'strong_chicken', boss: true, level: 95,
+    enrageAt: 0.5, slamEvery: 3, slamRadius: 260, slamWindup: 1.5, slamCooldown: 9,
+    slamLabel: '거대 발톱 내려찍기!',
+  },
 };
 
 /* ------------------------- 보스 스킬 (두 보스) -------------------------
@@ -481,7 +709,7 @@ export const MOB_TYPES = {
    모든 스킬은 바닥에 범위를 먼저 알려 주는 예고(telegraph, 0.8~1.2초)를 남기고 터진다.
    예고 시간 안에 대쉬(C)로 빠져나가거나 막기(R)로 버티면 피해가 줄어든다.
    · 격노하면 예고가 조금 짧아지고 쿨타임도 줄어든다. */
-export const BOSS_SKILL_IDS = ['', 'quake', 'boulder', 'roar', 'meteor', 'volley', 'nova'];
+export const BOSS_SKILL_IDS = ['', 'quake', 'boulder', 'roar', 'meteor', 'volley', 'nova', 'feather', 'beaksmash', 'eggbarrage'];
 
 export const BOSS_SKILLS = {
   golem: [
@@ -518,11 +746,30 @@ export const BOSS_SKILLS = {
       cooldown: 13, enragedCooldown: 8.5,
     },
   ],
+  // 최종 보스 강하닭 — 깃털 · 부리 · 황금 알, 세 가지 기술을 예고하고 내려온다
+  strong_chicken: [
+    {
+      id: 'feather', name: '깃털 폭풍', label: '🐔 깃털 폭풍!', kind: 'meteor',
+      telegraph: 1.0, radius: 88, damage: 1.0, color: 0xffe27a, count: 3,
+      cooldown: 11, enragedCooldown: 7, minRange: 0,
+    },
+    {
+      id: 'beaksmash', name: '거대 부리 강타', label: '💥 거대 부리 강타!', kind: 'aoe',
+      telegraph: 1.15, radius: 205, damage: 1.5, color: 0xffa54a, maxRange: 300,
+      cooldown: 10, enragedCooldown: 6.5,
+    },
+    {
+      id: 'eggbarrage', name: '황금 알 폭격', label: '🥚 황금 알 폭격!', kind: 'volley',
+      telegraph: 0.85, damage: 0.7, color: 0xffd24a, count: 4, spread: 0.36,
+      cooldown: 9, enragedCooldown: 5.5,
+    },
+  ],
 };
 
 // 몹 정의에서 바로 꺼내 쓸 수 있게 붙여 둔다
 MOB_TYPES.golem.skills = BOSS_SKILLS.golem;
 MOB_TYPES.dark_mage.skills = BOSS_SKILLS.dark_mage;
+MOB_TYPES.strong_chicken.skills = BOSS_SKILLS.strong_chicken;
 
 // 스킬 id → 정의 · 코드(번호) — 함께 하기에서 친구 화면에 같은 예고를 그릴 때 쓴다
 export function bossSkillById(id) {
@@ -546,11 +793,28 @@ export function bossSkillByCode(code) {
 // 2번째 세계 보스가 서는 자리 (암흑지역 제단 앞)
 export const BOSS2_POS = { x: 0, z: WORLD2.originZ + 130 };
 
+// 3번째 세계 최종 보스 강하닭이 서는 자리 (점령당한 목장의 둥지 앞)
+export const BOSS3_POS = { x: 0, z: WORLD3.originZ - 860 };
+
+// 몹 · 지역에서 보스 자리를 찾는다 (없으면 그 지역 중심)
+export function bossPosFor(biomeId) {
+  if (biomeId === 'dark_realm') return BOSS2_POS;
+  if (biomeId === 'occupied_ranch') return BOSS3_POS;
+  return BOSS_POS;
+}
+
 // 2번째 세계 도착 지점 — 2세계 태초마을 광장 (고대 골렘을 잡으면 열리는 포털이 여기로 보낸다)
 export const WORLD2_ARRIVAL = { x: 0, z: WORLD2.originZ + 1880 };
 export const WORLD1_PORTAL_POS = { x: 0, z: 172 };
 // 1번째 세계로 돌아가는 귀환 포털 (2세계 태초마을 광장 옆 · 도착 지점에서 200 이상 떨어져 바로 되돌아가지 않는다)
 export const WORLD2_RETURN_POS = { x: 215, z: WORLD2.originZ + 1880 };
+
+// 2번째 세계에서 3번째 세계로 가는 포털 (암흑지역 제단 뒤 · 흑마법사를 잡으면 열린다)
+export const WORLD2_PORTAL_POS = { x: -230, z: WORLD2.originZ - 190 };
+// 3번째 세계 도착 지점 — 3세계 태초마을 광장
+export const WORLD3_ARRIVAL = { x: 0, z: WORLD3.originZ + 1880 };
+// 2번째 세계로 돌아가는 귀환 포털 (3세계 태초마을 광장 옆)
+export const WORLD3_RETURN_POS = { x: 215, z: WORLD3.originZ + 1880 };
 
 
 /* ------------------------------------------------------------------
@@ -939,13 +1203,82 @@ export const SHOP2 = {
   ],
 };
 
+/* ------------------------------------------------------------------
+   3세계 태초마을 상점 — 세 번째 세계의 대상단
+   사용자 요청: "상점에는 무기와방어구와포션을 팔아 상점에는 다100000이상이야(포션빼고)"
+   · 무기: 화면 표시 Tier 6 · 7 (내부 등급 5 · 6) — 전부 100,000G 이상
+   · 갑옷: Tier 6 · 7 — 전부 100,000G 이상
+   · 포션: 전설 체력 포션 · 불굴의 성수 · 초월의 영약 — 100,000G 미만
+------------------------------------------------------------------ */
+export const SHOP3 = {
+  id: 'shop_w3',
+  kind: 'world3',
+  eyebrow: '3세계 태초마을 · 대상단',
+  title: '3세계 대상단 · 무기 · 갑옷 · 포션',
+  keeper: {
+    name: '발렌', role: '3세계 대상단장',
+    line: '여기 오는 물건은 다 한 번은 왕국을 벌었던 물건이야. 값은 셈값으로 세게 나왔어.',
+  },
+  // 직업별 상위 무기 (표시 Tier 6 · 7) — 사면 바로 장착됩니다
+  weapons: {
+    warrior: [
+      { id: 'w3-warrior-6', tier: 6, name: '용사냥꾼의 대검', price: 104000, damage: 150, crit: 0.15, desc: '용의 비늘을 베도록 벼린 대검. 공격력 +150 · 치명타 +15%' },
+      { id: 'w3-warrior-7', tier: 7, name: '천공의 심판검', price: 215000, damage: 260, crit: 0.20, desc: '하늘을 가르는 심판의 검. 공격력 +260 · 치명타 +20%' },
+    ],
+    archer: [
+      { id: 'w3-archer-6', tier: 6, name: '천공의 장궁', price: 101000, damage: 136, crit: 0.15, desc: '구름 위를 암다니는 장궁. 공격력 +136 · 치명타 +15%' },
+      { id: 'w3-archer-7', tier: 7, name: '새벽의 명궁', price: 212000, damage: 236, crit: 0.20, desc: '새벽빛을 꿰뚫는 명궁. 공격력 +236 · 치명타 +20%' },
+    ],
+    rogue: [
+      { id: 'w3-rogue-6', tier: 6, name: '용살 쌍단검', price: 100000, damage: 110, crit: 0.17, desc: '비늘 밑을 파고드는 쌍단검. 공격력 +110 · 치명타 +17%' },
+      { id: 'w3-rogue-7', tier: 7, name: '심연의 쌍검', price: 210000, damage: 190, crit: 0.22, desc: '빛을 삼키는 심연의 쌍검. 공격력 +190 · 치명타 +22%' },
+    ],
+    tanker: [
+      { id: 'w3-tanker-6', tier: 6, name: '성곽 수호방패', price: 103000, damage: 132, crit: 0.10, desc: '성을 통째로 막아설 방패. 공격력 +132 · 치명타 +10%' },
+      { id: 'w3-tanker-7', tier: 7, name: '새벽의 성채', price: 214000, damage: 228, crit: 0.12, desc: '부수지 못하는 새벽의 성채. 공격력 +228 · 치명타 +12%' },
+    ],
+    mage: [
+      { id: 'w3-mage-6', tier: 6, name: '별을 담은 홀', price: 106000, damage: 154, crit: 0.15, desc: '별빛을 담아 두는 홀. 공격력 +154 · 치명타 +15%' },
+      { id: 'w3-mage-7', tier: 7, name: '창세의 지팡이', price: 218000, damage: 268, crit: 0.20, desc: '창세의 불꽃이 깃든 지팡이. 공격력 +268 · 치명타 +20%' },
+    ],
+  },
+  // 3세계 갑옷 (Tier 6 · 7) — 앞의 두 상점 갑옷을 모두 넘고 값도 가장 비싸다
+  armors: [
+    {
+      id: 'a-dragon', tier: 6, name: '용비늘 판금 갑옷', price: 120000, hp: 900, defense: 0.80,
+      desc: '용의 비늘을 이어 붙인 판금. 최대 HP +900 · 받는 피해 80% 감소',
+    },
+    {
+      id: 'a-celestial', tier: 7, name: '창세의 성갑', price: 250000, hp: 1400, defense: 0.86,
+      desc: '세계의 빛으로 두른 성갑. 최대 HP +1400 · 받는 피해 86% 감소',
+    },
+  ],
+  // 3세계 포션 — 장바구니 아래 남은 숫자키 7 · 8 · 9 로 바로 사용한다 (모두 100,000G 미만)
+  potions: [
+    {
+      id: 'potion-hp-legend', name: '전설의 체력 포션', icon: '🌀', price: 1200, heal: 3000, key: '7',
+      desc: 'HP 3000 회복',
+    },
+    {
+      id: 'potion-fortress', name: '불굴의 성수', icon: '🫗', price: 2200, heal: 'full',
+      buff: 'guard', duration: 20, defense: 0.6, key: '8',
+      desc: 'HP 전체 회복 · 20초간 받는 피해 60% 감소',
+    },
+    {
+      id: 'potion-ascend', name: '초월의 영약', icon: '🌟', price: 2800, buff: 'rage', duration: 35, mult: 2.0, key: '9',
+      desc: '35초간 공격력 +100%',
+    },
+  ],
+};
+
 // 상점 두 곳을 한 곳에서 찾는다
-export const SHOPS = { shop_w1: SHOP, shop_w2: SHOP2 };
+export const SHOPS = { shop_w1: SHOP, shop_w2: SHOP2, shop_w3: SHOP3 };
 
 export function shopById(id) { return SHOPS[id] || SHOP; }
 
-// 지역(마을)에 붙은 상점 설정 — village = 1번째 세계, village_w2 = 2번째 세계
+// 지역(마을)에 붙은 상점 설정 — village = 1번째 세계, village_w2 = 2번째 세계, village_w3 = 3번째 세계
 export function shopForBiome(biomeId) {
+  if (biomeId === 'village_w3') return SHOP3;
   if (biomeId === 'village_w2') return SHOP2;
   if (biomeId === 'village') return SHOP;
   return null;
@@ -953,6 +1286,7 @@ export function shopForBiome(biomeId) {
 
 // 그 세계의 태초마을 (죽었을 때 돌아갈 안전한 자리)
 export function homeBiomeFor(worldId) {
+  if (worldId === 3) return BIOMES.village_w3;
   return worldId === 2 ? BIOMES.village_w2 : BIOMES.village;
 }
 
@@ -960,22 +1294,24 @@ export function homeSpawnFor(worldId) {
   return homeBiomeFor(worldId).spawn;
 }
 
-// 두 상점의 같은 이름 함수들 (샵 UI · 구매 로직 · 테스트가 함께 쓴다)
+// 세 상점의 같은 이름 함수들 (샵 UI · 구매 로직 · 테스트가 함께 쓴다)
 export function shopWeaponsFor(classId, shopId) {
   const shop = shopById(shopId);
   return (shop.weapons && shop.weapons[classId]) || [];
 }
 
 export function allWeapons(classId) {
-  return shopWeaponsFor(classId, 'shop_w1').concat(shopWeaponsFor(classId, 'shop_w2'));
+  return shopWeaponsFor(classId, 'shop_w1')
+    .concat(shopWeaponsFor(classId, 'shop_w2'))
+    .concat(shopWeaponsFor(classId, 'shop_w3'));
 }
 
 export function allArmors() {
-  return SHOP.armors.concat(SHOP2.armors);
+  return SHOP.armors.concat(SHOP2.armors).concat(SHOP3.armors);
 }
 
 export function allPotions() {
-  return SHOP.potions.concat(SHOP2.potions);
+  return SHOP.potions.concat(SHOP2.potions).concat(SHOP3.potions);
 }
 
 export function potionById(id) {
@@ -986,9 +1322,9 @@ export function armorByTier(tier) {
   return allArmors().find((a) => a.tier === tier) || null;
 }
 
-// 내부 등급(0 ~ 4)의 최댓값 · 갑옷 등급(0 ~ 5)의 최댓값
-export const MAX_WEAPON_TIER = 4;
-export const MAX_ARMOR_TIER = 5;
+// 내부 등급(0 ~ 6)의 최댓값 · 갑옷 등급(0 ~ 7)의 최댓값
+export const MAX_WEAPON_TIER = 6;
+export const MAX_ARMOR_TIER = 7;
 
 export const BOSS_POS = { x: 0, z: -165 };
 export const TEMPLE_GATE = { x: 0, z: 0 };

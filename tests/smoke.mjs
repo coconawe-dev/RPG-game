@@ -6,8 +6,8 @@ import { Player } from '/workspace/RPG-game/src/player.js';
 import { Effects } from '/workspace/RPG-game/src/effects.js';
 import { Combat } from '/workspace/RPG-game/src/combat.js';
 import { castSkill } from '/workspace/RPG-game/src/skills.js';
-import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, ALL_BIOME_ORDER, BOSS_POS, BOSS2_POS, MOB_TYPES, SHOP, SHOP2, START_GOLD, WORLD2, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS, MAX_ARMOR_TIER, MAX_WEAPON_TIER, shopForBiome, shopWeaponsFor, allArmors, allPotions, homeBiomeFor, homeSpawnFor, CLASSES, ULT_LEVEL, EVOLUTION_LEVEL, ULT_COOLDOWN, skillDefFor } from '/workspace/RPG-game/src/config.js';
-import { terrainHeight, regionAt, clampToWorld, worldAt, WORLD } from '/workspace/RPG-game/src/utils.js';
+import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, BIOME_ORDER_W3, ALL_BIOME_ORDER, BOSS_POS, BOSS2_POS, BOSS3_POS, MOB_TYPES, SHOP, SHOP2, SHOP3, SHOPS, shopById, bossPosFor, compassOrderFor, biomeOrderFor, bossSkillById, bossSkillByCode, bossSkillCode, START_GOLD, WORLD2, WORLD3, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS, WORLD2_PORTAL_POS, WORLD3_ARRIVAL, WORLD3_RETURN_POS, MAX_ARMOR_TIER, MAX_WEAPON_TIER, shopForBiome, shopWeaponsFor, allArmors, allPotions, homeBiomeFor, homeSpawnFor, CLASSES, ULT_LEVEL, EVOLUTION_LEVEL, ULT_COOLDOWN, skillDefFor } from '/workspace/RPG-game/src/config.js';
+import { terrainHeight, regionAt, clampToWorld, worldAt, normWorld, WORLD } from '/workspace/RPG-game/src/utils.js';
 import { Portals, handleBossDefeated, travelPlayer } from '/workspace/RPG-game/src/portals.js';
 import { buyItem } from '/workspace/RPG-game/src/shop.js';
 import { QuestLog, QUEST_CHAINS, QuestChain, questGoalText, mobName } from '/workspace/RPG-game/src/quests.js';
@@ -96,7 +96,7 @@ check(cl3.x === -2000 && cl3.z === 400, 'clamp moved a valid village position');
     ominous_cave: 'iron_golem', dark_realm: 'dark_mage',
   };
   check(BIOME_ORDER_W2.length === 6, 'world 2 must have 6 biomes, got ' + BIOME_ORDER_W2.length);
-  check(ALL_BIOME_ORDER.length === BIOME_ORDER.length + BIOME_ORDER_W2.length, 'ALL_BIOME_ORDER must cover both worlds');
+  check(ALL_BIOME_ORDER.length === BIOME_ORDER.length + BIOME_ORDER_W2.length + BIOME_ORDER_W3.length, 'ALL_BIOME_ORDER must cover all three worlds');
 
   for (const region of Object.keys(expectMob)) {
     const b = BIOMES[region];
@@ -528,9 +528,9 @@ for (const classId of CLASS_ORDER) {
 /* ================== 2세계 태초마을 상점: 더 세고 더 비싼 장비 ================== */
 {
   // 상점 목록 분리: 1세계 마을은 1세계 물건만, 2세계 마을은 2세계 물건만 판다
-  check(allArmors().length === 5, 'five armor tiers expected across both shops, got ' + allArmors().length);
-  check(MAX_ARMOR_TIER === 5, 'max armor tier must be 5, got ' + MAX_ARMOR_TIER);
-  check(MAX_WEAPON_TIER === 4, 'max weapon tier must be 4, got ' + MAX_WEAPON_TIER);
+  check(allArmors().length === 7, 'seven armor tiers expected across the three shops, got ' + allArmors().length);
+  check(MAX_ARMOR_TIER === 7, 'max armor tier must be 7, got ' + MAX_ARMOR_TIER);
+  check(MAX_WEAPON_TIER === 6, 'max weapon tier must be 6, got ' + MAX_WEAPON_TIER);
   check(SHOP.armors.length === 3 && SHOP2.armors.length === 2, 'each shop keeps its own armor list');
   check(SHOP.potions.length === 3 && SHOP2.potions.length === 2 + 1, 'each shop keeps its own potion list');
   for (const cls of CLASS_ORDER) {
@@ -626,9 +626,9 @@ for (const classId of CLASS_ORDER) {
 
   // 2세계 포션 3종
   const pots = allPotions();
-  check(pots.length === 6, 'six potions expected, got ' + pots.length);
+  check(pots.length === 9, 'nine potions expected, got ' + pots.length);
   const keys = pots.map((p) => p.key).sort().join('');
-  check(keys === '123456', 'potion quick keys must be 1~6, got ' + keys);
+  check(keys === '123456789', 'potion quick keys must be 1~9, got ' + keys);
   const supreme = pots.find((p) => p.id === 'potion-hp-supreme');
   const restore = pots.find((p) => p.id === 'potion-full-restore');
   const rage = pots.find((p) => p.id === 'potion-rage');
@@ -718,10 +718,14 @@ for (const classId of CLASS_ORDER) {
   g.aggro = true;
   g.slamCd = 0;
   g.attacksSinceSlam = 9;
+  // 이 검사는 '격노 충격파'만 본다 — 이름 붙은 보스 기술이 먼저 나와 검사를 흔들지 않게 막아 둔다
+  for (const sid in g.skillCds) g.skillCds[sid] = 99;
+  g.skillGap = 0;
   hero.spawnAt(g.position.x + 90, g.position.z);
   hero.hp = hero.maxHp;
   let armed = false;
   for (let i = 0; i < 180; i++) {
+    hero.hp = hero.maxHp;      // 충격파를 볼 수 있도록 쓰러지지 않게 한다
     stepAll(1 / 60);
     hero.invuln = 0;
     if (g.slamT > 0) { armed = true; break; }
@@ -1819,6 +1823,10 @@ for (const classId of CLASS_ORDER) {
     mob.netId = 0;
     hostGame.mobManager.mobs.push(mob);
     mob.attackCd = 0.2;
+    // 이 검사는 '가까운 사람을 노리는가'만 본다 — 여러 사람에게 동시에 떨어지는 보스 기술은
+    // 합법적으로 방장도 때리므로, 기술 쿨타임을 막아 기본 공격만 하게 한다 (검사 흔들림 방지)
+    for (const id in mob.skillCds) mob.skillCds[id] = 99;
+    mob.skillGap = 99;
     // 친구: 몹 바로 앞 (사거리 안)
     const rz = center.z + MOB_TYPES[typeId].attackRange * 0.5 + 2;
     hostGame.remote = {
@@ -2286,6 +2294,439 @@ for (const classId of CLASS_ORDER) {
 {
   const { runMpLoopbackChecks } = await import('/workspace/RPG-game/tests/mp-loopback.mjs');
   runMpLoopbackChecks(check);
+}
+
+/* =====================================================================
+   3번째 세계 — 선사시대 숲 · 공룡 · 최종 보스 강하닭 · 10만G 상점 · 순차 퀘스트
+   ===================================================================== */
+{
+  const W3 = WORLD3.originZ;
+
+  /* ---------------------- 1) 지역 6곳 · 좌표 · 지형 ---------------------- */
+  const expectMob3 = {
+    village_w3: [],
+    annoying_forest: ['tyrannosaurus', 'spinosaurus'],
+    secret_cave: ['wyvern'],
+    fantasy_forest: ['dragon'],
+    corrupted_city: ['fallen_hero'],
+    occupied_ranch: ['strong_chicken'],
+  };
+  check(BIOME_ORDER_W3.length === 6, 'world 3 must have 6 biomes, got ' + BIOME_ORDER_W3.length);
+  for (const region of Object.keys(expectMob3)) {
+    const b = BIOMES[region];
+    check(!!b, 'world 3 biome missing: ' + region);
+    if (!b) continue;
+    check(b.world === 3, region + ' must be tagged as world 3');
+    check(b.bounds.x1 - b.bounds.x0 === 1000 && b.bounds.z1 - b.bounds.z0 === 1000, region + ' must be 1000x1000');
+    check(worldAt(b.center.x, b.center.z) === 3, region + ' must sit in world 3 coordinates');
+    check(regionAt(b.center.x, b.center.z) === region, region + ' region lookup wrong: ' + regionAt(b.center.x, b.center.z));
+    check(b.bounds.z0 > WORLD2.zMax, region + ' must not overlap world 2');
+    check(!!b.landmark && !!b.landmarkPos, region + ' needs a landmark');
+    check(b.minimap && b.sky && b.fog, region + ' needs map/sky/fog colors');
+    if (expectMob3[region].length === 0) {
+      check(!b.mob && !b.mobCount && b.peaceful === true, region + ' must be a peaceful zone');
+    } else {
+      const types = Array.isArray(b.mobs) && b.mobs.length ? b.mobs.slice() : [b.mob];
+      for (const t of expectMob3[region]) check(types.indexOf(t) >= 0, region + ' must spawn ' + t + ', got ' + types.join(','));
+      check(b.mobCount > 0, region + ' needs a mob population');
+      if (expectMob3[region].length === 2) {
+        check(b.mobCount >= 10, region + ' must hold both dinosaurs in numbers, got ' + b.mobCount);
+      }
+    }
+  }
+  // 사용자 수정: 지역 이름은 '선사시대 숲' (성가시대 숲이 아니다)
+  check(BIOMES.annoying_forest.name === '선사시대 숲', 'prehistoric forest name wrong: ' + BIOMES.annoying_forest.name);
+  check(BIOMES.annoying_forest.en === 'Prehistoric Forest', 'prehistoric forest english name wrong: ' + BIOMES.annoying_forest.en);
+  check(BIOMES.annoying_forest.short === '선사시대 숲', 'prehistoric forest short name wrong: ' + BIOMES.annoying_forest.short);
+  for (const loc of Object.keys(BIOMES)) {
+    const text = [BIOMES[loc].name, BIOMES[loc].short, BIOMES[loc].en, BIOMES[loc].landmark].join(' ');
+    check(text.indexOf('성가시대') < 0, 'the old biome name must not remain: ' + loc + ' ' + text);
+  }
+
+  check(worldAt(0, 0) === 1 && worldAt(0, WORLD2.originZ) === 2 && worldAt(0, W3) === 3, 'worldAt must tell the three worlds apart');
+  check(WORLD3.originZ > WORLD2.zMax + 2000, 'world 3 must be far below world 2');
+  check(regionAt(0, W3 - 1000) === 'occupied_ranch', 'occupied ranch region wrong');
+  check(regionAt(-1000, W3) === 'secret_cave', 'secret cave region wrong');
+  check(regionAt(1000, W3) === 'fantasy_forest', 'fantasy forest region wrong');
+  check(regionAt(0, W3 + 1000) === 'annoying_forest', 'prehistoric forest region wrong');
+  check(regionAt(0, W3 + 2000) === 'village_w3', 'world 3 village region wrong');
+  check(regionAt(0, W3 + 1490) === 'annoying_forest', 'road north of the world 3 village must still be the prehistoric forest');
+  check(regionAt(0, W3 + 1510) === 'village_w3', 'road south of the prehistoric forest must be the world 3 village');
+
+  // 지형은 지역 경계에서 이어져야 한다
+  const w3Edges = [
+    [0, W3 + 500], [0, W3 - 500], [-500, W3], [500, W3],
+    [0, W3 + 1500], [0, W3 - 1500], [-1500, W3], [1500, W3],
+    [0, W3 + 1400], [-1000, W3], [1000, W3],
+    [0, W3 + 2500], [-500, W3 + 2000], [500, W3 + 2000],
+    [-380, W3 + 1500], [380, W3 + 1500], [0, W3 + 2000],
+  ];
+  for (const [x, z] of w3Edges) {
+    const a = terrainHeight(x - 0.01, z);
+    const b2 = terrainHeight(x + 0.01, z);
+    const c = terrainHeight(x, z - 0.01);
+    const d = terrainHeight(x, z + 0.01);
+    check(Math.abs(a - b2) < 0.05 && Math.abs(c - d) < 0.05, 'world 3 terrain discontinuity at ' + x + ',' + z);
+  }
+  check(Math.abs(terrainHeight(0, W3)) < 3, 'corrupted city arena must be fairly flat');
+  check(Math.abs(terrainHeight(WORLD3_ARRIVAL.x, WORLD3_ARRIVAL.z)) < 1.5, 'world 3 arrival plaza must be flat');
+
+  // 3세계 태초마을 · 상점
+  const v3 = BIOMES.village_w3;
+  check(v3.mob === null && v3.mobCount === 0 && v3.peaceful === true, 'world 3 village must be a peaceful zone');
+  check(regionAt(v3.spawn.x, v3.spawn.z) === 'village_w3', 'world 3 village spawn is outside the village');
+  check(!!v3.shop && v3.shop.id === 'shop_w3' && !!v3.shop.interact, 'world 3 village needs a shop');
+  check(regionAt(v3.shop.interact.x, v3.shop.interact.z) === 'village_w3', 'world 3 shop counter must stand in the village');
+  check(Math.hypot(v3.shop.interact.x - v3.spawn.x, v3.shop.interact.z - v3.spawn.z) > v3.shop.interact.radius, 'player must not start inside the world 3 shop trigger');
+  check(shopForBiome('village_w3') === SHOP3, 'shop lookup by world 3 biome broken');
+  check(shopById('shop_w3') === SHOP3 && SHOPS.shop_w3 === SHOP3, 'shop_w3 must be reachable by id');
+  check(homeBiomeFor(3) === BIOMES.village_w3, 'home biome of world 3 wrong');
+  check(regionAt(homeSpawnFor(3).x, homeSpawnFor(3).z) === 'village_w3', 'respawn point of world 3 must be inside the world 3 village');
+  check(biomeOrderFor(3) === BIOME_ORDER_W3, 'biomeOrderFor(3) wrong');
+  check(compassOrderFor(3)[0] === 'occupied_ranch' && compassOrderFor(3).length === 6, 'world 3 compass wrong: ' + compassOrderFor(3).join(','));
+  check(regionAt(BOSS3_POS.x, BOSS3_POS.z) === 'occupied_ranch', 'strong chicken must stand in the occupied ranch');
+  check(bossPosFor('occupied_ranch') === BOSS3_POS && bossPosFor('dark_realm') === BOSS2_POS, 'bossPosFor wrong');
+
+  // 지역 컬링: 세 세계는 서로 안 보인다
+  updateBiomeCulling(world, { x: 0, z: W3 }, 1280);
+  check(world.biomeGroups.corrupted_city.visible === true, 'corrupted city must show in world 3');
+  check(world.biomeGroups.occupied_ranch.visible === true, 'occupied ranch must be visible from the city');
+  check(world.biomeGroups.village.visible === false, 'world 1 village must be culled in world 3');
+  check(world.biomeGroups.dark_realm.visible === false, 'world 2 dark realm must be culled in world 3');
+  updateBiomeCulling(world, { x: 0, z: W3 + 1400 }, 1280);
+  check(world.biomeGroups.village_w3.visible === true, 'world 3 village must be visible from the forest gate');
+  for (const region of Object.keys(expectMob3)) {
+    let meshes = 0;
+    world.biomeGroups[region].traverse((o) => { if (o.isMesh || o.isInstancedMesh) meshes++; });
+    check(meshes > 6, region + ' has too few objects: ' + meshes);
+  }
+
+  /* ---------------------- 2) 몹 · 최종 보스 강하닭 ---------------------- */
+  const EXPECT_MOB3 = {
+    dragon: [5200, 190, 2600, 1800], wyvern: [4200, 160, 2100, 1500],
+    spinosaurus: [6000, 210, 3000, 2000], tyrannosaurus: [5400, 230, 2900, 2000],
+    fallen_hero: [7600, 260, 4200, 2800], strong_chicken: [46000, 360, 20000, 12000],
+  };
+  for (const [id, v] of Object.entries(EXPECT_MOB3)) {
+    const t = MOB_TYPES[id];
+    check(!!t, 'world 3 mob missing: ' + id);
+    if (!t) continue;
+    check(t.hp === v[0] && t.damage === v[1] && t.xp === v[2] && t.gold === v[3], id + ' stats wrong: ' + JSON.stringify(t));
+    check(t.gold >= 1500, id + ' must drop generous gold for the 100,000G shop');
+  }
+  // 두 번째 세계보다 확실히 강하다
+  const w2Strongest = Math.max(...['goblin', 'skeleton', 'samurai', 'iron_golem'].map((id) => MOB_TYPES[id].hp));
+  for (const id of ['dragon', 'wyvern', 'spinosaurus', 'tyrannosaurus', 'fallen_hero']) {
+    check(MOB_TYPES[id].hp > w2Strongest, id + ' must be stronger than any world 2 normal mob');
+  }
+  // 강하닭은 거대하다 (사용자 요청: "강하닭은 크게만들어야되")
+  const chickenType = MOB_TYPES.strong_chicken;
+  check(chickenType.boss === true, 'strong chicken must be a boss');
+  check(chickenType.height >= 58, 'strong chicken must be huge, height=' + chickenType.height);
+  check(chickenType.radius >= 22, 'strong chicken must be bulky, radius=' + chickenType.radius);
+  check(chickenType.height > MOB_TYPES.golem.height && chickenType.radius > MOB_TYPES.golem.radius, 'strong chicken must be larger than the ancient golem');
+  check(chickenType.enrageAt > 0, 'strong chicken must enrage');
+
+  // 보스 스킬 3종 (깃털 폭풍 · 거대 부리 강타 · 황금 알 폭격)
+  const chSkills = chickenType.skills || [];
+  check(chSkills.length === 3, 'strong chicken needs 3 boss skills, got ' + chSkills.length);
+  check(chSkills.map((s) => s.id).join(',') === 'feather,beaksmash,eggbarrage', 'strong chicken skill ids wrong: ' + chSkills.map((s) => s.id).join(','));
+  check(chSkills[0].label.indexOf('깃털') >= 0 && chSkills[1].label.indexOf('부리') >= 0 && chSkills[2].label.indexOf('알') >= 0, 'strong chicken skill names wrong: ' + chSkills.map((s) => s.label).join(' '));
+  for (const s of chSkills) {
+    check(s.telegraph >= 0.8 && s.telegraph <= 1.2, s.id + ' telegraph out of range: ' + s.telegraph);
+    check(typeof s.name === 'string' && s.name.length > 0, s.id + ' needs a name');
+    check((s.damage || 0) > 0.5, s.id + ' must hurt');
+  }
+  // 함께 하기: 새 스킬도 번호로 주고받는다
+  check(bossSkillCode('feather') > 6 && bossSkillCode('eggbarrage') > 6, 'new boss skills need snapshot codes');
+  check(bossSkillByCode(bossSkillCode('eggbarrage')).id === 'eggbarrage', 'skill code round-trip broken');
+  check(bossSkillById('beaksmash').name === '거대 부리 강타', 'bossSkillById broken');
+  check(MOB_CODES.indexOf('dragon') >= 0 && MOB_CODES.indexOf('strong_chicken') >= 0, 'new mobs must be in MOB_CODES');
+
+  /* ---------------------- 3) 3세계 몹 스폰 · 포털 ---------------------- */
+  const w3scene = new THREE.Scene();
+  const w3game = {
+    scene: w3scene,
+    effects: new Effects(w3scene),
+    elapsed: 0,
+    state: 'playing',
+    worldId: 1,
+    world2Unlocked: false,
+    world3Unlocked: false,
+    gold: 0,
+    timers: [],
+    kills: [],
+    camera: { position: { copy() {} } },
+    after(sec, fn) { w3game.timers.push({ t: sec, fn }); },
+    shake() {},
+    sfx: new Proxy({}, { get: () => () => {} }),
+    addGold(n) { w3game.gold += n; },
+    recordKill(t, w) { w3game.kills.push([t, normWorld(w)]); return null; },
+    placeCamera() {},
+    setPortalPrompt() {},
+    onBossEngage() {},
+    onPlayerDeath() {},
+    onBossDefeated(boss) { return handleBossDefeated(w3game, boss); },
+  };
+  w3game.hud = {
+    floater() {}, banner() {}, refreshBars() {}, refreshQuest() {}, questFlash() {},
+    updateGold() {}, refreshPotions() {}, setTarget() {}, showEnd() {}, hideEnd() {},
+    setWorld() {}, refreshWeapon() {}, updateRoom() {}, showRoom() {}, hideRoom() {},
+  };
+  w3game.combat = new Combat(w3game);
+  w3game.mobManager = new MobManager(w3game);
+  w3game.player = new Player(w3game, 'warrior');
+  w3game.player.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  w3game.castSkill = (k) => castSkill(w3game, k);
+  w3game.terrainHeightAt = terrainHeight;
+  w3game.combatTargets = () => [{ local: true, alive: w3game.player.alive, radius: w3game.player.radius, position: w3game.player.position, world: w3game.worldId }];
+  w3game.setWorld = (id) => {
+    w3game.worldId = normWorld(id);
+    if (w3game.worldId === 2) w3game.world2Unlocked = true;
+    if (w3game.worldId === 3) { w3game.world2Unlocked = true; w3game.world3Unlocked = true; }
+    return w3game.worldId;
+  };
+  w3game.travelTo = (target) => travelPlayer(w3game, target);
+  w3game.portals = new Portals(w3game);
+
+  check(w3game.portals.world3Portal.open === false, 'the world 3 portal must start closed');
+  check(regionAt(WORLD2_PORTAL_POS.x, WORLD2_PORTAL_POS.z) === 'dark_realm', 'the world 3 portal must open in the dark realm');
+  check(regionAt(WORLD3_RETURN_POS.x, WORLD3_RETURN_POS.z) === 'village_w3', 'the world 2 return portal must stand in the world 3 village');
+  check(Math.hypot(WORLD3_RETURN_POS.x - WORLD3_ARRIVAL.x, WORLD3_RETURN_POS.z - WORLD3_ARRIVAL.z) > 100, 'the return portal must be far enough from the arrival spot');
+  // 흑마법사 처치 → 3번째 세계 포털이 열리고 그 몹들이 세워진다
+  handleBossDefeated(w3game, { typeId: 'dark_mage', position: new THREE.Vector3(0, 0, WORLD2.originZ + 130), type: MOB_TYPES.dark_mage });
+  check(w3game.portals.world3Portal.open === true && w3game.portals.world3Portal.group.visible === true, 'the world 3 portal must open after the dark mage dies');
+  check(w3game.world3Unlocked === true, 'world 3 must stay unlocked in this session');
+
+  const w3mobs = w3game.mobManager.mobs.filter((m) => m.worldId === 3);
+  const c3 = {};
+  for (const m of w3mobs) c3[m.typeId] = (c3[m.typeId] || 0) + 1;
+  console.log('world 3 mob counts:', JSON.stringify(c3));
+  check((c3.dragon || 0) >= 6, 'dragon population missing: ' + c3.dragon);
+  check((c3.wyvern || 0) >= 8, 'wyvern population missing: ' + c3.wyvern);
+  check((c3.spinosaurus || 0) >= 4, 'spinosaurus population missing: ' + c3.spinosaurus);
+  check((c3.tyrannosaurus || 0) >= 4, 'tyrannosaurus population missing: ' + c3.tyrannosaurus);
+  check((c3.fallen_hero || 0) >= 6, 'fallen hero population missing: ' + c3.fallen_hero);
+  check(c3.strong_chicken === 1, 'strong chicken must spawn exactly once, got ' + c3.strong_chicken);
+  // 선사시대 숲에는 두 공룡이 함께 산다 (같이소환)
+  const inForest = w3mobs.filter((m) => regionAt(m.position.x, m.position.z) === 'annoying_forest');
+  check(inForest.some((m) => m.typeId === 'spinosaurus') && inForest.some((m) => m.typeId === 'tyrannosaurus'), 'both dinosaurs must live in the prehistoric forest');
+  const home3 = {
+    dragon: 'fantasy_forest', wyvern: 'secret_cave', spinosaurus: 'annoying_forest',
+    tyrannosaurus: 'annoying_forest', fallen_hero: 'corrupted_city', strong_chicken: 'occupied_ranch',
+  };
+  for (const m of w3mobs) {
+    const r = regionAt(m.position.x, m.position.z);
+    check(r === home3[m.typeId], m.typeId + ' spawned in ' + r + ' (expected ' + home3[m.typeId] + ')');
+  }
+  check(!w3mobs.some((m) => regionAt(m.position.x, m.position.z) === 'village_w3'), 'no hostile mob may spawn in the world 3 village');
+  check(!w3mobs.some((m) => m.position.z < WORLD.zMax + 1000), 'world 3 mobs must not spawn in world 1');
+  const chicken = w3mobs.find((m) => m.typeId === 'strong_chicken');
+  check(!!chicken, 'strong chicken missing');
+  check(Math.abs(chicken.position.x - BOSS3_POS.x) < 60 && Math.abs(chicken.position.z - BOSS3_POS.z) < 60, 'strong chicken not at the ranch nest');
+  check(chicken.level > MOB_TYPES.dark_mage.level, 'strong chicken must be the highest level boss');
+  check(w3game.mobManager.bossCount('strong_chicken') === 1, 'bossCount must see one strong chicken');
+  // 하나 더 만들어도 정리된다
+  const strayChicken = new Mob(w3game, 'strong_chicken', BOSS3_POS, 'occupied_ranch');
+  w3game.mobManager.mobs.push(strayChicken);
+  check(w3game.mobManager.bossCount('strong_chicken') === 2, 'test setup: the stray chicken must be there');
+  w3game.mobManager.enforceBossUniqueness();
+  check(w3game.mobManager.bossCount('strong_chicken') === 1, 'duplicate strong chickens must be cleaned up');
+
+  // 몸에서 떨어진 팔 · 다리가 없어야 한다 (3세계 몹 6종)
+  {
+    const limbNames = ['armL', 'armR', 'legL', 'legR', 'head', 'wingL', 'wingR', 'tail'];
+    for (const id of Object.keys(EXPECT_MOB3)) {
+      const mob = w3mobs.find((m) => m.typeId === id);
+      check(!!mob, id + ' must be spawned to check its model');
+      if (!mob) continue;
+      mob.model.root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(mob.model.root);
+      const pts = [];
+      for (const n of limbNames) if (mob.model[n]) pts.push([n, mob.model[n]]);
+      if (mob.model.legs) mob.model.legs.forEach((leg, i) => pts.push(['legs[' + i + ']', leg]));
+      const v = new THREE.Vector3();
+      for (const [name, node] of pts) {
+        node.getWorldPosition(v);
+        check(box.containsPoint(v), id + ' ' + name + ' floats outside the body at y=' + v.y.toFixed(1));
+      }
+    }
+  }
+
+  // 포털로 3세계 도착 → 2세계로 귀환
+  const traveller = new Player(w3game, 'warrior');
+  w3game.player = traveller;
+  traveller.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  w3game.setWorld(1);
+  travelPlayer(w3game, { world: 3, x: WORLD3_ARRIVAL.x, z: WORLD3_ARRIVAL.z, yaw: Math.PI });
+  check(w3game.worldId === 3 && regionAt(traveller.position.x, traveller.position.z) === 'village_w3', 'travelling to world 3 must land in its village');
+  travelPlayer(w3game, w3game.portals.returnPortalW3.target);
+  check(w3game.worldId === 2 && regionAt(traveller.position.x, traveller.position.z) === 'village_w2', 'the world 3 return portal must lead back to the world 2 village');
+
+  // 보스 기술: 예고 → 피해 · 격노
+  w3game.setWorld(3);
+  w3game.player.spawnAt(0, BOSS3_POS.z + 150);
+  w3game.player.hp = w3game.player.maxHp;
+  w3game.player.invuln = 0;
+  chicken.position.set(0, terrainHeight(0, BOSS3_POS.z), BOSS3_POS.z);
+  chicken.aggro = true;
+  chicken.bossIntroDone = true;
+  chicken.skillGap = 0;
+  const beak = chSkills.find((s) => s.id === 'beaksmash');
+  // 격노: 체력 40% 로 떨어뜨리면 다음 프레임에 격노한다
+  chicken.position.set(0, terrainHeight(0, BOSS3_POS.z), BOSS3_POS.z);
+  chicken.hp = chicken.maxHp * 0.4;
+  chicken.update(1 / 60);
+  check(chicken.enraged === true, 'strong chicken must enrage below half health');
+  chicken.hp = chicken.maxHp;
+  w3game.player.hp = w3game.player.maxHp;
+  w3game.player.invuln = 0;
+  check(chicken.startBossSkill(beak, { position: w3game.player.position, alive: true, radius: 4.6 }) === true, 'strong chicken must start its boss skill');
+  check(chicken.castDef && chicken.castDef.id === 'beaksmash' && chicken.castT > 0.5, 'boss skill needs a visible telegraph');
+  const hpBeforeBeak = w3game.player.hp;
+  for (let i = 0; i < 120; i++) chicken.update(1 / 60);
+  check(w3game.player.hp < hpBeforeBeak || !w3game.player.alive, 'the boss skill must damage the player in range');
+  // 스냅샷에 새 스킬 상태가 실린다
+  const packedChicken = packMob({
+    netId: 9, typeId: 'strong_chicken', position: new THREE.Vector3(0, 0, BOSS3_POS.z), hp: 20000,
+    attackT: 0, attackDur: 1.15, state: 'chase', castT: 0.4, castDur: 1.0, castDef: chSkills[0], castSeq: 5,
+  });
+  const unpackedChicken = unpackMob(packedChicken);
+  check(unpackedChicken.typeId === 'strong_chicken', 'strong chicken must survive the mob snapshot: ' + unpackedChicken.typeId);
+  check(unpackedChicken.skill === bossSkillCode('feather') && unpackedChicken.seq === 5, 'the new boss skill state must ride the snapshot');
+
+  /* ---------------------- 4) 3세계 상점: 다 100,000G 이상 (포션 제외) ---------------------- */
+  const w3Weapons = CLASS_ORDER.flatMap((cls) => shopWeaponsFor(cls, 'shop_w3'));
+  check(w3Weapons.length === 10, 'ten world 3 weapons expected, got ' + w3Weapons.length);
+  for (const w of w3Weapons) {
+    check(w.price >= 100000, 'world 3 weapon ' + w.id + ' must cost at least 100,000G, got ' + w.price);
+  }
+  check(SHOP3.armors.length === 2, 'world 3 needs 2 armors');
+  for (const a of SHOP3.armors) {
+    check(a.price >= 100000, 'world 3 armor ' + a.id + ' must cost at least 100,000G, got ' + a.price);
+    check(a.tier === 6 || a.tier === 7, 'world 3 armor tiers must be 6/7, got ' + a.tier);
+  }
+  check(SHOP3.potions.length === 3, 'world 3 needs 3 potions');
+  for (const p of SHOP3.potions) {
+    check(p.price < 100000, 'world 3 potion ' + p.id + ' must stay under 100,000G, got ' + p.price);
+  }
+  check(SHOP3.potions.map((p) => p.key).join('') === '789', 'world 3 potion keys must be 7/8/9');
+  for (const cls of CLASS_ORDER) {
+    const w2 = shopWeaponsFor(cls, 'shop_w2');
+    const w3 = shopWeaponsFor(cls, 'shop_w3');
+    check(w3.length === 2 && w3[0].tier === 6 && w3[1].tier === 7, cls + ' world 3 weapon tiers must be 6/7');
+    check(w3[1].price > w3[0].price * 1.8, cls + ' tier 7 must cost far more than tier 6');
+    check(w3[0].damage > w2[1].damage && w3[1].damage > w3[0].damage, cls + ' world 3 weapons must beat world 2');
+  }
+  check(allArmors().length === 7 && MAX_ARMOR_TIER === 7 && MAX_WEAPON_TIER === 6, 'tier limits must reach 6/7');
+
+  // Tier 6 · 7 무기 · 갑옷 장착 · 3D 모델 · 포션 사용
+  const w3hero = new Player(w3game, 'warrior');
+  w3game.player = w3hero;
+  w3hero.spawnAt(BIOMES.village_w3.shop.interact.x, BIOMES.village_w3.shop.interact.z);
+  w3hero.equipWeaponTier(0);
+  w3hero.weaponBonus = 0;
+  w3hero.critChance = w3hero.cls.critChance;
+  const baseDmg3 = w3hero.damage;
+  const t6 = shopWeaponsFor('warrior', 'shop_w3')[0];
+  const t7 = shopWeaponsFor('warrior', 'shop_w3')[1];
+  w3game.gold = 99999;
+  let r3 = buyItem(w3game, t6.id);
+  check(!r3.ok, 'a tier 6 weapon must not be affordable with 99,999G');
+  check(w3hero.weaponTier === 0, 'a failed tier 6 purchase changed the weapon');
+  w3game.gold = 110000;
+  r3 = buyItem(w3game, t6.id);
+  check(r3.ok, 'tier 6 weapon purchase failed: ' + r3.msg);
+  check(w3hero.weaponTier === 5, 'tier 6 weapon must equip internal tier 5, got ' + w3hero.weaponTier);
+  check(Math.abs(w3hero.damage - (baseDmg3 + t6.damage)) < 1e-6, 'tier 6 damage bonus not applied');
+  const mesh6 = w3hero.weapons.right || w3hero.weapons.left;
+  check(mesh6 && mesh6.userData.tier === 5, '3D weapon must upgrade to the tier 6 model');
+  w3game.gold = 230000;
+  r3 = buyItem(w3game, t7.id);
+  check(r3.ok, 'tier 7 weapon purchase failed: ' + r3.msg);
+  check(w3hero.weaponTier === 6 && w3hero.weaponTier === MAX_WEAPON_TIER, 'tier 7 weapon must equip internal tier 6, got ' + w3hero.weaponTier);
+  check(Math.abs(w3hero.damage - (baseDmg3 + t7.damage)) < 1e-6, 'tier 7 bonus must replace tier 6');
+  const mesh7 = w3hero.weapons.right || w3hero.weapons.left;
+  check(mesh7 && mesh7.userData.tier === 6, '3D weapon must upgrade to the tier 7 model');
+  w3hero.equipWeaponTier(99);
+  check(w3hero.weaponTier === 6, 'weapon tier must clamp at 6');
+
+  const baseMaxHp3 = w3hero.maxHp;
+  const dragonArmor = SHOP3.armors[0];
+  const celestialArmor = SHOP3.armors[1];
+  w3game.gold = 125000;
+  let ar3 = buyItem(w3game, dragonArmor.id);
+  check(ar3.ok, 'dragon armor purchase failed: ' + ar3.msg);
+  check(w3hero.armorTier === 6 && Math.abs(w3hero.armorDefense - 0.8) < 1e-9, 'dragon armor not equipped');
+  check(w3hero.maxHp === baseMaxHp3 + dragonArmor.hp, 'dragon armor max HP wrong: ' + w3hero.maxHp);
+  check(!!w3hero.armorChest, '3D armor pieces missing at tier 6');
+  w3hero.hp = w3hero.maxHp;
+  w3hero.invuln = 0;
+  const taken6 = w3hero.takeDamage(100, null);
+  check(Math.abs(taken6 - 20) <= 1, '80% damage reduction wrong: ' + taken6);
+  w3game.gold = 260000;
+  ar3 = buyItem(w3game, celestialArmor.id);
+  check(ar3.ok, 'celestial armor purchase failed: ' + ar3.msg);
+  check(w3hero.armorTier === 7 && w3hero.armorTier === MAX_ARMOR_TIER, 'celestial armor not equipped at tier 7');
+  check(Math.abs(w3hero.armorDefense - 0.86) < 1e-9, 'celestial armor reduction wrong');
+  w3hero.hp = w3hero.maxHp;
+  w3hero.invuln = 0;
+  const taken7 = w3hero.takeDamage(100, null);
+  check(Math.abs(taken7 - 14) <= 1, '86% damage reduction wrong: ' + taken7);
+
+  const legend = SHOP3.potions[0];
+  const fortress = SHOP3.potions[1];
+  const ascend = SHOP3.potions[2];
+  w3game.gold = 5000;
+  r3 = buyItem(w3game, legend.id);
+  check(r3.ok && w3hero.potionCount(legend.id) === 1, 'legend potion purchase failed: ' + r3.msg);  w3hero.hp = 100;
+  const useLegend = w3hero.usePotion(legend.id);
+  check(useLegend.ok, 'legend potion use failed: ' + useLegend.msg);
+  check(w3hero.hp > 100, 'legend potion must heal a lot: ' + w3hero.hp);
+  r3 = buyItem(w3game, fortress.id);
+  check(r3.ok, 'fortress potion purchase failed: ' + r3.msg);  w3hero.hp = Math.round(w3hero.maxHp * 0.2);
+  check(w3hero.usePotion(fortress.id).ok, 'fortress potion use failed');
+  check(w3hero.hp === w3hero.maxHp && w3hero.buffs.guard > 19, 'fortress potion must fully heal and guard for 20s');
+  w3hero.invuln = 0;
+  const guarded3 = w3hero.takeDamage(100, null);
+  check(guarded3 <= 14, 'fortress potion must cut 60% of the remaining damage: ' + guarded3);
+  w3game.gold = 5000;
+  r3 = buyItem(w3game, ascend.id);
+  check(r3.ok, 'ascend elixir purchase failed: ' + r3.msg);  w3hero.hp = w3hero.maxHp;
+  const beforeAscend = w3hero.damage;
+  check(w3hero.usePotion(ascend.id).ok, 'ascend elixir use failed');
+  check(Math.abs(w3hero.damage - beforeAscend * 2) < 1e-6, 'ascend elixir must double attack: ' + w3hero.damage);
+  check(w3hero.buffs.rage > 34, 'ascend elixir must last 35s: ' + w3hero.buffs.rage);
+
+  /* ---------------------- 5) 3세계 순차 퀘스트 ---------------------- */
+  const want3 = [
+    ['dragon', 8, 8000], ['wyvern', 10, 10000], ['tyrannosaurus', 8, 13000],
+    ['spinosaurus', 8, 15000], ['fallen_hero', 10, 20000], ['strong_chicken', 1, 35000],
+  ];
+  check(QUEST_CHAINS[3].length === 6, 'world 3 must have 6 quests');
+  for (let i = 0; i < 6; i++) {
+    const q = QUEST_CHAINS[3][i];
+    check(q.id === 'w3_q' + (i + 1), 'world 3 quest id wrong: ' + q.id);
+    check(q.mobType === want3[i][0] && q.target === want3[i][1] && q.rewardGold === want3[i][2], 'world 3 quest ' + (i + 1) + ' wrong: ' + JSON.stringify(q));
+  }
+  check(questGoalText(QUEST_CHAINS[3][0]) === '용 8마리 잡기', 'world 3 goal text wrong: ' + questGoalText(QUEST_CHAINS[3][0]));
+  check(questGoalText(QUEST_CHAINS[3][5]) === '강하닭 1마리 처치', 'world 3 boss goal text wrong: ' + questGoalText(QUEST_CHAINS[3][5]));
+  const total3 = QUEST_CHAINS[3].reduce((a, q) => a + q.rewardGold, 0);
+  check(total3 >= 100000, 'world 3 quest rewards must fund the 100,000G shop: ' + total3);
+
+  const qlog3 = new QuestLog();
+  check(qlog3.chainFor(1).index === 0 && qlog3.chainFor(2).index === 0 && qlog3.chainFor(3).index === 0, 'all quest chains must start at 1');
+  check(qlog3.recordKill(1, 'dragon') === null, 'a dragon must not count for world 1');
+  check(qlog3.recordKill(2, 'dragon') === null, 'a dragon must not count for world 2');
+  let qres = null;
+  for (let i = 0; i < 8; i++) qres = qlog3.recordKill(3, 'dragon');
+  check(qres && qres.completed === true && qres.rewardGold === 8000, 'world 3 first quest must pay 8000G: ' + JSON.stringify(qres));
+  check(qlog3.chainFor(3).index === 1 && qlog3.chainFor(1).index === 0 && qlog3.chainFor(2).index === 0, 'quest chains must stay independent');
+  check(qlog3.status(3).goal === '와이번 10마리 잡기', 'world 3 second quest must be the wyvern: ' + qlog3.status(3).goal);
+  check(qlog3.summary(3) === '와이번 0/10', 'world 3 summary wrong: ' + qlog3.summary(3));
+  check(qlog3.status(3).title.indexOf('3세계') < 0 && qlog3.status(3).index === 2 && qlog3.status(3).total === 6, 'world 3 quest status wrong');
+  // 2번째 세계 퀘스트도 그대로 남아 있다
+  check(QUEST_CHAINS[2].length === 5 && QUEST_CHAINS[1].length === 6, 'world 1/2 quest chains must not change');
 }
 
 console.log('feature report:', JSON.stringify(FEATURE_REPORT));

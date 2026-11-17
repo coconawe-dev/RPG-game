@@ -1,6 +1,7 @@
 // 직업별 3D 무기 메시 (검 / 활 / 단검 / 방패 / 지팡이)
 // tier: 0 = 기본 장비, 1 = 1세계 상점 Tier 2, 2 = 1세계 Tier 3,
-//       3 = 2세계 상점 Tier 4 (심연), 4 = 2세계 Tier 5 (불멸) — 단계별로 재질 · 광택 · 크기가 좋아진다
+//       3 = 2세계 상점 Tier 4 (심연), 4 = 2세계 Tier 5 (불멸),
+//       5 = 3세계 상점 Tier 6 (용의 비늘), 6 = 3세계 Tier 7 (창세) — 단계별로 재질 · 광택 · 크기가 좋아진다
 import * as THREE from 'three';
 
 const TIERS = [
@@ -35,6 +36,20 @@ const TIERS = [
     trim: 0xffcf6a, trimMetal: 0.97, trimRough: 0.12,
     glow: 2.0, glowColor: 0xff8a3c, scale: 1.26, wood: 0x3a2a18,
     shield: 0xd8b56a, orb: 0xffe6b0, orbEmissive: 0xff8a20,
+  },
+  // 3세계 Tier 6 — 용의 비늘 · 새벽
+  {
+    blade: 0xd8ffe8, metalness: 0.92, roughness: 0.1,
+    trim: 0x8ef0c0, trimMetal: 0.95, trimRough: 0.14,
+    glow: 2.4, glowColor: 0x4ff0a8, scale: 1.34, wood: 0x1f3a2c,
+    shield: 0x8fd8b0, orb: 0x9fffd8, orbEmissive: 0x2fd08a,
+  },
+  // 3세계 Tier 7 — 창세의 빛
+  {
+    blade: 0xffffff, metalness: 1.0, roughness: 0.04,
+    trim: 0xfff0b8, trimMetal: 0.99, trimRough: 0.08,
+    glow: 3.0, glowColor: 0xfff2a0, scale: 1.44, wood: 0x4a3a1c,
+    shield: 0xffe9a8, orb: 0xfffbe0, orbEmissive: 0xffd24a,
   },
 ];
 
@@ -97,7 +112,7 @@ function addAura(g, st, radius, height, y, color) {
     new THREE.CylinderGeometry(radius, radius * 0.68, height, 10, 1, true),
     new THREE.MeshBasicMaterial({
       color: color || st.t.glowColor, transparent: true,
-      opacity: st.idx >= 3 ? 0.22 : (st.idx >= 2 ? 0.15 : 0.075),
+      opacity: st.idx >= 5 ? 0.32 : (st.idx >= 3 ? 0.22 : (st.idx >= 2 ? 0.15 : 0.075)),
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
     })
   );
