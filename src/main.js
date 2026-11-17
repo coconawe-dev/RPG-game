@@ -1134,7 +1134,7 @@ class Game {
     this.setWorld(worldAt(spawn.x, spawn.z), { silent: true });
     if (startWorld === 2) {
       this.world2Unlocked = true;
-      if (this.mobManager) this.mobManager.spawnWorld(2);
+      if (this.mobManager) this.mobManager.ensureWorld(2);
     }
     this.gold = START_GOLD;
     // 새로 시작하면 퀘스트도 처음부터 (1세계 · 2세계 모두)
@@ -1215,7 +1215,7 @@ class Game {
     const changed = id !== this.worldId;
     this.worldId = id;
     if (id === 2) this.world2Unlocked = true;
-    if (this.mobManager) this.mobManager.spawnWorld(id);
+    if (this.mobManager) this.mobManager.ensureWorld(id);
     if (this.hud && this.hud.setWorld) this.hud.setWorld(id);
     if (changed && this.world && this.player) {
       // 바로 다음 프레임부터 새 세계만 보이게 한다

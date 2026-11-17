@@ -998,14 +998,14 @@ export class HUD {
   floater(text, worldPos, kind, scale) {
     if (this.floaters.length > 34) return;
     const el = document.createElement('div');
-    el.className = 'floater' + (kind === 'crit' ? ' crit' : kind === 'hurt' ? ' hurt' : kind === 'heal' ? ' heal' : kind === 'xp' ? ' xp' : kind === 'gold' ? ' gold' : kind === 'block' ? ' block' : kind === 'stam' ? ' stam' : '');
+    el.className = 'floater' + (kind === 'crit' ? ' crit' : kind === 'hurt' ? ' hurt' : kind === 'heal' ? ' heal' : kind === 'xp' ? ' xp' : kind === 'gold' ? ' gold' : kind === 'block' ? ' block' : kind === 'boss' ? ' boss' : kind === 'stam' ? ' stam' : '');
     el.textContent = text;
     this.dom.floaters.appendChild(el);
     const f = {
       el,
       pos: new THREE.Vector3(worldPos.x, worldPos.y + (kind === 'xp' ? 6 : kind === 'gold' ? 12 : 0), worldPos.z),
-      life: kind === 'xp' || kind === 'gold' ? 1.3 : 0.9,
-      maxLife: kind === 'xp' || kind === 'gold' ? 1.3 : 0.9,
+      life: kind === 'xp' || kind === 'gold' ? 1.3 : kind === 'boss' ? 1.5 : 0.9,
+      maxLife: kind === 'xp' || kind === 'gold' ? 1.3 : kind === 'boss' ? 1.5 : 0.9,
       scale: scale || 1,
       offX: (Math.random() - 0.5) * 26,
     };

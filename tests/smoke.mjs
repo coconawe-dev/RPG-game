@@ -1920,6 +1920,367 @@ for (const classId of CLASS_ORDER) {
 }
 
 /* =====================================================================
+   보스는 한 땅에 하나 (중복 스폰 방지) · 보스 스킬
+   ===================================================================== */
+{
+  const NO_INPUT = { forward: false, back: false, left: false, right: false, sprint: false, jump: false, block: false };
+  const aliveBosses = (mm, typeId) => mm.mobs.filter((m) => m.type && m.type.boss && (!typeId || m.typeId === typeId) && !m.dead).length;
+
+  // main.js Game 과 같은 역할을 하는 최소 스텁 (setWorld → ensureWorld)
+  function makeBossGame() {
+    const sc = new THREE.Scene();
+    const g = {
+      scene: sc,
+      effects: new Effects(sc),
+      timers: [],
+      elapsed: 0,
+      state: 'playing',
+      worldId: 1,
+      world2Unlocked: false,
+      gold: 0,
+      floaters: [],
+      hits: [],
+      broadcast: [],
+      after(sec, fn) { g.timers.push({ t: sec, fn }); },
+      shake() {},
+      sfx: new Proxy({}, { get: () => () => {} }),
+      addGold() {},
+      recordKill: () => null,
+      onBossEngage() {},
+      onBossDefeated() {},
+      onPlayerDeath() {},
+      placeCamera() {},
+    };
+    g.hud = {
+      floater(text, pos, kind) { g.floaters.push([text, kind]); },
+      banner() {}, refreshBars() {}, setTarget() {}, refreshQuest() {},
+      questFlash() {}, updateGold() {}, refreshPotions() {}, showEnd() {}, hideEnd() {},
+      updateRoom() {}, showRoom() {}, hideRoom() {}, setWorld() {},
+    };
+    g.combat = new Combat(g);
+    g.mobManager = new MobManager(g);
+    g.player = new Player(g, 'warrior');
+    g.player.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+    g.combatTargets = () => {
+      const list = [];
+      if (g.player && g.player.alive) {
+        list.push({ local: true, alive: true, radius: g.player.radius, position: g.player.position, world: g.worldId });
+      }
+      if (g.net && g.net.active && g.net.isHost) {
+        for (const t of g.net.hostTargets()) list.push(t);
+      }
+      return list;
+    };
+    g.setWorld = (id) => {
+      g.worldId = id === 2 ? 2 : 1;
+      if (g.worldId === 2) g.world2Unlocked = true;
+      if (g.mobManager) {
+        if (g.mobManager.ensureWorld) g.mobManager.ensureWorld(g.worldId);
+        else g.mobManager.spawnWorld(g.worldId);
+      }
+      return g.worldId;
+    };
+    return g;
+  }
+
+  function step(g, seconds, onFrame) {
+    const dt = 1 / 60;
+    const n = Math.round(seconds / dt);
+    for (let i = 0; i < n; i++) {
+      if (g.player) g.player.update(dt, NO_INPUT);
+      g.mobManager.update(dt);
+      g.effects.update(dt);
+      if (g.player) g.player.invuln = 0;
+      if (onFrame) onFrame(i);
+    }
+  }
+
+  /* ---------- 1) 혼자 하기: 세계 이동 · 다시 시작 · 부활에도 보스는 하나 ---------- */
+  const solo = makeBossGame();
+  check(aliveBosses(solo.mobManager, 'golem') === 1, 'solo must start with one golem, got ' + aliveBosses(solo.mobManager, 'golem'));
+  check(solo.mobManager.bossCount('golem') === 1, 'MobManager.bossCount must see the golem');
+  for (let i = 0; i < 4; i++) solo.setWorld(i % 2 ? 2 : 1);
+  check(aliveBosses(solo.mobManager, 'golem') === 1, 'world switching duplicated the golem: ' + aliveBosses(solo.mobManager, 'golem'));
+  check(aliveBosses(solo.mobManager, 'dark_mage') === 1, 'world 2 must have exactly one dark mage: ' + aliveBosses(solo.mobManager, 'dark_mage'));
+  // 같은 세계를 여러 번 다시 세워도 하나
+  for (let i = 0; i < 5; i++) { solo.mobManager.ensureWorld(1); solo.mobManager.ensureWorld(2); }
+  check(aliveBosses(solo.mobManager, 'golem') === 1 && aliveBosses(solo.mobManager, 'dark_mage') === 1,
+    'ensureWorld must never spawn a second boss: ' + aliveBosses(solo.mobManager) );
+  // 보스를 한 번 더 세우려 해도 살아 있는 보스 자리에 또 세우지 않는다
+  const again = solo.mobManager.spawn('golem', BOSS_POS, 'temple');
+  check(solo.mobManager.mobs.filter((m) => m.typeId === 'golem').length === 1,
+    'spawning a golem while one is alive must not add a second body: ' + solo.mobManager.mobs.filter((m) => m.typeId === 'golem').length);
+  check(again && again.typeId === 'golem', 'the boss spawn must return the existing boss');
+  // 일반 몹 부활은 그대로 (보스만 예외)
+  const slimeForRespawn = solo.mobManager.mobs.find((m) => m.typeId === 'slime');
+  slimeForRespawn.takeDamage(1e9, {});
+  slimeForRespawn.respawnT = 0.05;
+  for (let i = 0; i < 12; i++) solo.mobManager.update(1 / 60);
+  check(!slimeForRespawn.dead, 'normal mobs must still respawn after death');
+  check(aliveBosses(solo.mobManager, 'golem') === 1, 'a respawn must not create another boss');
+  // 앱을 다시 시작하는 것과 같은 경로(clearAll → spawnAll)
+  solo.mobManager.clearAll();
+  solo.mobManager.spawnAll();
+  check(aliveBosses(solo.mobManager, 'golem') === 1 && aliveBosses(solo.mobManager, 'dark_mage') === 1,
+    'restart (clearAll + spawnAll) must leave one boss per land: ' + aliveBosses(solo.mobManager));
+
+  /* ---------- 2) 함께 하기 손님: 부활·세계 이동에도 내 보스가 끼어들지 않는다 ---------- */
+  const host = makeBossGame();
+  host.world2Unlocked = true;
+  host.setWorld(2);
+  const bossRecords = host.mobManager.mobs.filter((m) => m.type.boss).map((m) => packMob(m));
+  check(bossRecords.length === 2, 'the host snapshot must carry both bosses, got ' + bossRecords.length);
+
+  const guestGame = makeBossGame();
+  const guestNet = new Net(guestGame);
+  guestGame.net = guestNet;
+  guestNet.role = 'guest';
+  guestNet.active = true;
+  guestNet.pid = 'GUEST1';
+  guestNet.hostPid = 'HOST01';
+  // 방에 들어오면 손님은 자기 로컬 몹을 버리고 호스트 스냅샷만 그린다
+  guestGame.mobManager.clearAll();
+  guestNet.mirrors.clear();
+  guestNet._applyWorld({ ps: [], ms: bossRecords, ds: [] });
+  check(aliveBosses(guestGame.mobManager, 'golem') === 1 && aliveBosses(guestGame.mobManager, 'dark_mage') === 1,
+    'the guest must mirror one boss per land: ' + aliveBosses(guestGame.mobManager));
+  // 부활하거나 세계를 옮길 때마다 setWorld 가 불린다 — 예전에는 여기서 로컬 보스가 하나 더 생겼다
+  for (let i = 0; i < 4; i++) guestGame.setWorld(i % 2 ? 2 : 1);
+  check(aliveBosses(guestGame.mobManager, 'golem') === 1, 'a teammate must not spawn a second golem on its own screen: ' + aliveBosses(guestGame.mobManager, 'golem'));
+  check(aliveBosses(guestGame.mobManager, 'dark_mage') === 1, 'a teammate must not spawn a second dark mage: ' + aliveBosses(guestGame.mobManager, 'dark_mage'));
+  // 손님 화면에서는 로컬 몹을 아예 세우지 않는다 (호스트 스냅샷과 겹치지 않게)
+  check(guestGame.mobManager.isGuestSession() === true, 'a guest session must be detected');
+  check(guestGame.mobManager.ensureWorld(1) === false, 'ensureWorld must do nothing on a guest screen');
+  check(guestGame.mobManager.mobs.every((m) => m.remote), 'a guest screen must only hold host mirrors: ' + guestGame.mobManager.mobs.filter((m) => !m.remote).length + ' local mobs');
+  // 그래도 로컬 보스가 억지로 끼어들면 정리된다
+  const strayGolem = new Mob(guestGame, 'golem', BOSS_POS, 'temple');
+  strayGolem.netId = guestGame.mobManager.nextNetId();
+  guestGame.mobManager.mobs.push(strayGolem);
+  check(aliveBosses(guestGame.mobManager, 'golem') === 2, 'test setup: the stray golem must be there');
+  guestNet._applyWorld({ ps: [], ms: bossRecords, ds: [] });
+  check(aliveBosses(guestGame.mobManager, 'golem') === 1, 'a duplicate local boss must be cleaned up, got ' + aliveBosses(guestGame.mobManager, 'golem'));
+  check(guestGame.mobManager.mobs.filter((m) => m.typeId === 'golem').every((m) => m.remote), 'the host mirror must be the boss that stays');
+
+  /* ---------- 3) 호스트: 친구가 오가도 보스는 하나 ---------- */
+  const hostNet = new Net(host);
+  host.net = hostNet;
+  hostNet.role = 'host';
+  hostNet.active = true;
+  hostNet.pid = 'HOST01';
+  hostNet.roomCode = 'TEST';
+  for (let i = 0; i < 6; i++) hostNet._ensureWorldMobs(i % 2 ? 2 : 1);
+  check(aliveBosses(host.mobManager, 'golem') === 1 && aliveBosses(host.mobManager, 'dark_mage') === 1,
+    'the host must keep one boss per land while friends come and go: ' + aliveBosses(host.mobManager));
+
+  /* ---------- 4) 고대 골렘 스킬: 예고 → 피해 ---------- */
+  const gSkills = MOB_TYPES.golem.skills;
+  check(Array.isArray(gSkills) && gSkills.length >= 3, 'the golem needs at least three boss skills');
+  for (const id of ['quake', 'boulder', 'roar']) {
+    check(!!gSkills.find((s) => s.id === id), 'the golem skill is missing: ' + id);
+  }
+  for (const def of gSkills) {
+    check(def.telegraph >= 0.8 && def.telegraph <= 1.2, def.id + ' telegraph must be 0.8~1.2s, got ' + def.telegraph);
+    check(def.damage > 0, def.id + ' must deal damage');
+    check(!!def.label && def.label.indexOf('!') >= 0, def.id + ' needs a callout label');
+  }
+
+  const gs = makeBossGame();
+  const golem = gs.mobManager.mobs.find((m) => m.typeId === 'golem');
+  gs.player.maxHp = 999999;
+  gs.player.hp = 999999;
+  gs.player.spawnAt(golem.position.x + 70, golem.position.z + 10);
+  gs.player.invuln = 0;
+  golem.aggro = true;
+  // 격노하기 전에도 스킬을 쓴다
+  const early = new Set();
+  step(gs, 26, () => {
+    if (golem.castT > 0 && golem.castDef) early.add(golem.castDef.id);
+    gs.player.hp = Math.max(gs.player.hp, 1);
+  });
+  check(!golem.enraged || early.size > 0, 'the golem must use skills before it enrages');
+  check(early.size >= 2, 'the golem must mix its skills, used: ' + [...early].join(','));
+
+  // 예고 중에는 피해가 없고, 예고가 끝날 때 들어간다
+  const quake = gSkills.find((s) => s.id === 'quake');
+  golem.castT = 0;
+  golem.castDef = null;
+  golem.castHit = false;
+  golem.skillCds = {};
+  golem.skillGap = 0;
+  gs.player.spawnAt(golem.position.x + 80, golem.position.z);
+  gs.player.hp = gs.player.maxHp;
+  gs.player.invuln = 0;
+  const hpBeforeQuake = gs.player.hp;
+  const fxBefore = gs.effects.items.length;
+  golem.startBossSkill(quake, { position: gs.player.position, alive: true, radius: gs.player.radius });
+  check(golem.castT > 0.8, 'quake needs a visible telegraph: ' + golem.castT);
+  check(gs.effects.items.length > fxBefore, 'quake must draw a ground warning ring');
+  check(gs.floaters.some((f) => f[0] === quake.label && f[1] === 'boss'), 'quake must show its name above the boss');
+  step(gs, 0.2);
+  check(gs.player.hp === hpBeforeQuake, 'quake must not hit before its telegraph ends');
+  step(gs, 1.2);
+  check(gs.player.hp < hpBeforeQuake, 'quake must damage a player standing inside the ring');
+  check(gs.mobManager.bossCount('golem') === 1, 'a boss skill must not spawn another boss');
+
+  // 바위 투척: 돌덩이가 날아가 예고한 자리에 떨어진다
+  const boulder = gSkills.find((s) => s.id === 'boulder');
+  golem.castT = 0;
+  golem.castDef = null;
+  gs.player.spawnAt(golem.position.x + 180, golem.position.z);
+  gs.player.hp = gs.player.maxHp;
+  gs.player.invuln = 0;
+  const hpBeforeBoulder = gs.player.hp;
+  golem.startBossSkill(boulder, { position: gs.player.position, alive: true, radius: gs.player.radius });
+  step(gs, 1.0);
+  check(golem.bolts.length >= 1, 'boulder toss must throw a rock');
+  step(gs, 1.6);
+  check(gs.player.hp < hpBeforeBoulder, 'the thrown boulder must damage a player who stayed on the mark');
+
+  // 고대의 포효: 잠깐 단단해진다
+  const roar = gSkills.find((s) => s.id === 'roar');
+  golem.castT = 0;
+  golem.castDef = null;
+  golem.hp = golem.maxHp;
+  golem.guardT = 0;
+  golem.startBossSkill(roar, { position: gs.player.position, alive: true, radius: gs.player.radius });
+  step(gs, 1.3);
+  check(golem.guardT > 0, 'ancient roar must grant the boss a short guard');
+  const hpBeforeGuard = golem.hp;
+  golem.takeDamage(100, {});
+  const guardTaken = hpBeforeGuard - golem.hp;
+  check(guardTaken <= 75, 'the roar guard must reduce incoming damage, took ' + guardTaken);
+
+  /* ---------- 5) 흑마법사 스킬: 유성 · 3연 구체 · 공허의 파동 ---------- */
+  const mSkills = MOB_TYPES.dark_mage.skills;
+  check(Array.isArray(mSkills) && mSkills.length >= 3, 'the dark mage needs at least three boss skills');
+  for (const id of ['meteor', 'volley', 'nova']) {
+    check(!!mSkills.find((s) => s.id === id), 'the dark mage skill is missing: ' + id);
+  }
+  for (const def of mSkills) {
+    check(def.telegraph >= 0.8 && def.telegraph <= 1.25, def.id + ' telegraph must be 0.8~1.25s, got ' + def.telegraph);
+    check(def.damage > 0, def.id + ' must deal damage');
+    check(!!def.label, def.id + ' needs a callout label');
+  }
+
+  const ms = makeBossGame();
+  ms.world2Unlocked = true;
+  ms.setWorld(2);
+  const mage = ms.mobManager.mobs.find((m) => m.typeId === 'dark_mage');
+  ms.player.maxHp = 999999;
+  ms.player.hp = 999999;
+  ms.player.spawnAt(mage.position.x, mage.position.z + 140);
+  ms.player.invuln = 0;
+  mage.aggro = true;
+  const mageUsed = new Set();
+  step(ms, 30, () => {
+    if (mage.castT > 0 && mage.castDef) mageUsed.add(mage.castDef.id);
+    ms.player.hp = Math.max(ms.player.hp, 1);
+  });
+  check(mageUsed.size >= 2, 'the dark mage must mix its skills, used: ' + [...mageUsed].join(','));
+
+  // 어둠의 유성: 2~3개의 예고 자리 → 기둥이 솟는다
+  const meteor = mSkills.find((s) => s.id === 'meteor');
+  mage.castT = 0;
+  mage.castDef = null;
+  mage.bolts.length = 0;
+  ms.player.spawnAt(mage.position.x, mage.position.z + 150);
+  ms.player.hp = ms.player.maxHp;
+  ms.player.invuln = 0;
+  const hpBeforeMeteor = ms.player.hp;
+  const fxBeforeMeteor = ms.effects.items.length;
+  mage.startBossSkill(meteor, { position: ms.player.position, alive: true, radius: ms.player.radius });
+  check(mage.castSpots.length >= 2 && mage.castSpots.length <= 4, 'the meteor must mark 2~4 spots, got ' + mage.castSpots.length);
+  check(ms.effects.items.length > fxBeforeMeteor + 1, 'the meteor must mark its spots on the ground');
+  check(ms.floaters.some((f) => f[0] === meteor.label), 'the meteor must announce its name');
+  step(ms, 1.3);
+  check(ms.player.hp < hpBeforeMeteor, 'the meteor must damage a player standing on a marked spot');
+
+  // 암흑 3연 구체: 세 발
+  const volley = mSkills.find((s) => s.id === 'volley');
+  mage.castT = 0;
+  mage.castDef = null;
+  mage.bolts.length = 0;
+  ms.player.spawnAt(mage.position.x, mage.position.z + 200);
+  ms.player.hp = ms.player.maxHp;
+  ms.player.invuln = 0;
+  mage.startBossSkill(volley, { position: ms.player.position, alive: true, radius: ms.player.radius });
+  step(ms, 1.0);
+  check(mage.bolts.length === 3, 'the dark volley must fire three orbs, got ' + mage.bolts.length);
+  const hpBeforeVolley = ms.player.hp;
+  step(ms, 1.6);
+  check(ms.player.hp < hpBeforeVolley, 'the dark volley must damage the player');
+  mage.clearBolts();
+
+  // 공허의 파동: 보스에 붙은 상대를 밀어낸다
+  const nova = mSkills.find((s) => s.id === 'nova');
+  mage.castT = 0;
+  mage.castDef = null;
+  mage.bolts.length = 0;
+  ms.player.spawnAt(mage.position.x, mage.position.z + 70);
+  ms.player.hp = ms.player.maxHp;
+  ms.player.invuln = 0;
+  const hpBeforeNova = ms.player.hp;
+  const posBeforeNova = ms.player.position.clone();
+  mage.startBossSkill(nova, { position: ms.player.position, alive: true, radius: ms.player.radius });
+  step(ms, 0.2);
+  check(ms.player.hp === hpBeforeNova, 'the void nova must telegraph before it hits');
+  step(ms, 1.0);
+  check(ms.player.hp < hpBeforeNova, 'the void nova must damage a player hugging the boss');
+  check(ms.player.position.distanceTo(posBeforeNova) > 1, 'the void nova must push the player away');
+  check(ms.mobManager.bossCount('dark_mage') === 1, 'the dark mage skills must not duplicate the boss');
+
+  /* ---------- 6) 함께 하기: 보스 스킬이 친구에게도 들어간다 ---------- */
+  const mp = makeBossGame();
+  const mpGolem = mp.mobManager.mobs.find((m) => m.typeId === 'golem');
+  mp.net = {
+    active: true,
+    isHost: true,
+    hostTargets() { return mp.remote ? [mp.remote] : []; },
+    hitGuest(pid, dmg) { mp.hits.push([pid, dmg]); },
+    broadcastBossSkill(mob, def, spots, dur) { mp.broadcast.push([def.id, spots.length, dur]); return true; },
+  };
+  mp.remote = { pid: 'guest-1', remote: true, alive: true, radius: 4.6, position: new THREE.Vector3(mpGolem.position.x + 60, 0, mpGolem.position.z), world: 1 };
+  mp.player.invuln = 0;
+  mp.player.spawnAt(mpGolem.position.x + 900, mpGolem.position.z);
+  mpGolem.aggro = true;
+  const mpQuake = gSkills.find((s) => s.id === 'quake');
+  mpGolem.startBossSkill(mpQuake, { position: mp.remote.position, alive: true, radius: 4.6 });
+  check(mp.broadcast.length === 1 && mp.broadcast[0][0] === 'quake', 'the host must tell teammates where the boss skill will land');
+  step(mp, 1.2);
+  check(mp.hits.length > 0 && mp.hits[0][0] === 'guest-1' && mp.hits[0][1] > 0, 'a boss skill must damage the teammate through hitGuest');
+
+  // 친구 화면: 미러 보스가 같은 이름 · 같은 범위로 예고를 그린다
+  const mirrorBoss = guestNet.mirrors.size ? [...guestNet.mirrors.values()].find((m) => m.type.boss) : null;
+  check(!!mirrorBoss, 'the guest must hold a boss mirror');
+  if (mirrorBoss) {
+    const before = guestGame.effects.items.length;
+    const cuesBefore = guestGame.floaters.length;
+    guestNet._applyBossSkill({
+      m: mirrorBoss.netId, k: 1, q: 7, d: 1.05,
+      c: [[mirrorBoss.position.x, mirrorBoss.position.z, 205]],
+    });
+    check(mirrorBoss.cueSeq === 7, 'the guest mirror must remember the cast it drew');
+    check(guestGame.effects.items.length > before, 'the guest must draw the boss skill warning ring');
+    check(guestGame.floaters.length > cuesBefore, 'the guest must show the boss skill name');
+    // 같은 예고를 다시 받아도 두 번 그리지 않는다
+    const fxAfter = guestGame.effects.items.length;
+    guestNet._applyBossSkill({
+      m: mirrorBoss.netId, k: 1, q: 7, d: 1.05,
+      c: [[mirrorBoss.position.x, mirrorBoss.position.z, 205]],
+    });
+    check(guestGame.effects.items.length === fxAfter, 'the same skill cue must not be drawn twice');
+  }
+  // 스냅샷에도 스킬 상태가 실린다 (예고를 놓쳐도 이름과 자세는 보인다)
+  const packedCasting = packMob({
+    netId: 3, typeId: 'golem', position: new THREE.Vector3(0, 0, 0), hp: 5000,
+    attackT: 0, attackDur: 1.15, state: 'chase', castT: 0.5, castDur: 1.0,
+    castDef: gSkills.find((s) => s.id === 'quake'), castSeq: 4,
+  });
+  const unpackedCasting = unpackMob(packedCasting);
+  check(unpackedCasting.skill === 1 && unpackedCasting.seq === 4, 'the boss skill state must ride the mob snapshot: ' + JSON.stringify([unpackedCasting.skill, unpackedCasting.seq]));
+}
+
+/* =====================================================================
    함께 하기 (끝까지): 두 Net 인스턴스를 메모리 중계로 실제로 잇는다
    ===================================================================== */
 {

@@ -799,6 +799,21 @@ export class Mob {
     this.slamCd = 0;
     this.attacksSinceSlam = 0;
 
+    // 보스 스킬 (예고 → 발동) — 스킬마다 따로 쿨타임이 돈다
+    this.skillCds = {};
+    const skills = this.type.skills || [];
+    for (const s of skills) this.skillCds[s.id] = rand(2.5, 5.5);
+    this.castT = 0;
+    this.castDur = 0;
+    this.castDef = null;
+    this.castHit = false;
+    this.castSeq = 0;
+    this.castSpots = [];
+    this.skillGap = 0;
+    this.cueSeq = -1;
+    // 고대의 수호 — 잠깐 받는 피해가 줄어드는 보호
+    this.guardT = 0;
+
     // 멀티플레이: netId 가 있으면 호스트 권한 몹, remote=true 면 친구 화면에서 보는 미러
     this.netId = undefined;
     this.remote = false;
@@ -831,7 +846,8 @@ export class Mob {
   takeDamage(amount, opts) {
     if (this.dead || this.remote) return;
     const o = opts || {};
-    const dmg = Math.max(1, Math.round(amount));
+    // 고대의 수호(보스 자기 버프) 동안에는 받는 피해가 줄어든다
+    const dmg = Math.max(1, Math.round(this.guardT > 0 ? amount * 0.7 : amount));
     this.hp -= dmg;
     this.hurtT = 0.3;
     this.aggro = true;
@@ -874,6 +890,10 @@ export class Mob {
     }
     this.game.effects.burst(new THREE.Vector3(this.position.x, this.position.y + this.height * 0.5, this.position.z), this.type.boss ? 0x9fe8ff : 0xffcf8a, this.type.boss ? 40 : 14, { power: this.type.boss ? 60 : 26, size: this.type.boss ? 2.2 : 0.8 });
     this.clearBolts();
+    this.castT = 0;
+    this.castDef = null;
+    this.castSpots = [];
+    this.guardT = 0;
     if (this.type.boss) {
       this.game.onBossDefeated(this);
     } else {
@@ -900,6 +920,11 @@ export class Mob {
     this.attackT = 0;
     this.hurtT = 0;
     this.knock.set(0, 0, 0);
+    this.castT = 0;
+    this.castDef = null;
+    this.castSpots = [];
+    this.castHit = false;
+    this.guardT = 0;
     this.root.visible = true;
     this.root.scale.setScalar(1);
     this.root.position.copy(this.position);
@@ -926,6 +951,8 @@ export class Mob {
     if (this.bolts.length) this.updateBolts(dt);
     const target = this.pickTarget();
     if (!target) {
+      // 상대가 사라져도 이미 시작한 스킬 예고는 끝까지 진행된다 (예고가 멈춘 채 남지 않게)
+      if (this.castT > 0) this.tickCast(dt, null);
       this.root.position.copy(this.position);
       return;
     }
@@ -939,6 +966,9 @@ export class Mob {
     if (this.type.boss) {
       this.stompCd = Math.max(0, this.stompCd - dt);
       this.slamCd = Math.max(0, this.slamCd - dt);
+      this.skillGap = Math.max(0, this.skillGap - dt);
+      this.guardT = Math.max(0, this.guardT - dt);
+      for (const id in this.skillCds) this.skillCds[id] = Math.max(0, this.skillCds[id] - dt);
       // 체력 50% 이하 → 격노
       if (!this.enraged && this.hp <= this.maxHp * (this.type.enrageAt || 0.5)) this.enrage();
     }
@@ -960,7 +990,15 @@ export class Mob {
     let moveTarget = null;
     let speedMul = 1;
 
-    if (this.slamT > 0) {
+    if (this.castT > 0) {
+      // 보스 스킬 예고 → 발동 (예고 동안은 거의 제자리)
+      speedMul = 0;
+      this.state = 'chase';
+      if (this.castDef && this.castDef.kind !== 'boulder' && this.castDef.kind !== 'volley' && target.alive) {
+        this.facing = dampAngle(this.facing, Math.atan2(dx, dz), 5, dt);
+      }
+      this.tickCast(dt, target);
+    } else if (this.slamT > 0) {
       // 내려치기 예고 → 내리치는 순간
       this.slamT -= dt;
       speedMul = 0;
@@ -985,8 +1023,12 @@ export class Mob {
       const canSlam = this.type.boss && this.enraged && this.slamCd <= 0
         && dist < (this.type.slamRadius || 200) * 1.15
         && this.attacksSinceSlam >= (this.type.slamEvery || 3);
+      const skill = canSlam ? null : this.pickBossSkill(dist, target);
       if (canSlam) {
         this.startSlam();
+        speedMul = 0;
+      } else if (skill) {
+        this.startBossSkill(skill, target);
         speedMul = 0;
       } else if (dist > this.type.attackRange * 0.92) {
         moveTarget = target.position;
@@ -1148,6 +1190,10 @@ export class Mob {
 
   startSlam() {
     const radius = this.type.slamRadius || 200;
+    // 격노 충격파가 스킬 예고보다 먼저다
+    this.castT = 0;
+    this.castDef = null;
+    this.castSpots = [];
     this.slamDur = this.type.slamWindup || 1.5;
     this.slamT = this.slamDur;
     this.slamHit = false;
@@ -1196,6 +1242,264 @@ export class Mob {
     this.game.shake(1.15);
   }
 
+  /* --------------------- 보스 스킬 (예고 → 발동) --------------------- */
+  // 지금 쓸 수 있는 스킬 하나를 고른다 — 격노 전에도 쓰고, 격노하면 쿨타임이 짧아 더 자주 쓴다
+  pickBossSkill(dist, target) {
+    const list = this.type.skills;
+    if (!list || !list.length) return null;
+    if (this.castT > 0 || this.slamT > 0 || this.attackT > 0 || this.skillGap > 0) return null;
+    if (!this.aggro || !target || !target.alive) return null;
+    // 멀리서 견제하는 상대에게는 바위부터 (원거리 카이팅이 공짜가 되지 않게)
+    const ordered = dist > 130
+      ? list.filter((d) => d.preferFar).concat(list.filter((d) => !d.preferFar))
+      : list;
+    for (const def of ordered) {
+      if ((this.skillCds[def.id] || 0) > 0) continue;
+      if (def.minRange && dist < def.minRange) continue;
+      if (def.maxRange && dist > def.maxRange) continue;
+      return def;
+    }
+    return null;
+  }
+
+  // 스킬이 터질 자리들 — 예고 그림과 피해 판정이 같은 자리를 쓴다
+  skillSpots(def, target) {
+    const out = [];
+    const self = { x: this.position.x, z: this.position.z, r: def.radius || 180 };
+    if (def.kind === 'boulder') {
+      // 지금 서 있는 자리를 겨냥해 바위를 던진다 (예고 뒤 그 자리를 벗어나면 피한다)
+      out.push({ x: target.position.x, z: target.position.z, r: def.radius || 78 });
+      return out;
+    }
+    if (def.kind === 'meteor') {
+      const list = (this.game.combatTargets ? this.game.combatTargets() : null) || [];
+      const picked = [];
+      for (const t of list) {
+        if (!this.canTarget(t)) continue;
+        picked.push({ x: t.position.x, z: t.position.z });
+      }
+      if (!picked.length) picked.push({ x: target.position.x, z: target.position.z });
+      const n = Math.max(2, Math.min(def.count || 3, 4));
+      for (let i = 0; i < n; i++) {
+        const p = picked[i] || {
+          x: target.position.x + Math.cos(rand(0, TAU)) * rand(130, 250),
+          z: target.position.z + Math.sin(rand(0, TAU)) * rand(130, 250),
+        };
+        out.push({ x: p.x, z: p.z, r: def.radius || 96 });
+      }
+      return out;
+    }
+    // quake · nova · roar: 보스 몸을 중심으로
+    out.push(self);
+    return out;
+  }
+
+  startBossSkill(def, target) {
+    if (!def) return false;
+    const spots = this.skillSpots(def, target);
+    const dur = (def.telegraph || 1) * (this.enraged ? 0.85 : 1);
+    this.castDef = def;
+    this.castDur = dur;
+    this.castT = dur;
+    this.castHit = false;
+    this.castSpots = spots;
+    this.castSeq = (this.castSeq + 1) % 251;
+    this.attackT = 0;
+    this.attackHit = true;
+    this.skillGap = 0;
+    this.skillCds[def.id] = (this.enraged ? (def.enragedCooldown || def.cooldown) : def.cooldown) * rand(0.9, 1.12);
+    this.game.sfx.boss();
+    // 예고 연출 + 이름 표시 (나와 친구 화면 모두)
+    this.showSkillCue(def, spots, dur, this.castSeq);
+    // 함께 하기: 호스트는 친구 화면에도 같은 예고 자리를 알려 준다
+    const net = this.game.net;
+    if (net && net.active && net.isHost && typeof net.broadcastBossSkill === 'function') {
+      net.broadcastBossSkill(this, def, spots, dur);
+    }
+    return true;
+  }
+
+  // 예고 시간을 흘려보내고, 예고가 끝나기 직전에 실제로 터뜨린다
+  tickCast(dt) {
+    if (this.castT <= 0) return false;
+    this.castT -= dt;
+    if (!this.castHit && this.castDur > 0 && this.castT <= this.castDur * 0.28) {
+      this.castHit = true;
+      this.resolveBossSkill();
+    }
+    if (this.castT <= 0) {
+      this.castT = 0;
+      this.castDef = null;
+      this.castSpots = [];
+    }
+    return this.castT > 0;
+  }
+
+  // 예고 그림 · 이름 표시 — 같은 예고(seq)를 두 번 그리지 않는다
+  showSkillCue(def, spots, dur, seq) {
+    if (!def) return;
+    if (seq !== undefined && seq !== null) {
+      if (this.cueSeq === seq) return;
+      this.cueSeq = seq;
+    }
+    const g = this.game;
+    if (g.hud && g.hud.floater) {
+      g.hud.floater(
+        def.label || def.name,
+        new THREE.Vector3(this.position.x, this.position.y + this.height * 1.2, this.position.z),
+        'boss', 2.6
+      );
+    }
+    const fx = g.effects;
+    if (!fx) return;
+    const color = def.color || 0xffa54a;
+    const life = dur || def.telegraph || 1;
+    let list = spots;
+    // 자리를 모르는 화면(친구 화면 폴백)에서도 보스 중심 기술은 범위를 보여 준다
+    if ((!list || !list.length) && (def.kind === 'aoe' || def.kind === 'nova')) {
+      list = [{ x: this.position.x, z: this.position.z, r: def.radius || 180 }];
+    }
+    for (const s of (list || [])) {
+      const y = terrainHeight(s.x, s.z);
+      fx.ring(new THREE.Vector3(s.x, y + 1.5, s.z), color, s.r, { duration: life, thickness: 0.05, yOffset: 1.5 });
+      fx.ring(new THREE.Vector3(s.x, y + 1.5, s.z), color, s.r * 0.45, { duration: life, thickness: 0.02, yOffset: 1.5 });
+      if (def.kind === 'meteor') fx.crack({ x: s.x, y, z: s.z }, color, s.r, life);
+    }
+  }
+
+  // 스킬 발동 — 스킬 종류마다 연출과 피해 방식이 다르다
+  resolveBossSkill() {
+    const def = this.castDef;
+    if (!def) return;
+    const spots = (this.castSpots && this.castSpots.length)
+      ? this.castSpots
+      : [{ x: this.position.x, z: this.position.z, r: def.radius || 180 }];
+    const g = this.game;
+    const fx = g.effects;
+    const base = this.type.damage * (def.damage || 1);
+    this.skillGap = 1.1;
+
+    if (def.kind === 'boulder') {
+      this.fireBoulder(spots[0], base);
+      return;
+    }
+    if (def.kind === 'volley') {
+      this.fireVolley(def, base);
+      return;
+    }
+    if (def.kind === 'meteor') {
+      for (const s of spots) {
+        const y = terrainHeight(s.x, s.z);
+        if (fx) {
+          fx.pillar(new THREE.Vector3(s.x, y, s.z), 0xc58cff, 150, 0.75, s.r * 0.7);
+          fx.burst(new THREE.Vector3(s.x, y + 6, s.z), 0xb06aff, 26, { power: 54, size: 1.5 });
+          fx.ring(new THREE.Vector3(s.x, y + 1.5, s.z), 0x8a3aff, s.r * 1.15, { duration: 0.5, thickness: 0.06, yOffset: 1.5 });
+        }
+        this.damageArea(s.x, s.z, s.r, base);
+      }
+      g.shake(1.0);
+      g.sfx.boss();
+      return;
+    }
+
+    // quake(대지 분쇄) · nova(공허의 파동 · 고대의 포효)
+    const s = spots[0];
+    this.damageArea(s.x, s.z, s.r, base);
+    if (fx) {
+      const y = s.y === undefined ? this.position.y : s.y;
+      fx.ring(new THREE.Vector3(s.x, y + 1.5, s.z), def.color || 0xffb15c, s.r * 1.1, { duration: 0.62, thickness: 0.07, yOffset: 1.5 });
+      fx.burst(new THREE.Vector3(s.x, y + 6, s.z), def.color || 0xffc46a, 34, { power: 78, size: 1.8 });
+      if (def.kind !== 'nova') fx.crack({ x: s.x, y: terrainHeight(s.x, s.z), z: s.z }, 0xff8a4a, s.r * 0.8, 0.9);
+    }
+    g.shake(def.kind === 'nova' ? 1.0 : 1.25);
+    if (def.buff) {
+      // 고대의 수호 — 잠깐 단단해진다
+      this.guardT = def.buff;
+      if (fx) fx.ring(new THREE.Vector3(this.position.x, this.position.y + 1.5, this.position.z), 0x9fe8ff, 120, { duration: 0.85, thickness: 0.04, yOffset: 1.5 });
+      if (g.hud && g.hud.floater) {
+        g.hud.floater(def.buffLabel || '수호', new THREE.Vector3(this.position.x, this.position.y + this.height * 1.4, this.position.z), 'boss', 1.9);
+      }
+    }
+  }
+
+  // 범위 피해 — 내 캐릭터와 함께 하는 친구 모두에게 (호스트가 판정을 가진다)
+  damageArea(x, z, radius, baseDmg) {
+    const list = this.game.combatTargets ? this.game.combatTargets() : null;
+    const targets = list || (this.game.player
+      ? [{ local: true, alive: this.game.player.alive, radius: this.game.player.radius || 4.6, position: this.game.player.position }]
+      : []);
+    const src = new THREE.Vector3(x, terrainHeight(x, z), z);
+    let hits = 0;
+    for (const t of targets) {
+      if (!this.canTarget(t)) continue;
+      const d = Math.hypot(t.position.x - x, t.position.z - z);
+      if (d > radius + (t.radius || 4.6)) continue;
+      const falloff = clamp(1 - (d / radius) * 0.35, 0.65, 1);
+      const dmg = baseDmg * falloff;
+      hits++;
+      if (t.remote) {
+        if (this.game.net) this.game.net.hitGuest(t.pid, dmg, src);
+      } else {
+        const p = this.game.player;
+        if (p && p.alive) p.takeDamage(dmg, src);
+      }
+    }
+    return hits;
+  }
+
+  // 바위 투척 — 예고한 자리로 돌덩이가 날아가 터진다
+  fireBoulder(spot, base) {
+    if (!spot) return;
+    const from = new THREE.Vector3(this.position.x, this.position.y + this.height * 0.75, this.position.z);
+    const tx = spot.x - from.x;
+    const tz = spot.z - from.z;
+    const d = Math.hypot(tx, tz) || 1;
+    const color = this.enraged ? 0xff8a3a : 0xffc46a;
+    const g = new THREE.Group();
+    const rock = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(6.4, 0),
+      new THREE.MeshStandardMaterial({ color: 0x8f9084, emissive: color, emissiveIntensity: 1.5, roughness: 0.9, metalness: 0.1 })
+    );
+    g.add(rock);
+    g.add(new THREE.Mesh(
+      new THREE.SphereGeometry(11, 10, 8),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false })
+    ));
+    g.position.copy(from);
+    this.game.scene.add(g);
+    const speed = this.enraged ? 320 : 250;
+    this.bolts.push({
+      mesh: g, x: from.x, z: from.z, y: from.y,
+      dx: tx / d, dz: tz / d,
+      speed,
+      dmg: base,
+      life: d / speed + 0.02,
+      t: 0,
+      radius: (spot.r || 78) * 0.75,
+      color,
+      kind: 'boulder',
+    });
+    this.game.sfx.orb();
+  }
+
+  // 암흑 3연 구체 — 부채꼴로 세 발
+  fireVolley(def, base) {
+    const target = this.canTarget(this.targetRef) ? this.targetRef : this.pickTarget();
+    if (!target) return;
+    const from = new THREE.Vector3(this.position.x, this.position.y + this.height * 0.62, this.position.z);
+    const tx = target.position.x - from.x;
+    const tz = target.position.z - from.z;
+    const aim = Math.atan2(tx, tz);
+    const color = this.enraged ? 0xff5a9a : 0xb06aff;
+    const n = Math.max(1, def.count || 3);
+    const spread = def.spread === undefined ? 0.3 : def.spread;
+    for (let i = 0; i < n; i++) {
+      const a = aim + (i - (n - 1) / 2) * spread;
+      this.spawnBolt(from, Math.sin(a), Math.cos(a), base * 0.7, { color, speed: this.enraged ? 250 : 205, radius: 13 });
+    }
+    this.game.sfx.orb();
+  }
+
   resolveAttack() {
     const target = this.targetRef;
     if (!this.canTarget(target)) return;
@@ -1226,31 +1530,43 @@ export class Mob {
   /* ------------------- 어둠 구체 (흑마법사 원거리 공격) ------------------- */
   fireBolt(target) {
     if (!this.canTarget(target)) return;
-    const scene = this.game.scene;
     const from = new THREE.Vector3(this.position.x, this.position.y + this.height * 0.62, this.position.z);
     const tx = target.position.x - from.x;
     const tz = target.position.z - from.z;
     const d = Math.hypot(tx, tz) || 1;
     const color = this.enraged ? 0xff5a9a : 0xa46aff;
+    this.spawnBolt(from, tx / d, tz / d, this.type.damage * rand(0.85, 1.05), { color, speed: this.enraged ? 240 : 190 });
+    this.game.sfx.orb();
+  }
+
+  // 날아가는 구체 하나를 만든다 (어둠 구체 · 암흑 3연 구체 · 바위 투척 공용)
+  spawnBolt(from, dx, dz, dmg, opts) {
+    const o = opts || {};
+    const color = o.color || 0xa46aff;
+    const scene = this.game.scene;
     const g = new THREE.Group();
-    const core = new THREE.Mesh(new THREE.SphereGeometry(3.0, 12, 9), new THREE.MeshStandardMaterial({
+    const core = new THREE.Mesh(new THREE.SphereGeometry(o.size || 3.0, 12, 9), new THREE.MeshStandardMaterial({
       color, emissive: color, emissiveIntensity: 3.4, roughness: 0.2,
     }));
     g.add(core);
-    const halo = new THREE.Mesh(new THREE.SphereGeometry(5.2, 10, 8), new THREE.MeshBasicMaterial({
+    const halo = new THREE.Mesh(new THREE.SphereGeometry((o.size || 3.0) * 1.75, 10, 8), new THREE.MeshBasicMaterial({
       color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false,
     }));
     g.add(halo);
     g.position.copy(from);
     scene.add(g);
-    const speed = this.enraged ? 240 : 190;
     this.bolts.push({
       mesh: g, x: from.x, z: from.z, y: from.y,
-      dx: tx / d, dz: tz / d, speed,
-      dmg: this.type.damage * rand(0.85, 1.05),
-      life: 2.6, t: 0,
+      dx, dz,
+      speed: o.speed || 190,
+      dmg,
+      life: o.life || 2.6,
+      t: 0,
+      radius: o.radius || 12,
+      color,
+      kind: o.kind || 'orb',
     });
-    this.game.sfx.orb();
+    return this.bolts[this.bolts.length - 1];
   }
 
   updateBolts(dt) {
@@ -1265,14 +1581,19 @@ export class Mob {
       b.y = groundY;
       b.mesh.position.set(b.x, b.y, b.z);
       b.mesh.rotation.y += dt * 6;
+      b.mesh.rotation.x += dt * 3;
       let hit = null;
       for (const t of list) {
         if (!this.canTarget(t)) continue;
-        const rr = 12 + (t.radius || 4.6);
+        const rr = (b.radius || 12) + (t.radius || 4.6);
         if (Math.hypot(t.position.x - b.x, t.position.z - b.z) < rr) { hit = t; break; }
       }
       const expired = b.t > b.life;
       if (hit || expired) {
+        // 바위 투척은 예고한 자리에 떨어지면 그 자리 주변을 함께 때린다
+        if (b.kind === 'boulder' && expired && !hit) {
+          this.damageArea(b.x, b.z, b.radius || 60, b.dmg);
+        }
         if (hit) {
           if (hit.remote) {
             if (this.game.net) this.game.net.hitGuest(hit.pid, b.dmg, new THREE.Vector3(b.x, b.y, b.z));
@@ -1282,9 +1603,11 @@ export class Mob {
           }
         }
         if (this.game.effects) {
-          this.game.effects.burst(new THREE.Vector3(b.x, b.y, b.z), 0xa46aff, 14, { power: 30, size: 1.1 });
-          this.game.effects.ring(new THREE.Vector3(b.x, b.y - 6, b.z), 0x8a3aff, 46, { duration: 0.45, thickness: 0.05 });
+          const color = b.color || 0xa46aff;
+          this.game.effects.burst(new THREE.Vector3(b.x, b.y, b.z), color, b.kind === 'boulder' ? 24 : 14, { power: b.kind === 'boulder' ? 52 : 30, size: b.kind === 'boulder' ? 1.6 : 1.1 });
+          this.game.effects.ring(new THREE.Vector3(b.x, b.y - 6, b.z), color, b.kind === 'boulder' ? 72 : 46, { duration: 0.45, thickness: 0.05 });
         }
+        if (b.kind === 'boulder') this.game.shake(0.7);
         this.removeBolt(i);
       }
     }
@@ -1406,7 +1729,9 @@ export class Mob {
       m.legR.rotation.x = -s * 0.32;
       m.body.position.y = Math.abs(Math.sin(this.walkPhase * 0.55)) * 1.2;
       const swing = atkP >= 0 ? Math.sin(clamp(atkP, 0, 1) * Math.PI) : 0;
-      const slamP = this.slamT > 0 ? clamp(1 - this.slamT / this.slamDur, 0, 1) : -1;
+      const castP = (this.castT > 0 && this.castDef && this.castDef.kind !== 'boulder')
+        ? clamp(1 - this.castT / this.castDur, 0, 1) : -1;
+      const slamP = this.slamT > 0 ? clamp(1 - this.slamT / this.slamDur, 0, 1) : castP;
       if (slamP >= 0) {
         // 양팔을 머리 위로 들어 올렸다가 지면을 내려친다
         const raise = slamP < 0.72 ? slamP / 0.72 : 1;
@@ -1532,6 +1857,18 @@ export class Mob {
       const pulse = 1 + Math.sin(t * (this.enraged ? 7 : 3.6)) * 0.14;
       if (m.orb) m.orb.scale.setScalar(pulse * (1 + swing * 0.5));
       if (m.orbHalo) m.orbHalo.scale.setScalar(pulse * 1.2 + swing * 0.6);
+      // 보스 스킬 예고 — 지팡이를 높이 들어 두 팔을 벌린다
+      if (this.castT > 0 && this.castDef && this.castDur > 0) {
+        const cp = clamp(1 - this.castT / this.castDur, 0, 1);
+        const lift = Math.sin(Math.min(1, cp / 0.8) * Math.PI * 0.5);
+        m.armR.rotation.x = -2.9 * lift;
+        m.armR.rotation.z = -0.2 - 0.4 * lift;
+        m.armL.rotation.x = -1.9 * lift;
+        m.armL.rotation.z = 0.35 + 0.5 * lift;
+        m.torso.rotation.x = 0.05 - 0.22 * lift;
+        m.head.rotation.x = 0.2 * lift;
+        if (m.orb) m.orb.scale.setScalar(pulse * (1 + lift * 0.7));
+      }
       if (m.baseGlow) m.baseGlow.material.opacity = (this.enraged ? 0.16 : 0.11) + Math.sin(t * 2.1) * 0.035;
       if (this.enraged && m.orbMat) {
         m.orbMat.color.setHex(0xff8ad0);
@@ -1627,9 +1964,25 @@ export class MobManager {
   }
 
   spawnAll() {
-    this.spawnWorld(1);
+    this.ensureWorld(1);
     // 고대 골렘을 잡아 2번째 세계가 열렸다면 그 몹들도 함께 세운다
-    if (this.game && this.game.world2Unlocked) this.spawnWorld(2);
+    if (this.game && this.game.world2Unlocked) this.ensureWorld(2);
+  }
+
+  // 함께 하기에서 이 화면이 손님(게스트)인가 — 손님은 호스트가 보내는 몹만 그린다
+  isGuestSession() {
+    const net = this.game && this.game.net;
+    return !!(net && net.active && net.isGuest);
+  }
+
+  // 이 세계의 몹이 준비되어 있는지 확인한다 — 보스를 다시 세우지 않는다 (중복 스폰 방지)
+  ensureWorld(worldId) {
+    // 손님 화면에서는 로컬 몹을 세우지 않는다. 세우면 호스트가 보낸 보스와
+    // 내 화면의 보스가 동시에 있어 보스가 둘로 보인다 (부활·세계 이동 때 실제로 생겼다)
+    if (this.isGuestSession()) return false;
+    const before = this.mobs.length;
+    this.spawnWorld(worldId === 2 ? 2 : 1);
+    return this.mobs.length !== before;
   }
 
   // 한 세계의 몹만 세운다 (2번째 세계는 포털이 열린 뒤에 처음 부른다 — 시작 부하를 줄인다)
@@ -1648,6 +2001,7 @@ export class MobManager {
       }
       for (let i = 0; i < biome.mobCount; i++) this.spawn(typeId, this.randomPoint(id), id);
     }
+    this.enforceBossUniqueness();
   }
 
   randomPoint(biomeId, awayFrom) {
@@ -1662,10 +2016,80 @@ export class MobManager {
   }
 
   spawn(typeId, pos, biomeId) {
+    const type = MOB_TYPES[typeId];
+    // 보스는 한 땅에 하나 — 이미 살아 있는 보스가 있으면 새로 만들지 않는다
+    if (type && type.boss) {
+      const existing = this.bossIn(biomeId);
+      if (existing) return existing;
+    }
     const mob = new Mob(this.game, typeId, pos, biomeId);
-    mob.netId = this.mobs.length;
+    mob.netId = this.nextNetId();
     this.mobs.push(mob);
     return mob;
+  }
+
+  // 몹 번호 — 중간에 몹이 지워져도 겹치지 않게 빈 번호를 고른다 (친구 화면 피해 판정의 열쇠)
+  nextNetId() {
+    const used = new Set();
+    for (const m of this.mobs) if (m.netId !== undefined) used.add(m.netId);
+    let id = this.mobs.length;
+    while (used.has(id)) id++;
+    return id;
+  }
+
+  // 그 땅에 살아 있는 보스 (내 몹 · 친구 화면 미러 모두)
+  bossIn(biomeId) {
+    for (const m of this.mobs) {
+      if (!m.type || !m.type.boss || m.dead) continue;
+      if ((m.biomeId || '') === (biomeId || '')) return m;
+    }
+    return null;
+  }
+
+  // 보스 종류별로 살아 있는 수 (테스트 · 화면 확인용)
+  bossCount(typeId) {
+    let n = 0;
+    for (const m of this.mobs) {
+      if (!m.type || !m.type.boss || m.dead) continue;
+      if (!typeId || m.typeId === typeId) n++;
+    }
+    return n;
+  }
+
+  // "한 땅에 보스 하나" 를 지킨다 — 중복이 생기면 하나만 남기고 지운다
+  //  · 손님 화면에서는 호스트가 보낸 미러가 진짜다 (내 로컬 보스를 지운다)
+  enforceBossUniqueness() {
+    const keep = new Map();
+    for (let i = 0; i < this.mobs.length; i++) {
+      const m = this.mobs[i];
+      if (!m.type || !m.type.boss || m.dead) continue;
+      const key = m.biomeId || m.typeId;
+      const cur = keep.get(key);
+      if (!cur) { keep.set(key, m); continue; }
+      if (m.remote && !cur.remote) keep.set(key, m);
+    }
+    let removed = 0;
+    for (const [key, keeper] of keep) {
+      for (let i = this.mobs.length - 1; i >= 0; i--) {
+        const m = this.mobs[i];
+        if (m === keeper || !m.type || !m.type.boss || m.dead) continue;
+        if ((m.biomeId || m.typeId) !== key) continue;
+        this.removeMob(m);
+        removed++;
+      }
+    }
+    return removed;
+  }
+
+  // 몹 하나를 장면 · 목록 · 미러 목록에서 함께 지운다
+  removeMob(m) {
+    if (!m) return;
+    if (m.clearBolts) m.clearBolts();
+    if (m.root) this.game.scene.remove(m.root);
+    const i = this.mobs.indexOf(m);
+    if (i >= 0) this.mobs.splice(i, 1);
+    const net = this.game && this.game.net;
+    if (m.remote && net && net.mirrors && net.mirrors.get(m.netId) === m) net.mirrors.delete(m.netId);
   }
 
   update(dt) {
@@ -1764,6 +2188,7 @@ export class MobManager {
   }
 
   boss() {
+    for (const m of this.mobs) if (m.type.boss && !m.dead) return m;
     for (const m of this.mobs) if (m.type.boss) return m;
     return null;
   }

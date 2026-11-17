@@ -476,6 +476,73 @@ export const MOB_TYPES = {
   },
 };
 
+/* ------------------------- 보스 스킬 (두 보스) -------------------------
+   두 보스 모두 기본 공격 · 격노 충격파 말고도 이름 붙은 스킬을 쓴다.
+   모든 스킬은 바닥에 범위를 먼저 알려 주는 예고(telegraph, 0.8~1.2초)를 남기고 터진다.
+   예고 시간 안에 대쉬(C)로 빠져나가거나 막기(R)로 버티면 피해가 줄어든다.
+   · 격노하면 예고가 조금 짧아지고 쿨타임도 줄어든다. */
+export const BOSS_SKILL_IDS = ['', 'quake', 'boulder', 'roar', 'meteor', 'volley', 'nova'];
+
+export const BOSS_SKILLS = {
+  golem: [
+    {
+      id: 'quake', name: '대지 분쇄', label: '⚡ 대지 분쇄!', kind: 'aoe',
+      telegraph: 1.05, radius: 205, damage: 1.45, color: 0xffa54a,
+      cooldown: 11, enragedCooldown: 7, maxRange: 320,
+    },
+    {
+      id: 'boulder', name: '바위 투척', label: '🪨 바위 투척!', kind: 'boulder',
+      telegraph: 0.9, radius: 78, damage: 1.15, color: 0xffc46a,
+      cooldown: 9, enragedCooldown: 5.5, minRange: 95, preferFar: true,
+    },
+    {
+      id: 'roar', name: '고대의 포효', label: '🗿 고대의 포효!', kind: 'nova',
+      telegraph: 1.1, radius: 250, damage: 0.9, color: 0x9fe8ff,
+      cooldown: 19, enragedCooldown: 12, buff: 7, buffLabel: '고대의 수호',
+    },
+  ],
+  dark_mage: [
+    {
+      id: 'meteor', name: '어둠의 유성', label: '☄️ 어둠의 유성!', kind: 'meteor',
+      telegraph: 1.15, radius: 96, damage: 1.1, color: 0xb06aff, count: 3,
+      cooldown: 12, enragedCooldown: 7.5,
+    },
+    {
+      id: 'volley', name: '암흑 3연 구체', label: '🔮 암흑 3연 구체!', kind: 'volley',
+      telegraph: 0.8, damage: 0.62, color: 0xb06aff, count: 3, spread: 0.3,
+      cooldown: 8.5, enragedCooldown: 5.5,
+    },
+    {
+      id: 'nova', name: '공허의 파동', label: '🌀 공허의 파동!', kind: 'nova',
+      telegraph: 1.0, radius: 190, damage: 1.2, color: 0x8a3aff, maxRange: 215,
+      cooldown: 13, enragedCooldown: 8.5,
+    },
+  ],
+};
+
+// 몹 정의에서 바로 꺼내 쓸 수 있게 붙여 둔다
+MOB_TYPES.golem.skills = BOSS_SKILLS.golem;
+MOB_TYPES.dark_mage.skills = BOSS_SKILLS.dark_mage;
+
+// 스킬 id → 정의 · 코드(번호) — 함께 하기에서 친구 화면에 같은 예고를 그릴 때 쓴다
+export function bossSkillById(id) {
+  for (const key of Object.keys(BOSS_SKILLS)) {
+    const found = BOSS_SKILLS[key].find((s) => s.id === id);
+    if (found) return found;
+  }
+  // 새 보스가 같은 스킬을 쓰게 되면 이름으로도 찾아준다
+  return null;
+}
+
+export function bossSkillCode(id) {
+  return Math.max(0, BOSS_SKILL_IDS.indexOf(id));
+}
+
+export function bossSkillByCode(code) {
+  const id = BOSS_SKILL_IDS[Number(code) || 0];
+  return id ? bossSkillById(id) : null;
+}
+
 // 2번째 세계 보스가 서는 자리 (암흑지역 제단 앞)
 export const BOSS2_POS = { x: 0, z: WORLD2.originZ + 130 };
 

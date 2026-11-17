@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { Player } from './player.js';
 import { Mob } from './mobs.js';
 import { MOB_TYPES, CLASSES, MAX_WEAPON_TIER, MAX_ARMOR_TIER } from './config.js';
+import { bossSkillCode, bossSkillByCode } from './config.js';
 import { clamp, damp, dampAngle, rand, terrainHeight } from './utils.js';
 
 /* ------------------------------ 설정값 ------------------------------ */
@@ -138,10 +139,12 @@ export function unpackPlayer(a) {
   };
 }
 
-// 몹 상태 → 컴팩트 배열 [id, type, x, z, hp, chasing, attackProgress, slamProgress]
+// 몹 상태 → 컴팩트 배열 [id, type, x, z, hp, chasing, attackProgress, slamProgress, skillCode, skillSeq]
 export function packMob(m) {
   const atk = m.attackT > 0 ? Math.round((1 - m.attackT / (m.attackDur || 1)) * 100) : 0;
-  const slam = m.slamT > 0 ? Math.round((1 - m.slamT / (m.slamDur || 1)) * 100) : 0;
+  // 예고 중인 보스 스킬은 내려치기 모션 자리를 빌려 친구 화면에도 같은 자세가 재생된다
+  const cast = (m.castT > 0 && m.castDur > 0) ? Math.round((1 - m.castT / m.castDur) * 100) : 0;
+  const slam = m.slamT > 0 ? Math.round((1 - m.slamT / (m.slamDur || 1)) * 100) : cast;
   return [
     m.netId,
     MOB_CODES.indexOf(m.typeId),
@@ -150,6 +153,8 @@ export function packMob(m) {
     m.state === 'chase' ? 1 : 0,
     clamp(atk, 0, 100),
     clamp(slam, 0, 100),
+    m.castDef ? bossSkillCode(m.castDef.id) : 0,
+    m.castT > 0 ? (m.castSeq || 0) : 0,
   ];
 }
 
@@ -164,6 +169,8 @@ export function unpackMob(a) {
     chasing: !!a[5],
     atk: Number(a[6]) || 0,
     slam: Number(a[7]) || 0,
+    skill: Number(a[8]) || 0,
+    seq: Number(a[9]) || 0,
   };
 }
 
@@ -578,6 +585,8 @@ export class Net {
       this._applyWorld(msg.p || {});
     } else if (msg.t === 'rw') {
       this._applyReward(msg.p || {});
+    } else if (msg.t === 'bs') {
+      this._applyBossSkill(msg.p || {});
     } else if (msg.t === 'hitp') {
       const p = msg.p || {};
       if (p.pid !== this.pid) return;          // 다른 친구를 맞힌 피해는 무시
@@ -652,8 +661,9 @@ export class Net {
   _ensureWorldMobs(worldId) {
     if (!this.isHost) return;
     const mm = this.game && this.game.mobManager;
-    if (!mm || typeof mm.spawnWorld !== 'function') return;
-    mm.spawnWorld(worldId === 2 ? 2 : 1);
+    if (!mm) return;
+    if (typeof mm.ensureWorld === 'function') { mm.ensureWorld(worldId === 2 ? 2 : 1); return; }
+    if (typeof mm.spawnWorld === 'function') mm.spawnWorld(worldId === 2 ? 2 : 1);
   }
 
   _sendWelcome(pid) {
@@ -798,6 +808,10 @@ export class Net {
     }
     const ds = Array.isArray(p.ds) ? p.ds : [];
     for (const id of ds) this._killMobMirror(id);
+    // 보스는 한 땅에 하나 — 미러와 로컬 몹이 겹쳐 보이지 않게 정리한다
+    if (this.game.mobManager && this.game.mobManager.enforceBossUniqueness) {
+      this.game.mobManager.enforceBossUniqueness();
+    }
   }
 
   _applyMob(m) {
@@ -821,6 +835,19 @@ export class Net {
     mob.attackHit = m.atk > 0;
     mob.slamDur = mob.type.slamWindup || 1.5;
     mob.slamT = m.slam > 0 ? mob.slamDur * (1 - m.slam / 100) : 0;
+    // 보스 스킬 예고 — 호스트의 'bs' 메시지를 놓쳤더라도 이름과 예고를 보여 준다
+    if (m.skill) {
+      const def = bossSkillByCode(m.skill);
+      if (def) {
+        mob.castDef = def;
+        mob.castDur = (def.telegraph || 1) * (mob.enraged ? 0.85 : 1);
+        mob.castT = Math.max(0, mob.castDur * (1 - clamp(m.slam, 0, 100) / 100));
+        if (m.seq && mob.cueSeq !== m.seq) mob.showSkillCue(def, null, mob.castDur, m.seq);
+      }
+    } else if (mob.castT > 0 && mob.castDef) {
+      mob.castT = 0;
+      mob.castDef = null;
+    }
     if (mob.dead && m.hp > 0) {
       mob.dead = false;
       mob.deadT = 0;
@@ -850,8 +877,22 @@ export class Net {
     if (mob.type.boss) this.game.onBossDefeated(mob);
   }
 
-  _applyReward(p) {
-    const xp = Number(p.xp) || 0;
+  _applyBossSkill(p) {
+    const mob = this.mirrors.get(Number(p.m));
+    if (!mob || mob.dead || !mob.remote) return;
+    const def = bossSkillByCode(Number(p.k));
+    if (!def) return;
+    const spots = Array.isArray(p.c)
+      ? p.c.slice(0, 5).map((a) => ({
+        x: Number(a[0]) || 0,
+        z: Number(a[1]) || 0,
+        r: Number(a[2]) || def.radius || 120,
+      }))
+      : null;
+    mob.showSkillCue(def, spots, Number(p.d) || def.telegraph, Number(p.q));
+  }
+
+  _applyReward(p) {    const xp = Number(p.xp) || 0;
     const gold = Number(p.gold) || 0;
     // 퀘스트: 호스트가 알려 준 처치를 내 퀘스트 줄에도 센다 (t = 몹 종류)
     if (p.t && typeof this.game.recordKill === 'function') {
@@ -919,6 +960,21 @@ export class Net {
     this.publish('g', encodeMsg('hitp', p));
   }
 
+  // 보스 스킬 예고를 친구 화면에도 그린다 (피해 판정은 호스트가 hitp 로 보낸다)
+  broadcastBossSkill(mob, def, spots, dur) {
+    if (!this.active || !this.isHost) return false;
+    if (!mob || mob.netId === undefined || !def) return false;
+    const c = (spots || []).slice(0, 5).map((s) => [Math.round(s.x), Math.round(s.z), Math.round(s.r || 0)]);
+    this.publish('g', encodeMsg('bs', {
+      m: mob.netId,
+      k: bossSkillCode(def.id),
+      q: mob.castSeq || 0,
+      d: Math.round((dur || def.telegraph || 1) * 100) / 100,
+      c,
+    }));
+    return true;
+  }
+
   // 게스트가 몹에게 입힌 피해 → 호스트가 검증·적용
   requestDamage(mob, amount, opts) {
     if (!this.active || !mob || mob.netId === undefined) return 0;
@@ -943,8 +999,7 @@ export class Net {
   }
 
   // 몹이 죽었을 때 (호스트에서만 호출) — 모든 참가자에게 보상
-  onMobDeath(mob) {
-    if (!this.isHost || !this.active) return false;
+  onMobDeath(mob) {    if (!this.isHost || !this.active) return false;
     this.pendingDeaths.push(mob.netId);
     const xp = (mob.type && mob.type.xp) || 0;
     const gold = (mob.type && mob.type.gold) || 0;

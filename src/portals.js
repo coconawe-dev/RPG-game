@@ -223,7 +223,7 @@ export class Portals {
       this.game.effects.burst(new THREE.Vector3(p.x, p.y + 40, p.z), 0xa46aff, 32, { power: 52, size: 1.8 });
     }
     this.game.world2Unlocked = true;
-    if (this.game.mobManager) this.game.mobManager.spawnWorld(2);
+    if (this.game.mobManager) this.game.mobManager.ensureWorld(2);
     return true;
   }
 
