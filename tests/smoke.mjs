@@ -545,8 +545,9 @@ for (const classId of CLASS_ORDER) {
     check(w2[0].damage > w1[1].damage, cls + ' tier4 damage must beat world 1 tier3');
     check(w2[1].damage > w2[0].damage, cls + ' tier5 damage must beat tier4');
     check(w2[0].crit > 0 && w2[1].crit >= w2[0].crit, cls + ' world 2 weapons need crit bonuses');
-    check(w2[0].price >= 1100 && w2[0].price <= 1400, cls + ' tier4 price out of range: ' + w2[0].price);
-    check(w2[1].price >= 2400 && w2[1].price <= 2800, cls + ' tier5 price out of range: ' + w2[1].price);
+    // 2세계 장비는 전부 10,000G 이상 (사용자 요청: "2번째세계 상점 최소 10000이상으로 바꿔줘")
+    check(w2[0].price >= 10000 && w2[0].price <= 11000, cls + ' tier4 price must be 10,000~11,000G, got ' + w2[0].price);
+    check(w2[1].price >= 21000 && w2[1].price <= 23000, cls + ' tier5 price must be 21,000~23,000G, got ' + w2[1].price);
     check(w2[0].damage >= 30 && w2[1].damage >= 58, cls + ' world 2 weapon damage too low: ' + w2[0].damage + '/' + w2[1].damage);
   }
   const warriorT4 = shopWeaponsFor('warrior', 'shop_w2')[0];
@@ -557,8 +558,8 @@ for (const classId of CLASS_ORDER) {
   // 2세계 갑옷 수치
   const mithril = allArmors().find((a) => a.tier === 4);
   const eternal = allArmors().find((a) => a.tier === 5);
-  check(mithril && mithril.price === 1440 && mithril.hp === 340 && Math.abs(mithril.defense - 0.62) < 1e-9, 'mithril armor terms wrong');
-  check(eternal && eternal.price === 3040 && eternal.hp === 550 && Math.abs(eternal.defense - 0.72) < 1e-9, 'eternal armor terms wrong');
+  check(mithril && mithril.price === 12000 && mithril.hp === 340 && Math.abs(mithril.defense - 0.62) < 1e-9, 'mithril armor terms wrong');
+  check(eternal && eternal.price === 25000 && eternal.hp === 550 && Math.abs(eternal.defense - 0.72) < 1e-9, 'eternal armor terms wrong');
   check(mithril.price > SHOP.armors[2].price && mithril.hp > SHOP.armors[2].hp && mithril.defense > SHOP.armors[2].defense, 'world 2 armor must beat the golden armor');
 
   // 무기 구매: 2세계 무기는 내부 등급 3 · 4 로 장착된다
@@ -573,16 +574,16 @@ for (const classId of CLASS_ORDER) {
   let r = buyItem(game, warriorT4.id);
   check(!r.ok, 'tier4 weapon must not be affordable with 500G');
   check(hero.weaponTier === 0, 'failed tier4 purchase changed the weapon');
-  game.gold = 1500;
+  game.gold = 11000;
   r = buyItem(game, warriorT4.id);
   check(r.ok, 'tier4 weapon purchase failed: ' + r.msg);
-  check(game.gold === 1500 - warriorT4.price, 'tier4 gold not deducted: ' + game.gold);
+  check(game.gold === 11000 - warriorT4.price, 'tier4 gold not deducted: ' + game.gold);
   check(hero.weaponTier === 3, 'tier4 weapon must equip internal tier 3, got ' + hero.weaponTier);
   check(Math.abs(hero.damage - (baseDmg + warriorT4.damage)) < 1e-6, 'tier4 damage bonus not applied: ' + hero.damage);
   check(Math.abs(hero.critChance - (hero.cls.critChance + warriorT4.crit)) < 1e-9, 'tier4 crit bonus not applied');
   const mesh4 = hero.weapons.right || hero.weapons.left;
   check(mesh4 && mesh4.userData.tier === 3, '3D weapon look must upgrade to the world 2 tier 4 model');
-  game.gold = 3000;
+  game.gold = 23000;
   r = buyItem(game, warriorT5.id);
   check(r.ok, 'tier5 weapon purchase failed: ' + r.msg);
   check(hero.weaponTier === 4, 'tier5 weapon must equip internal tier 4, got ' + hero.weaponTier);
@@ -601,7 +602,7 @@ for (const classId of CLASS_ORDER) {
   let ares = buyItem(game, mithril.id);
   check(!ares.ok, 'mithril armor must not be affordable with 100G');
   check(p3.armorTier === 0 && p3.maxHp === baseMaxHp3, 'failed armor purchase changed the character');
-  game.gold = 1600;
+  game.gold = 12500;
   ares = buyItem(game, mithril.id);
   check(ares.ok, 'mithril armor purchase failed: ' + ares.msg);
   check(p3.armorTier === 4 && Math.abs(p3.armorDefense - 0.62) < 1e-9, 'mithril armor not equipped');
@@ -611,7 +612,7 @@ for (const classId of CLASS_ORDER) {
   p3.invuln = 0;
   const taken4 = p3.takeDamage(100, null);
   check(Math.abs(taken4 - 38) <= 1, '62% damage reduction wrong: ' + taken4);
-  game.gold = 3200;
+  game.gold = 26000;
   ares = buyItem(game, eternal.id);
   check(ares.ok, 'eternal armor purchase failed: ' + ares.msg);
   check(p3.armorTier === 5 && Math.abs(p3.armorDefense - 0.72) < 1e-9, 'eternal armor not equipped');
@@ -1584,18 +1585,20 @@ for (const classId of CLASS_ORDER) {
    상점 가격 2배 (1세계 · 2세계 모든 물건)
    ===================================================================== */
 {
-  // 2배 전 가격표 — 두 상점 · 전 직업 · 모든 물건
+  // 2배 전 가격표 — 1세계 물건과 2세계 포션 (2세계 장비는 10,000G 이상 가격표를 따로 검사)
   const OLD = {
     'w-warrior-2': 80, 'w-warrior-3': 220, 'w-archer-2': 80, 'w-archer-3': 220,
     'w-rogue-2': 80, 'w-rogue-3': 220, 'w-tanker-2': 80, 'w-tanker-3': 220,
     'w-mage-2': 80, 'w-mage-3': 220,
-    'w2-warrior-4': 620, 'w2-warrior-5': 1320, 'w2-archer-4': 600, 'w2-archer-5': 1300,
-    'w2-rogue-4': 600, 'w2-rogue-5': 1280, 'w2-tanker-4': 620, 'w2-tanker-5': 1300,
-    'w2-mage-4': 640, 'w2-mage-5': 1340,
     'a-leather': 90, 'a-steel': 200, 'a-gold': 380,
-    'a-mithril': 720, 'a-eternal': 1520,
     'potion-hp': 30, 'potion-hp-big': 70, 'potion-atk': 90,
     'potion-hp-supreme': 180, 'potion-full-restore': 320, 'potion-rage': 380,
+  };
+  // 2세계 무기·갑옷 가격표 (10,000G 이상 · 직업/등급 순서 유지)
+  const W2_PRICE = {
+    'w2-archer-4': 10000, 'w2-rogue-4': 10000, 'w2-warrior-4': 10500, 'w2-tanker-4': 10500, 'w2-mage-4': 10800,
+    'w2-rogue-5': 21000, 'w2-archer-5': 21500, 'w2-tanker-5': 21500, 'w2-warrior-5': 22000, 'w2-mage-5': 22500,
+    'a-mithril': 12000, 'a-eternal': 25000,
   };
   const seen = new Set();
   const checkItem = (item, where) => {
@@ -1605,15 +1608,31 @@ for (const classId of CLASS_ORDER) {
     seen.add(item.id);
     check(item.price === old * 2, where + ' ' + item.id + ' must cost ' + old * 2 + 'G (2×), got ' + item.price);
   };
+  const w2Seen = new Set();
+  const checkW2Equip = (item) => {
+    const want = W2_PRICE[item.id];
+    check(want !== undefined, 'world 2 price table is missing ' + item.id);
+    if (want === undefined) return;
+    w2Seen.add(item.id);
+    check(item.price === want, 'shop_w2 ' + item.id + ' must cost ' + want + 'G, got ' + item.price);
+    check(item.price >= 10000, 'shop_w2 ' + item.id + ' must cost at least 10,000G, got ' + item.price);
+  };
   for (const cls of CLASS_ORDER) {
     for (const w of shopWeaponsFor(cls, 'shop_w1')) checkItem(w, 'shop_w1');
-    for (const w of shopWeaponsFor(cls, 'shop_w2')) checkItem(w, 'shop_w2');
+    for (const w of shopWeaponsFor(cls, 'shop_w2')) checkW2Equip(w);
   }
   for (const a of SHOP.armors) checkItem(a, 'shop_w1');
-  for (const a of SHOP2.armors) checkItem(a, 'shop_w2');
+  for (const a of SHOP2.armors) checkW2Equip(a);
   for (const p of SHOP.potions) checkItem(p, 'shop_w1');
   for (const p of SHOP2.potions) checkItem(p, 'shop_w2');
   check(seen.size === Object.keys(OLD).length, 'some shop items were not checked: ' + seen.size + '/' + Object.keys(OLD).length);
+  check(w2Seen.size === Object.keys(W2_PRICE).length, 'some world 2 equipment was not checked: ' + w2Seen.size + '/' + Object.keys(W2_PRICE).length);
+  // 2세계 포션은 그대로 저렴하게 (사용자 요청: "포션말고")
+  for (const p of SHOP2.potions) check(p.price < 10000, 'shop_w2 potion ' + p.id + ' must stay under 10,000G, got ' + p.price);
+  // 2세계 상점 전체: 무기·갑옷은 10,000G 이상, 포션은 10,000G 미만
+  const w2Equip = CLASS_ORDER.flatMap((cls) => shopWeaponsFor(cls, 'shop_w2')).concat(SHOP2.armors);
+  check(w2Equip.length === 12, 'twelve world 2 equipment items expected, got ' + w2Equip.length);
+  for (const it of w2Equip) check(it.price >= 10000, 'world 2 equipment ' + it.id + ' must be >= 10000G');
 }
 
 /* =====================================================================

@@ -823,34 +823,34 @@ export const SHOP2 = {
   // 직업별 상위 무기 (표시 Tier 4 · 5) — 사면 바로 장착됩니다
   weapons: {
     warrior: [
-      { id: 'w2-warrior-4', tier: 4, name: '흑요석 대검', price: 1240, damage: 46, crit: 0.08, desc: '2세계 흑요석을 벼린 대검. 공격력 +46 · 치명타 +8%' },
-      { id: 'w2-warrior-5', tier: 5, name: '불멸의 심판검', price: 2640, damage: 84, crit: 0.12, desc: '차원을 가르는 심판의 검. 공격력 +84 · 치명타 +12%' },
+      { id: 'w2-warrior-4', tier: 4, name: '흑요석 대검', price: 10500, damage: 46, crit: 0.08, desc: '2세계 흑요석을 벼린 대검. 공격력 +46 · 치명타 +8%' },
+      { id: 'w2-warrior-5', tier: 5, name: '불멸의 심판검', price: 22000, damage: 84, crit: 0.12, desc: '차원을 가르는 심판의 검. 공격력 +84 · 치명타 +12%' },
     ],
     archer: [
-      { id: 'w2-archer-4', tier: 4, name: '심연의 장궁', price: 1200, damage: 42, crit: 0.08, desc: '심연의 바람을 쏘는 장궁. 공격력 +42 · 치명타 +8%' },
-      { id: 'w2-archer-5', tier: 5, name: '유성의 명궁', price: 2600, damage: 76, crit: 0.12, desc: '유성을 떨어뜨리는 명궁. 공격력 +76 · 치명타 +12%' },
+      { id: 'w2-archer-4', tier: 4, name: '심연의 장궁', price: 10000, damage: 42, crit: 0.08, desc: '심연의 바람을 쏘는 장궁. 공격력 +42 · 치명타 +8%' },
+      { id: 'w2-archer-5', tier: 5, name: '유성의 명궁', price: 21500, damage: 76, crit: 0.12, desc: '유성을 떨어뜨리는 명궁. 공격력 +76 · 치명타 +12%' },
     ],
     rogue: [
-      { id: 'w2-rogue-4', tier: 4, name: '심연 쌍단검', price: 1200, damage: 34, crit: 0.09, desc: '어둠을 베는 심연 쌍단검. 공격력 +34 · 치명타 +9%' },
-      { id: 'w2-rogue-5', tier: 5, name: '차원 쌍검', price: 2560, damage: 60, crit: 0.14, desc: '차원을 오가는 쌍검. 공격력 +60 · 치명타 +14%' },
+      { id: 'w2-rogue-4', tier: 4, name: '심연 쌍단검', price: 10000, damage: 34, crit: 0.09, desc: '어둠을 베는 심연 쌍단검. 공격력 +34 · 치명타 +9%' },
+      { id: 'w2-rogue-5', tier: 5, name: '차원 쌍검', price: 21000, damage: 60, crit: 0.14, desc: '차원을 오가는 쌍검. 공격력 +60 · 치명타 +14%' },
     ],
     tanker: [
-      { id: 'w2-tanker-4', tier: 4, name: '심연 수호방패', price: 1240, damage: 42, crit: 0.06, desc: '2세계를 막아서는 수호방패. 공격력 +42 · 치명타 +6%' },
-      { id: 'w2-tanker-5', tier: 5, name: '불멸의 성벽', price: 2600, damage: 74, crit: 0.08, desc: '무너지지 않는 불멸의 성벽. 공격력 +74 · 치명타 +8%' },
+      { id: 'w2-tanker-4', tier: 4, name: '심연 수호방패', price: 10500, damage: 42, crit: 0.06, desc: '2세계를 막아서는 수호방패. 공격력 +42 · 치명타 +6%' },
+      { id: 'w2-tanker-5', tier: 5, name: '불멸의 성벽', price: 21500, damage: 74, crit: 0.08, desc: '무너지지 않는 불멸의 성벽. 공격력 +74 · 치명타 +8%' },
     ],
     mage: [
-      { id: 'w2-mage-4', tier: 4, name: '성운 지팡이', price: 1280, damage: 48, crit: 0.08, desc: '성운을 담은 지팡이. 공격력 +48 · 치명타 +8%' },
-      { id: 'w2-mage-5', tier: 5, name: '태초의 홀', price: 2680, damage: 86, crit: 0.12, desc: '태초의 빛이 깃든 홀. 공격력 +86 · 치명타 +12%' },
+      { id: 'w2-mage-4', tier: 4, name: '성운 지팡이', price: 10800, damage: 48, crit: 0.08, desc: '성운을 담은 지팡이. 공격력 +48 · 치명타 +8%' },
+      { id: 'w2-mage-5', tier: 5, name: '태초의 홀', price: 22500, damage: 86, crit: 0.12, desc: '태초의 빛이 깃든 홀. 공격력 +86 · 치명타 +12%' },
     ],
   },
   // 2세계 갑옷 (Tier 4 · 5) — 1번째 세계 갑옷보다 훨씬 비싸고 튼튼하다
   armors: [
     {
-      id: 'a-mithril', tier: 4, name: '미스릴 성기사 갑옷', price: 1440, hp: 340, defense: 0.62,
+      id: 'a-mithril', tier: 4, name: '미스릴 성기사 갑옷', price: 12000, hp: 340, defense: 0.62,
       desc: '별빛 미스릴로 벼린 성기사 갑옷. 최대 HP +340 · 받는 피해 62% 감소',
     },
     {
-      id: 'a-eternal', tier: 5, name: '차원의 불멸 갑옷', price: 3040, hp: 550, defense: 0.72,
+      id: 'a-eternal', tier: 5, name: '차원의 불멸 갑옷', price: 25000, hp: 550, defense: 0.72,
       desc: '차원의 장막을 두른 불멸의 갑옷. 최대 HP +550 · 받는 피해 72% 감소',
     },
   ],
