@@ -1271,10 +1271,10 @@ function buildStrongChicken() {
 
   // 목 · 머리
   const head = new THREE.Group();
-  head.position.set(0, 52, 4);
+  head.position.set(0, 56, 4);
   body.add(head);
-  head.add(mkMesh(new THREE.CylinderGeometry(6, 8, 10, 8), featherMat, 0, -7, 0));
-  head.add(mkMesh(new THREE.SphereGeometry(9.5, 14, 12), featherMat, 0, 0, 0));
+  head.add(mkMesh(new THREE.CylinderGeometry(6.4, 9.2, 16, 8), featherMat, 0, -10, 0));
+  head.add(mkMesh(new THREE.SphereGeometry(10.5, 14, 12), featherMat, 0, 0, 0));
   // 벼슬 — 커다란 붉은 볏
   for (let i = 0; i < 4; i++) {
     const comb = mkMesh(new THREE.SphereGeometry(3.6 - i * 0.35, 10, 8), combMat, 0, 9 + Math.sin(i * 0.9) * 1.6, 3 - i * 3.2);
@@ -1311,7 +1311,7 @@ function buildStrongChicken() {
     const point = mkMesh(new THREE.ConeGeometry(1.1, 4.4, 4), goldMat, Math.cos(a) * 4.4, 2.6, Math.sin(a) * 4.4);
     crown.add(point);
   }
-  const crownHalo = haloMesh(0xffd24a, 18, 0.22);
+  const crownHalo = haloMesh(0xffd24a, 9, 0.16);
   crownHalo.position.y = 2;
   crown.add(crownHalo);
 
@@ -1322,8 +1322,8 @@ function buildStrongChicken() {
   aura.rotation.x = -Math.PI / 2;
   aura.position.y = 1.2;
   body.add(aura);
-  const bodyGlow = haloMesh(0xffb84a, 44, 0.1, 0.7);
-  bodyGlow.position.y = 30;
+  const bodyGlow = haloMesh(0xffb84a, 27, 0.05, 0.5);
+  bodyGlow.position.y = 22;
   body.add(bodyGlow);
 
   return {
@@ -2633,9 +2633,9 @@ export class Mob {
       }
       // 격노 — 벼슬과 왕관이 타오르고 황금 오라가 커진다
       const glowPulse = 1 + Math.sin(t * (this.enraged ? 8 : 3.4)) * 0.18;
-      if (m.crownHalo) m.crownHalo.scale.setScalar(18 * glowPulse);
+      if (m.crownHalo) m.crownHalo.scale.setScalar(9 * glowPulse);
       if (m.aura) m.aura.material.opacity = (this.enraged ? 0.3 : 0.14) + Math.sin(t * 2.4) * 0.05;
-      if (m.bodyGlow) m.bodyGlow.material.opacity = (this.enraged ? 0.2 : 0.09) + Math.sin(t * 2.0) * 0.03;
+      if (m.bodyGlow) m.bodyGlow.material.opacity = (this.enraged ? 0.12 : 0.05) + Math.sin(t * 2.0) * 0.02;
       if (this.enraged) {
         if (m.combMat) m.combMat.emissiveIntensity = 1.4 + Math.sin(t * 8) * 0.8;
         if (m.goldMat) m.goldMat.emissiveIntensity = 2.8 + Math.sin(t * 9) * 0.9;
