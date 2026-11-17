@@ -1289,10 +1289,10 @@ function buildStrongChicken() {
     brow.rotation.z = s * 0.35;
     head.add(brow);
   }
-  const beakTop = mkMesh(new THREE.ConeGeometry(4.2, 10, 4), beakMat, 0, -1.0, 10);
+  const beakTop = mkMesh(new THREE.ConeGeometry(6.0, 15, 4), beakMat, 0, -1.5, 11);
   beakTop.rotation.set(Math.PI / 2, Math.PI / 4, 0);
   head.add(beakTop);
-  const beakLow = mkMesh(new THREE.ConeGeometry(3.2, 7, 4), beakMat, 0, -5.0, 9);
+  const beakLow = mkMesh(new THREE.ConeGeometry(4.4, 10, 4), beakMat, 0, -6.5, 10);
   beakLow.rotation.set(Math.PI / 2, Math.PI / 4, 0);
   head.add(beakLow);
   for (const s of [-1, 1]) {
@@ -1302,7 +1302,7 @@ function buildStrongChicken() {
   }
   // 황금 왕관
   const crown = new THREE.Group();
-  crown.position.set(0, 11.6, 0);
+  crown.position.set(0, 10.0, -1.5);
   head.add(crown);
   const crownRing = mkMesh(new THREE.CylinderGeometry(5.0, 5.0, 2.2, 12), goldMat, 0, 0, 0);
   crown.add(crownRing);
@@ -1322,8 +1322,8 @@ function buildStrongChicken() {
   aura.rotation.x = -Math.PI / 2;
   aura.position.y = 1.2;
   body.add(aura);
-  const bodyGlow = haloMesh(0xffb84a, 27, 0.05, 0.5);
-  bodyGlow.position.y = 22;
+  const bodyGlow = haloMesh(0xffb84a, 16, 0.04, 0.6);
+  bodyGlow.position.y = 30;
   body.add(bodyGlow);
 
   return {
