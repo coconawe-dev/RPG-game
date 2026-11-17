@@ -45,6 +45,7 @@
 
   <div id="hud" class="hud" aria-hidden="false">
     <div class="hud-top">
+      <div class="hud-left">
       <section class="panel char-panel">
         <div class="char-head">
           <span class="class-badge" id="class-badge">검사</span>
@@ -68,6 +69,19 @@
         <div class="stat-row" id="stat-row">공격력 22 · 이동속도 58</div>
         <div class="buff-row" id="buff-row"></div>
       </section>
+
+      <section class="panel quest-panel" id="quest-panel" aria-live="polite">
+        <div class="quest-head">
+          <span class="quest-title" id="quest-title">📜 퀘스트 1/6</span>
+          <button class="mini quest-toggle" id="quest-toggle" type="button" aria-label="퀘스트 창 접기">접기</button>
+        </div>
+        <div class="quest-body" id="quest-body">
+          <div class="quest-goal" id="quest-goal">슬라임 10마리 잡기</div>
+          <div class="quest-bar"><i class="quest-fill" id="quest-fill"></i><b class="quest-text" id="quest-text">0 / 10</b></div>
+          <div class="quest-reward" id="quest-reward">보상 150 G</div>
+        </div>
+      </section>
+      </div>
 
       <section class="panel room-panel hidden" id="room-panel">
         <div class="rp-head">

@@ -836,6 +836,10 @@ export class Net {
   _applyReward(p) {
     const xp = Number(p.xp) || 0;
     const gold = Number(p.gold) || 0;
+    // 퀘스트: 호스트가 알려 준 처치를 내 퀘스트 줄에도 센다 (t = 몹 종류)
+    if (p.t && typeof this.game.recordKill === 'function') {
+      this.game.recordKill(String(p.t), Number(p.w) === 2 ? 2 : 1);
+    }
     this._grant(xp, gold, p.x, p.z);
   }
 
@@ -881,8 +885,10 @@ export class Net {
         pid: rec.pid,
         remote: true,
         alive: rec.alive,
-        radius: 4.6,
+        radius: (rec.rig && rec.rig.radius) || 4.6,
         position: new THREE.Vector3(rec.x, 0, rec.z),
+        // 친구가 어느 세계에 있는지 — 몹은 같은 세계의 플레이어만 노린다
+        world: rec.world === 2 ? 2 : 1,
       });
     }
     return out;
@@ -927,11 +933,17 @@ export class Net {
     this.pendingDeaths.push(mob.netId);
     const xp = (mob.type && mob.type.xp) || 0;
     const gold = (mob.type && mob.type.gold) || 0;
+    // 호스트 자신의 퀘스트도 이 처치를 센다
+    if (typeof this.game.recordKill === 'function' && mob.typeId) {
+      this.game.recordKill(mob.typeId, mob.worldId === 2 ? 2 : 1);
+    }
     this._grant(xp, gold, mob.position.x, mob.position.z);
     this.publish('g', encodeMsg('rw', {
       xp, gold,
       x: Math.round(mob.position.x),
       z: Math.round(mob.position.z),
+      t: mob.typeId || '',
+      w: mob.worldId === 2 ? 2 : 1,
     }));
     return true;
   }

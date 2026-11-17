@@ -67,6 +67,13 @@ export class HUD {
       endPrimary: $('end-primary'),
       endRestart: $('end-restart'),
       loader: $('loader'),
+      questPanel: $('quest-panel'),
+      questTitle: $('quest-title'),
+      questGoal: $('quest-goal'),
+      questFill: $('quest-fill'),
+      questText: $('quest-text'),
+      questReward: $('quest-reward'),
+      questToggle: $('quest-toggle'),
     };
 
     this.minimapCtx = this.dom.minimap.getContext('2d');
@@ -109,6 +116,72 @@ export class HUD {
     });
 
     this.bindMapToggle();
+    this.bindQuest();
+  }
+
+  /* ---------------------------- 퀘스트 추적기 ---------------------------- */
+  // 접기 / 펴기 — 작은 화면에서 지도 · 버튼을 가리지 않도록 상태를 기억한다
+  bindQuest() {
+    if (!this.dom.questToggle || !this.dom.questPanel) return;
+    let collapsed = false;
+    try {
+      collapsed = window.localStorage && window.localStorage.getItem('rpg.questCollapsed') === '1';
+    } catch (err) { collapsed = false; }
+    this.questCollapsed = !!collapsed;
+    const apply = () => {
+      this.dom.questPanel.classList.toggle('collapsed', this.questCollapsed);
+      this.dom.questToggle.textContent = this.questCollapsed ? '펼치기' : '접기';
+      this.dom.questToggle.setAttribute('aria-label', this.questCollapsed ? '퀘스트 창 펼치기' : '퀘스트 창 접기');
+      this._questSig = null;
+      this.refreshQuest(true);
+    };
+    const flip = (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      this.questCollapsed = !this.questCollapsed;
+      try {
+        if (window.localStorage) window.localStorage.setItem('rpg.questCollapsed', this.questCollapsed ? '1' : '0');
+      } catch (err) { /* 저장할 수 없으면 이번 세션에만 적용 */ }
+      apply();
+    };
+    this.dom.questToggle.addEventListener('click', flip);
+    this.dom.questToggle.addEventListener('touchstart', flip, { passive: false });
+    apply();
+  }
+
+  // 지금 세계의 진행 중인 퀘스트를 패널에 반영한다 (값이 바뀔 때만 DOM 을 건드린다)
+  refreshQuest(force) {
+    const q = this.game && this.game.quests;
+    const d = this.dom;
+    if (!q || !d.questPanel || !d.questTitle) return;
+    const st = q.status(this.game.worldId === 2 ? 2 : 1);
+    const sig = [st.world, st.id, st.index, st.progress, st.done, this.questCollapsed ? 1 : 0].join('|');
+    if (!force && sig === this._questSig) return;
+    this._questSig = sig;
+    const label = (st.world === 2 ? '2세계' : '1세계');
+    if (st.done) {
+      d.questTitle.textContent = '📜 퀘스트 ' + st.total + '/' + st.total + ' · 완료';
+      d.questGoal.textContent = '✨ ' + label + ' 모든 퀘스트 완료!';
+      d.questText.textContent = '완료';
+      d.questFill.style.width = '100%';
+      d.questReward.textContent = '다음 세계의 퀘스트에 도전해 보세요';
+    } else {
+      d.questTitle.textContent = '📜 퀘스트 ' + st.index + '/' + st.total + (this.questCollapsed ? ' · ' + q.summary(st.world) : '');
+      d.questGoal.textContent = st.goal;
+      d.questFill.style.width = ((st.progress / Math.max(1, st.target)) * 100).toFixed(1) + '%';
+      d.questText.textContent = st.progress + ' / ' + st.target;
+      d.questReward.textContent = '보상 ' + st.rewardGold + ' G';
+    }
+    d.questPanel.classList.toggle('done', !!st.done);
+  }
+
+  // 퀘스트를 하나 완료했을 때 반짝인다
+  questFlash() {
+    const el = this.dom.questPanel;
+    if (!el) return;
+    el.classList.remove('flash');
+    void el.offsetWidth;
+    el.classList.add('flash');
+    this.refreshQuest(true);
   }
 
   /* --------------------------- 지도 접기 / 펴기 --------------------------- */
@@ -417,6 +490,7 @@ export class HUD {
     this.worldId = id;
     this.lastRegion = null;
     this.buildCompass();
+    this.refreshQuest(true);
     return id;
   }
 
@@ -662,6 +736,9 @@ export class HUD {
       this.bannerTimer -= dt;
       if (this.bannerTimer <= 0) this.dom.banner.classList.remove('on');
     }
+
+    // 퀘스트 추적기 (값이 바뀔 때만 다시 그린다)
+    this.refreshQuest();
   }
 
   setTarget(mob) {

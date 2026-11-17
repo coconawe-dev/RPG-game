@@ -10,6 +10,7 @@ import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, ALL_BIOME_ORDER, BOSS
 import { terrainHeight, regionAt, clampToWorld, worldAt, WORLD } from '/workspace/RPG-game/src/utils.js';
 import { Portals, handleBossDefeated, travelPlayer } from '/workspace/RPG-game/src/portals.js';
 import { buyItem } from '/workspace/RPG-game/src/shop.js';
+import { QuestLog, QUEST_CHAINS, QuestChain, questGoalText, mobName } from '/workspace/RPG-game/src/quests.js';
 import {
   Net, encodeMsg, decodeMsg, packPlayer, unpackPlayer, packMob, unpackMob, MOB_CODES,
   makeRoomCode, normalizeRoomCode, isValidRoomCode, nearestDistance, ANIM_NAMES,
@@ -390,7 +391,8 @@ for (const classId of CLASS_ORDER) {
   p.weaponTier = 0;
   p.weaponBonus = 0;
   p.critChance = p.cls.critChance;
-  game.gold = START_GOLD;
+  const goldStart = 500;
+  game.gold = goldStart;
   const baseDmg = p.damage;
   const tiers = SHOP.weapons[p.classId];
   check(tiers && tiers.length === 2, 'shop must offer 2 weapon tiers for every class');
@@ -399,7 +401,7 @@ for (const classId of CLASS_ORDER) {
 
   let res = buyItem(game, t2.id);
   check(res.ok, 'tier2 weapon purchase failed: ' + res.msg);
-  check(game.gold === START_GOLD - t2.price, 'tier2 gold not deducted: ' + game.gold);
+  check(game.gold === goldStart - t2.price, 'tier2 gold not deducted: ' + game.gold);
   check(Math.abs(p.damage - (baseDmg + t2.damage)) < 1e-6, 'tier2 damage bonus not applied: ' + p.damage);
   check(p.weaponTier === 1 && p.weaponName === t2.name, 'tier2 weapon not equipped (tier=' + p.weaponTier + ')');
   const mesh1 = p.weapons.right || p.weapons.left;
@@ -467,9 +469,9 @@ for (const classId of CLASS_ORDER) {
   const steel = SHOP.armors[1];
   const goldArmor = SHOP.armors[2];
   check(SHOP.armors.length === 3, 'shop must offer 3 armor tiers');
-  check(leather.name === '가죽 갑옷' && leather.price === 90 && leather.hp === 45 && Math.abs(leather.defense - 0.2) < 1e-9, 'leather armor terms wrong');
-  check(steel.name === '강철 판금 갑옷' && steel.price === 200 && steel.hp === 110 && Math.abs(steel.defense - 0.35) < 1e-9, 'steel armor terms wrong');
-  check(goldArmor.name === '황금 수호 갑옷' && goldArmor.price === 380 && goldArmor.hp === 200 && Math.abs(goldArmor.defense - 0.5) < 1e-9, 'gold armor terms wrong');
+  check(leather.name === '가죽 갑옷' && leather.price === 180 && leather.hp === 45 && Math.abs(leather.defense - 0.2) < 1e-9, 'leather armor terms wrong');
+  check(steel.name === '강철 판금 갑옷' && steel.price === 400 && steel.hp === 110 && Math.abs(steel.defense - 0.35) < 1e-9, 'steel armor terms wrong');
+  check(goldArmor.name === '황금 수호 갑옷' && goldArmor.price === 760 && goldArmor.hp === 200 && Math.abs(goldArmor.defense - 0.5) < 1e-9, 'gold armor terms wrong');
 
   // 골드 부족 → 실패해야 하고 아무것도 바뀌지 않는다
   game.gold = 60;
@@ -511,7 +513,7 @@ for (const classId of CLASS_ORDER) {
   check(Math.abs(taken2 - 65) <= 1, '35% damage reduction wrong: ' + taken2);
 
   // 황금 갑옷 (최종 티어)
-  game.gold = 400;
+  game.gold = 900;
   ares = buyItem(game, goldArmor.id);
   check(ares.ok, 'gold armor purchase failed: ' + ares.msg);
   check(p2.armorTier === 3 && Math.abs(p2.armorDefense - 0.5) < 1e-9, 'gold armor not equipped');
@@ -543,8 +545,8 @@ for (const classId of CLASS_ORDER) {
     check(w2[0].damage > w1[1].damage, cls + ' tier4 damage must beat world 1 tier3');
     check(w2[1].damage > w2[0].damage, cls + ' tier5 damage must beat tier4');
     check(w2[0].crit > 0 && w2[1].crit >= w2[0].crit, cls + ' world 2 weapons need crit bonuses');
-    check(w2[0].price >= 550 && w2[0].price <= 700, cls + ' tier4 price out of range: ' + w2[0].price);
-    check(w2[1].price >= 1200 && w2[1].price <= 1400, cls + ' tier5 price out of range: ' + w2[1].price);
+    check(w2[0].price >= 1100 && w2[0].price <= 1400, cls + ' tier4 price out of range: ' + w2[0].price);
+    check(w2[1].price >= 2400 && w2[1].price <= 2800, cls + ' tier5 price out of range: ' + w2[1].price);
     check(w2[0].damage >= 30 && w2[1].damage >= 58, cls + ' world 2 weapon damage too low: ' + w2[0].damage + '/' + w2[1].damage);
   }
   const warriorT4 = shopWeaponsFor('warrior', 'shop_w2')[0];
@@ -555,8 +557,8 @@ for (const classId of CLASS_ORDER) {
   // 2세계 갑옷 수치
   const mithril = allArmors().find((a) => a.tier === 4);
   const eternal = allArmors().find((a) => a.tier === 5);
-  check(mithril && mithril.price === 720 && mithril.hp === 340 && Math.abs(mithril.defense - 0.62) < 1e-9, 'mithril armor terms wrong');
-  check(eternal && eternal.price === 1520 && eternal.hp === 550 && Math.abs(eternal.defense - 0.72) < 1e-9, 'eternal armor terms wrong');
+  check(mithril && mithril.price === 1440 && mithril.hp === 340 && Math.abs(mithril.defense - 0.62) < 1e-9, 'mithril armor terms wrong');
+  check(eternal && eternal.price === 3040 && eternal.hp === 550 && Math.abs(eternal.defense - 0.72) < 1e-9, 'eternal armor terms wrong');
   check(mithril.price > SHOP.armors[2].price && mithril.hp > SHOP.armors[2].hp && mithril.defense > SHOP.armors[2].defense, 'world 2 armor must beat the golden armor');
 
   // 무기 구매: 2세계 무기는 내부 등급 3 · 4 로 장착된다
@@ -580,7 +582,7 @@ for (const classId of CLASS_ORDER) {
   check(Math.abs(hero.critChance - (hero.cls.critChance + warriorT4.crit)) < 1e-9, 'tier4 crit bonus not applied');
   const mesh4 = hero.weapons.right || hero.weapons.left;
   check(mesh4 && mesh4.userData.tier === 3, '3D weapon look must upgrade to the world 2 tier 4 model');
-  game.gold = 2000;
+  game.gold = 3000;
   r = buyItem(game, warriorT5.id);
   check(r.ok, 'tier5 weapon purchase failed: ' + r.msg);
   check(hero.weaponTier === 4, 'tier5 weapon must equip internal tier 4, got ' + hero.weaponTier);
@@ -599,7 +601,7 @@ for (const classId of CLASS_ORDER) {
   let ares = buyItem(game, mithril.id);
   check(!ares.ok, 'mithril armor must not be affordable with 100G');
   check(p3.armorTier === 0 && p3.maxHp === baseMaxHp3, 'failed armor purchase changed the character');
-  game.gold = 800;
+  game.gold = 1600;
   ares = buyItem(game, mithril.id);
   check(ares.ok, 'mithril armor purchase failed: ' + ares.msg);
   check(p3.armorTier === 4 && Math.abs(p3.armorDefense - 0.62) < 1e-9, 'mithril armor not equipped');
@@ -609,7 +611,7 @@ for (const classId of CLASS_ORDER) {
   p3.invuln = 0;
   const taken4 = p3.takeDamage(100, null);
   check(Math.abs(taken4 - 38) <= 1, '62% damage reduction wrong: ' + taken4);
-  game.gold = 2000;
+  game.gold = 3200;
   ares = buyItem(game, eternal.id);
   check(ares.ok, 'eternal armor purchase failed: ' + ares.msg);
   check(p3.armorTier === 5 && Math.abs(p3.armorDefense - 0.72) < 1e-9, 'eternal armor not equipped');
@@ -629,9 +631,9 @@ for (const classId of CLASS_ORDER) {
   const supreme = pots.find((p) => p.id === 'potion-hp-supreme');
   const restore = pots.find((p) => p.id === 'potion-full-restore');
   const rage = pots.find((p) => p.id === 'potion-rage');
-  check(supreme && supreme.price === 180 && supreme.heal === 600, 'supreme HP potion terms wrong');
-  check(restore && restore.price === 320 && restore.heal === 'full' && restore.buff === 'guard', 'full restore potion terms wrong');
-  check(rage && rage.price === 380 && rage.buff === 'rage' && Math.abs(rage.mult - 1.6) < 1e-9, 'rage elixir terms wrong');
+  check(supreme && supreme.price === 360 && supreme.heal === 600, 'supreme HP potion terms wrong');
+  check(restore && restore.price === 640 && restore.heal === 'full' && restore.buff === 'guard', 'full restore potion terms wrong');
+  check(rage && rage.price === 760 && rage.buff === 'rage' && Math.abs(rage.mult - 1.6) < 1e-9, 'rage elixir terms wrong');
   check(supreme.price > SHOP.potions[1].price && restore.price > supreme.price && rage.price > restore.price, 'world 2 potions must be pricier than world 1');
   check(supreme.heal > SHOP.potions[0].heal * 5, 'supreme potion must heal far more than the basic one');
 
@@ -651,6 +653,7 @@ for (const classId of CLASS_ORDER) {
   check(Math.abs(p4.hp - Math.min(p4.maxHp, 650)) < 1, 'supreme potion must heal 600 HP (capped by max HP), hp=' + p4.hp);
   check(p4.potionCount(supreme.id) === 0, 'supreme potion not consumed');
 
+  game.gold = 2000;
   r = buyItem(game, restore.id);
   check(r.ok, 'full restore purchase failed: ' + r.msg);
   p4.hp = Math.round(p4.maxHp * 0.2);
@@ -664,6 +667,7 @@ for (const classId of CLASS_ORDER) {
   for (let i = 0; i < 60 * 16; i++) p4.update(1 / 60, input);
   check(p4.buffs.guard === 0, 'guard buff did not expire: ' + p4.buffs.guard);
 
+  game.gold = 2000;
   r = buyItem(game, rage.id);
   check(r.ok, 'rage elixir purchase failed: ' + r.msg);
   p4.hp = p4.maxHp;
@@ -1574,6 +1578,326 @@ for (const classId of CLASS_ORDER) {
     check(evolvedEFortress > baseEFortress + 2,
       classId + ' evolved E must guard longer (' + evolvedEFortress.toFixed(1) + 's vs ' + baseEFortress.toFixed(1) + 's)');
   }
+}
+
+/* =====================================================================
+   상점 가격 2배 (1세계 · 2세계 모든 물건)
+   ===================================================================== */
+{
+  // 2배 전 가격표 — 두 상점 · 전 직업 · 모든 물건
+  const OLD = {
+    'w-warrior-2': 80, 'w-warrior-3': 220, 'w-archer-2': 80, 'w-archer-3': 220,
+    'w-rogue-2': 80, 'w-rogue-3': 220, 'w-tanker-2': 80, 'w-tanker-3': 220,
+    'w-mage-2': 80, 'w-mage-3': 220,
+    'w2-warrior-4': 620, 'w2-warrior-5': 1320, 'w2-archer-4': 600, 'w2-archer-5': 1300,
+    'w2-rogue-4': 600, 'w2-rogue-5': 1280, 'w2-tanker-4': 620, 'w2-tanker-5': 1300,
+    'w2-mage-4': 640, 'w2-mage-5': 1340,
+    'a-leather': 90, 'a-steel': 200, 'a-gold': 380,
+    'a-mithril': 720, 'a-eternal': 1520,
+    'potion-hp': 30, 'potion-hp-big': 70, 'potion-atk': 90,
+    'potion-hp-supreme': 180, 'potion-full-restore': 320, 'potion-rage': 380,
+  };
+  const seen = new Set();
+  const checkItem = (item, where) => {
+    const old = OLD[item.id];
+    check(old !== undefined, 'price table is missing ' + item.id);
+    if (old === undefined) return;
+    seen.add(item.id);
+    check(item.price === old * 2, where + ' ' + item.id + ' must cost ' + old * 2 + 'G (2×), got ' + item.price);
+  };
+  for (const cls of CLASS_ORDER) {
+    for (const w of shopWeaponsFor(cls, 'shop_w1')) checkItem(w, 'shop_w1');
+    for (const w of shopWeaponsFor(cls, 'shop_w2')) checkItem(w, 'shop_w2');
+  }
+  for (const a of SHOP.armors) checkItem(a, 'shop_w1');
+  for (const a of SHOP2.armors) checkItem(a, 'shop_w2');
+  for (const p of SHOP.potions) checkItem(p, 'shop_w1');
+  for (const p of SHOP2.potions) checkItem(p, 'shop_w2');
+  check(seen.size === Object.keys(OLD).length, 'some shop items were not checked: ' + seen.size + '/' + Object.keys(OLD).length);
+}
+
+/* =====================================================================
+   순차 퀘스트 (1세계 · 2세계)
+   ===================================================================== */
+{
+  // 퀘스트 목록이 기획 그대로인지
+  const spec = {
+    1: [['slime', 10, 150], ['zombie', 12, 280], ['hyena', 15, 450], ['raider', 12, 650], ['gorilla', 12, 900], ['golem', 1, 1600]],
+    2: [['goblin', 12, 700], ['skeleton', 12, 1100], ['samurai', 10, 1600], ['iron_golem', 6, 2400], ['dark_mage', 1, 4500]],
+  };
+  for (const w of [1, 2]) {
+    const list = QUEST_CHAINS[w];
+    check(Array.isArray(list) && list.length === spec[w].length, w + '세계 퀘스트는 ' + spec[w].length + '개여야 합니다');
+    for (let i = 0; i < Math.min(list.length, spec[w].length); i++) {
+      const q = list[i];
+      const sp = spec[w][i];
+      check(q.mobType === sp[0] && q.target === sp[1] && q.rewardGold === sp[2],
+        w + '세계 ' + (i + 1) + '번째 퀘스트가 기획과 다릅니다: ' + JSON.stringify(q));
+      check(typeof q.id === 'string' && q.id === 'w' + w + '_q' + (i + 1), w + '세계 퀘스트 id 오류: ' + q.id);
+    }
+  }
+  check(questGoalText(QUEST_CHAINS[1][0]) === '슬라임 10마리 잡기', 'goal text wrong: ' + questGoalText(QUEST_CHAINS[1][0]));
+  check(questGoalText(QUEST_CHAINS[1][5]) === '고대 골렘 1마리 처치', 'boss goal text wrong: ' + questGoalText(QUEST_CHAINS[1][5]));
+
+  // 1) 순서를 건너뛰고 잡은 몹은 세지 않는다
+  const log = new QuestLog();
+  let st = log.status(1);
+  check(st.quest && st.quest.mobType === 'slime' && st.progress === 0 && st.index === 1 && st.total === 6, 'world 1 must start with the slime quest');
+  check(log.recordKill(1, 'zombie') === null, 'future mobs must not pre-fill a locked quest');
+  check(log.recordKill(1, 'golem') === null, 'the boss kill must not count before its quest is active');
+  check(log.status(1).progress === 0, 'out-of-order kills changed the progress');
+
+  // 2) 지금 퀘스트의 몹만 센다
+  log.recordKill(1, 'slime');
+  st = log.status(1);
+  check(st.progress === 1 && st.quest.mobType === 'slime', 'slime kill must count: ' + JSON.stringify(st));
+
+  // 3) 목표를 채우면 정확한 보상 · 다음 퀘스트로 이동
+  let res = null;
+  for (let i = 0; i < 9; i++) res = log.recordKill(1, 'slime');
+  check(res && res.completed === true, 'slime 10th kill must complete the quest');
+  check(res.rewardGold === 150, 'first quest reward must be 150G, got ' + (res && res.rewardGold));
+  check(res.chainDone === false, 'chain must not be done after the first quest');
+  st = log.status(1);
+  check(st.index === 2 && st.quest.mobType === 'zombie' && st.progress === 0, 'must advance to the zombie quest: ' + JSON.stringify(st));
+  // 완료 뒤 같은 몹을 더 잡아도 다음 퀘스트는 채워지지 않는다
+  check(log.recordKill(1, 'slime') === null, 'kills of the finished quest must not count');
+
+  // 4) 두 세계는 서로 독립
+  check(log.status(2).index === 1 && log.status(2).quest.mobType === 'goblin', 'world 2 must start fresh at the goblin quest');
+  log.recordKill(2, 'goblin');
+  check(log.status(2).progress === 1, 'world 2 goblin kill must count');
+  check(log.status(1).quest.mobType === 'zombie' && log.status(1).progress === 0, 'world 2 progress must not touch world 1');
+  log.recordKill(1, 'zombie');
+  check(log.status(1).progress === 1 && log.status(2).progress === 1, 'both worlds must keep their own progress');
+  // 세계를 건너뛴 킬은 그 세계 목록에만 들어간다
+  check(log.recordKill(2, 'zombie') === null, 'world 1 mob kill must not count in world 2 quests');
+
+  // 5) 1세계 끝까지 → 모든 퀘스트 완료
+  const solo = new QuestLog();
+  const rewards = [];
+  for (const q of QUEST_CHAINS[1]) {
+    for (let i = 0; i < q.target; i++) {
+      const r = solo.recordKill(1, q.mobType);
+      if (r && r.completed) rewards.push(r.rewardGold);
+      else check(!r || !r.completed, 'completion must only fire on the last kill');
+    }
+  }
+  check(rewards.length === 6, 'all six world 1 quests must complete: ' + rewards.length);
+  check(rewards.reduce((a, b) => a + b, 0) === 150 + 280 + 450 + 650 + 900 + 1600, 'world 1 rewards must add up: ' + rewards.join(','));
+  const fin1 = solo.status(1);
+  check(fin1.done === true, 'world 1 chain must be marked done');
+  check(solo.recordKill(1, 'slime') === null, 'a finished chain must not count kills');
+  // 2세계는 그대로 남아 있다
+  check(solo.status(2).done === false && solo.status(2).index === 1, 'finishing world 1 must not finish world 2');
+  // 2세계 끝까지
+  const r5 = (() => { let last = null; for (const q of QUEST_CHAINS[2]) for (let i = 0; i < q.target; i++) last = solo.recordKill(2, q.mobType); return last; })();
+  check(r5 && r5.completed && r5.rewardGold === 4500 && r5.chainDone === true, 'the last world 2 quest must award 4500G and finish the chain');
+  check(solo.status(2).done === true, 'world 2 chain must be marked done');
+
+  // 6) 한 마리도 빠짐없이 세는지 (10 · 12 · 15 …)
+  const one = new QuestChain(1, QUEST_CHAINS[1]);
+  let counted = 0;
+  for (let i = 0; i < 9; i++) { if (one.recordKill('slime')) counted++; }
+  check(counted === 9 && one.count === 9 && !one.done, 'every slime kill up to the target must count once');
+  const done = one.recordKill('slime');
+  check(done.completed && one.index === 1 && one.count === 0, 'the 10th slime must finish the quest and reset the counter');
+
+  // 7) 몹이 죽으면 게임이 퀘스트로 알린다 (혼자 하기 경로)
+  const qg = makeFeatureGame();
+  qg.recordKill = (type, world) => { qg.killLog = (qg.killLog || []).concat([[type, world]]); return null; };
+  qg.mobManager = new MobManager(qg);
+  qg.mobManager.mobs.length = 0;
+  qg.player = new Player(qg, 'warrior');
+  qg.player.spawnAt(BIOMES.forest.spawn.x, BIOMES.forest.spawn.z);
+  qg.worldId = 1;
+  const slimeMob = new Mob(qg, 'slime', { x: BIOMES.forest.spawn.x + 20, z: BIOMES.forest.spawn.z }, 'forest');
+  slimeMob.netId = 0;
+  qg.mobManager.mobs.push(slimeMob);
+  slimeMob.takeDamage(1e9, {});
+  check(!!qg.killLog && qg.killLog.length === 1 && qg.killLog[0][0] === 'slime' && qg.killLog[0][1] === 1,
+    'a solo kill must report to the quest log: ' + JSON.stringify(qg.killLog));
+  const w2Mob = new Mob(qg, 'goblin', { x: 0, z: WORLD2.originZ + 1000 }, 'goblin_forest');
+  w2Mob.netId = 1;
+  qg.mobManager.mobs.push(w2Mob);
+  w2Mob.takeDamage(1e9, {});
+  check(qg.killLog.length === 2 && qg.killLog[1][0] === 'goblin' && qg.killLog[1][1] === 2,
+    'a world 2 kill must be reported with its world: ' + JSON.stringify(qg.killLog));
+
+  // 8) 친구(게스트)도 호스트가 알려 준 처치를 자기 퀘스트로 센다 ('rw' 보상 메시지)
+  const gg = makeFeatureGame();
+  const grant = [];
+  gg.recordKill = (type, world) => { gg.killLog = (gg.killLog || []).concat([[type, world]]); return null; };
+  const fakeNet = { game: gg, _grant(xp, gold, x, z) { grant.push([xp, gold, x, z]); } };
+  Net.prototype._applyReward.call(fakeNet, { xp: 16, gold: 15, x: 10, z: 20, t: 'slime', w: 1 });
+  check(!!gg.killLog && gg.killLog.length === 1 && gg.killLog[0][0] === 'slime', 'guest must count host-reported kills: ' + JSON.stringify(gg.killLog));
+  check(grant.length === 1 && grant[0][0] === 16 && grant[0][1] === 15, 'guest must still receive xp and gold');
+  // 호스트의 rw 메시지에는 몹 종류가 실린다
+  const rw = decodeMsg(encodeMsg('rw', { xp: 1, gold: 2, t: 'goblin', w: 2 }));
+  check(rw && rw.p && rw.p.t === 'goblin' && rw.p.w === 2, 'rw payload must carry the mob type and world');
+}
+
+/* =====================================================================
+   함께 하기: 11종 몹 모두가 친구(동료)에게 피해를 준다
+   ===================================================================== */
+{
+  const MP_TYPES = ['slime', 'zombie', 'hyena', 'gorilla', 'raider', 'golem', 'goblin', 'skeleton', 'samurai', 'iron_golem', 'dark_mage'];
+  const biomeForMob = (typeId) => ALL_BIOME_ORDER.find((id) => BIOMES[id] && BIOMES[id].mob === typeId) || 'forest';
+
+  // 호스트 게임: 원격 친구 한 명 + hitGuest 기록
+  function makeHostGame() {
+    const sc = new THREE.Scene();
+    const g = {
+      scene: sc,
+      effects: new Effects(sc),
+      timers: [],
+      after(sec, fn) { g.timers.push({ t: sec, fn }); },
+      shake() {},
+      sfx: new Proxy({}, { get: () => () => {} }),
+      hud: {
+        floater() {}, refreshBars() {}, banner() {}, setTarget() {}, flashSkill() {},
+        refreshQuest() {}, questFlash() {}, updateGold() {}, refreshPotions() {},
+        updateRoom() {}, showRoom() {}, hideRoom() {}, showEnd() {}, hideEnd() {},
+      },
+      elapsed: 0,
+      state: 'playing',
+      worldId: 1,
+      gold: 0,
+      hits: [],
+    };
+    g.addGold = (n) => { g.gold += n; };
+    g.combat = new Combat(g);
+    g.mobManager = null;
+    g.onBossEngage = () => {};
+    g.onBossDefeated = () => {};
+    g.onPlayerDeath = () => {};
+    g.recordKill = () => null;
+    g.remote = null;
+    g.combatTargets = () => {
+      const list = [];
+      if (g.player && g.player.alive) list.push({ local: true, alive: true, radius: g.player.radius, position: g.player.position, world: g.worldId });
+      if (g.remote) list.push(g.remote);
+      return list;
+    };
+    g.net = {
+      active: true, isHost: true,
+      hostTargets() { return g.remote ? [g.remote] : []; },
+      hitGuest(pid, dmg) { g.hits.push({ pid, dmg }); },
+      onMobDeath() { return true; },
+    };
+    const mm = new MobManager(g);
+    mm.mobs.length = 0;
+    g.mobManager = mm;
+    g.player = new Player(g, 'warrior');
+    return g;
+  }
+
+  function runMob(hostGame, typeId, hostFar) {
+    const biomeId = biomeForMob(typeId);
+    const world = BIOMES[biomeId].world === 2 ? 2 : 1;
+    const center = BIOMES[biomeId].center;
+    const mob = new Mob(hostGame, typeId, { x: center.x, z: center.z }, biomeId);
+    mob.netId = 0;
+    hostGame.mobManager.mobs.push(mob);
+    mob.attackCd = 0.2;
+    // 친구: 몹 바로 앞 (사거리 안)
+    const rz = center.z + MOB_TYPES[typeId].attackRange * 0.5 + 2;
+    hostGame.remote = {
+      pid: 'guest-1', remote: true, alive: true, radius: 4.6,
+      position: new THREE.Vector3(center.x, 0, rz), world,
+    };
+    // 호스트: 가까이 또는 아주 멀리 (사거리 · 컬링 거리 밖)
+    hostGame.worldId = world;
+    // 멀리 떨어진 자리: 세계 경계에 걸리지 않으면서 컬링 거리(760) 밖인 곳을 고른다
+    const farPoint = () => {
+      const cands = [[1800, 0], [-1800, 0], [0, 1800], [0, -1800], [1300, 0], [-1300, 0], [900, 0], [-900, 0], [0, 900], [0, -900]];
+      for (const c of cands) {
+        const p = clampToWorld({ x: center.x + c[0], z: center.z + c[1] }, world);
+        if (Math.hypot(p.x - center.x, p.z - center.z) > 800) return p;
+      }
+      return clampToWorld({ x: center.x + 900, z: center.z }, world);
+    };
+    const hp = hostFar ? farPoint() : { x: center.x, z: center.z + 520 };
+    hostGame.player.spawnAt(hp.x, hp.z);
+    const dist = Math.hypot(hp.x - center.x, hp.z - center.z);
+    if (hostFar) check(dist > 760, typeId + ' far host must be outside the cull radius: ' + Math.round(dist));
+    check(!hostFar || dist > 760, typeId + ' far host placement failed');
+    const input = { forward: false, back: false, left: false, right: false, sprint: false, jump: false, block: false };
+    for (let i = 0; i < 240; i++) {   // 4초
+      hostGame.player.update(1 / 60, input);
+      hostGame.mobManager.update(1 / 60);
+      hostGame.effects.update(1 / 60);
+      if (mob.dead) break;
+    }
+    const total = hostGame.hits.reduce((a, h) => a + (h.dmg || 0), 0);
+    return { hits: hostGame.hits.length, total, mob, world, biomeId };
+  }
+
+  for (const typeId of MP_TYPES) {
+    const gNear = makeHostGame();
+    const near = runMob(gNear, typeId, false);
+    check(near.hits > 0, typeId + ' must damage a nearby teammate (host close)');
+    check(near.total > 0, typeId + ' must deal real damage: ' + near.total);
+    check(gNear.hits.every((h) => h.pid === 'guest-1'), typeId + ' damage must go to the teammate pid');
+    check(gNear.player.hp === gNear.player.maxHp, typeId + ' must not hit the host instead of the closer teammate');
+
+    const gFar = makeHostGame();
+    const far = runMob(gFar, typeId, true);
+    check(far.hits > 0, typeId + ' must still damage a teammate who fights far from the host');
+    check(far.total > 0, typeId + ' far fight must deal real damage: ' + far.total);
+    check(far.mob.dead === false, typeId + ' must stay alive during the check');
+
+    // 다른 세계에 있는 친구는 이 세계 몹의 공격을 받지 않는다
+    const gWorld = makeHostGame();
+    const biomeId = biomeForMob(typeId);
+    const world = BIOMES[biomeId].world === 2 ? 2 : 1;
+    const center = BIOMES[biomeId].center;
+    const mobW = new Mob(gWorld, typeId, { x: center.x, z: center.z }, biomeId);
+    mobW.netId = 0;
+    gWorld.mobManager.mobs.push(mobW);
+    gWorld.worldId = world;
+    gWorld.remote = {
+      pid: 'guest-2', remote: true, alive: true, radius: 4.6,
+      position: new THREE.Vector3(center.x, 0, center.z + 12),
+      world: world === 2 ? 1 : 2,   // 반대 세계
+    };
+    gWorld.player.spawnAt(center.x, center.z + 400);
+    const input2 = { forward: false, back: false, left: false, right: false, sprint: false, jump: false, block: false };
+    for (let i = 0; i < 240; i++) {
+      gWorld.player.update(1 / 60, input2);
+      gWorld.mobManager.update(1 / 60);
+      gWorld.effects.update(1 / 60);
+    }
+    check(gWorld.hits.length === 0, typeId + ' must not hit a teammate who is in another world');
+  }
+
+  // hostTargets 는 살아 있는 친구의 자리 · 반지름 · 세계를 정확히 넘긴다
+  const fakeNet2 = {
+    remotes: new Map([
+      ['a', { pid: 'a', alive: true, radius: 4.6, x: 10, z: 20, world: 2, rig: { radius: 4.6 } }],
+      ['b', { pid: 'b', alive: false, x: 30, z: 40, world: 1, rig: { radius: 4.6 } }],
+    ]),
+  };
+  const targets = Net.prototype.hostTargets.call(fakeNet2);
+  check(targets.length === 2, 'hostTargets must list every teammate');
+  const ta = targets.find((t) => t.pid === 'a');
+  const tb = targets.find((t) => t.pid === 'b');
+  check(ta && ta.remote === true && ta.alive === true && ta.world === 2 && ta.position.x === 10 && ta.position.z === 20, 'hostTargets must carry position and world');
+  check(tb && tb.alive === false && tb.world === 1, 'hostTargets must carry the alive flag');
+
+  // 같은 세계의 먼 친구 곁의 몹은 컬링되지 않고, 친구와 다른 세계의 몹은 움직이지 않는다
+  const gc = makeHostGame();
+  gc.player.spawnAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z);
+  gc.worldId = 1;
+  const nearMob = new Mob(gc, 'zombie', { x: 1200, z: 1200 }, 'savanna');
+  nearMob.netId = 0;
+  const otherMob = new Mob(gc, 'goblin', { x: 1200, z: WORLD2.originZ + 1200 }, 'goblin_forest');
+  otherMob.netId = 1;
+  gc.mobManager.mobs.push(nearMob, otherMob);
+  gc.remote = { pid: 'guest-3', remote: true, alive: true, radius: 4.6, position: new THREE.Vector3(1200, 0, 1212), world: 1 };
+  gc.mobManager.update(1 / 60);
+  check(nearMob.dist < 60, 'a mob beside a far teammate must not be culled: dist=' + Math.round(nearMob.dist));
+  check(otherMob.dist > 6000, 'a mob in another world must be culled from the teammate: dist=' + Math.round(otherMob.dist));
 }
 
 console.log('feature report:', JSON.stringify(FEATURE_REPORT));

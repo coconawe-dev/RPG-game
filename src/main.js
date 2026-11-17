@@ -14,6 +14,7 @@ import { HUD } from './hud.js';
 import { Sfx } from './audio.js';
 import { castSkill } from './skills.js';
 import { Shop } from './shop.js';
+import { QuestLog } from './quests.js';
 import {
   Net, normalizeRoomCode, isValidRoomCode, playerListForHud, MAX_PLAYERS,
 } from './net.js';
@@ -57,6 +58,8 @@ class Game {
     this.pendingStart = null;
     this._roomAcc = 0;
     this.nearShop = false;
+    // 세계별 순차 퀘스트 (1세계 · 2세계 각자 따로 센다)
+    this.quests = new QuestLog();
     this.victoryTimer = -1;
     this.deathTimer = -1;
     this.pointerLockBroken = false;
@@ -1079,7 +1082,7 @@ class Game {
     const list = [];
     const p = this.player;
     if (p && p.alive) {
-      list.push({ local: true, alive: true, radius: p.radius, position: p.position });
+      list.push({ local: true, alive: true, radius: p.radius, position: p.position, world: this.worldId });
     }
     if (this.net && this.net.active && this.net.isHost) {
       const extra = this.net.hostTargets();
@@ -1134,6 +1137,8 @@ class Game {
       if (this.mobManager) this.mobManager.spawnWorld(2);
     }
     this.gold = START_GOLD;
+    // 새로 시작하면 퀘스트도 처음부터 (1세계 · 2세계 모두)
+    this.quests = new QuestLog();
     this.nearShop = false;
     this.camYaw = yaw;
     this.camPitch = 0.22;
@@ -1146,6 +1151,7 @@ class Game {
     this.victoryKind = null;
     this.deathTimer = -1;
     this.hud.onStart(this.player);
+    if (this.hud.refreshQuest) this.hud.refreshQuest(true);
     // 멀티플레이 연결을 이 시점에 붙인다 (호스트: 몹 스냅샷 송신 시작, 게스트: 몹 미러 준비)
     if (this.net && this.net.role && !this.net.active) {
       if (this.net.isHost) this.net.spawn = { x: spawn.x, z: spawn.z };
@@ -1354,6 +1360,32 @@ class Game {
     if (pos) this.hud.floater('+' + n + 'G', pos, 'gold', 1.6);
     this.sfx.coin();
     this.hud.updateGold();
+  }
+
+  /* ------------------------------ 퀘스트 ------------------------------ */
+  // 몹을 하나 잡았을 때 — 혼자 하기 · 호스트 · 친구(보상 받을 때) 모두 이 한 곳으로 모인다
+  recordKill(mobType, worldId) {
+    const q = this.quests;
+    if (!q || !mobType) return null;
+    const res = q.recordKill(worldId === 2 ? 2 : 1, mobType);
+    if (!res) return null;
+    if (this.hud && this.hud.refreshQuest) this.hud.refreshQuest(true);
+    if (!res.completed) return res;
+    // 목표를 채웠다 → 골드 지급 · 동전 소리 · 배너
+    this.addGold(res.rewardGold);
+    if (this.hud) {
+      this.hud.banner('📜 퀘스트 완료! +' + res.rewardGold + ' G', 2600);
+      this.hud.questFlash();
+    }
+    if (res.chainDone) {
+      const label = (res.world === 2 ? 2 : 1) + '세계';
+      this.after(2.7, () => {
+        if (this.state !== 'playing' && this.state !== 'shop') return;
+        this.hud.banner('✨ ' + label + ' 모든 퀘스트 완료!', 3200);
+        this.sfx.levelup();
+      });
+    }
+    return res;
   }
 
   usePotion(id) {

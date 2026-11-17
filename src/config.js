@@ -761,45 +761,45 @@ export const SHOP = {
   // 직업별 상위 무기 (Tier 2 · 3) — 사면 바로 장착됩니다
   weapons: {
     warrior: [
-      { id: 'w-warrior-2', tier: 2, name: '강철 대검', price: 80, damage: 12, desc: '든든한 강철 대검. 공격력 +12' },
-      { id: 'w-warrior-3', tier: 3, name: '황금 기사검', price: 220, damage: 26, crit: 0.05, desc: '빛나는 황금 기사검. 공격력 +26 · 치명타 +5%' },
+      { id: 'w-warrior-2', tier: 2, name: '강철 대검', price: 160, damage: 12, desc: '든든한 강철 대검. 공격력 +12' },
+      { id: 'w-warrior-3', tier: 3, name: '황금 기사검', price: 440, damage: 26, crit: 0.05, desc: '빛나는 황금 기사검. 공격력 +26 · 치명타 +5%' },
     ],
     archer: [
-      { id: 'w-archer-2', tier: 2, name: '강철 장궁', price: 80, damage: 10, desc: '튼튼한 강철 장궁. 공격력 +10' },
-      { id: 'w-archer-3', tier: 3, name: '바람의 명궁', price: 220, damage: 22, crit: 0.05, desc: '바람을 가르는 명궁. 공격력 +22 · 치명타 +5%' },
+      { id: 'w-archer-2', tier: 2, name: '강철 장궁', price: 160, damage: 10, desc: '튼튼한 강철 장궁. 공격력 +10' },
+      { id: 'w-archer-3', tier: 3, name: '바람의 명궁', price: 440, damage: 22, crit: 0.05, desc: '바람을 가르는 명궁. 공격력 +22 · 치명타 +5%' },
     ],
     rogue: [
-      { id: 'w-rogue-2', tier: 2, name: '미스릴 쌍단검', price: 80, damage: 8, desc: '가벼운 미스릴 쌍단검. 공격력 +8' },
-      { id: 'w-rogue-3', tier: 3, name: '그림자 쌍검', price: 220, damage: 18, crit: 0.06, desc: '그림자를 베는 쌍검. 공격력 +18 · 치명타 +6%' },
+      { id: 'w-rogue-2', tier: 2, name: '미스릴 쌍단검', price: 160, damage: 8, desc: '가벼운 미스릴 쌍단검. 공격력 +8' },
+      { id: 'w-rogue-3', tier: 3, name: '그림자 쌍검', price: 440, damage: 18, crit: 0.06, desc: '그림자를 베는 쌍검. 공격력 +18 · 치명타 +6%' },
     ],
     tanker: [
-      { id: 'w-tanker-2', tier: 2, name: '강철 방패', price: 80, damage: 10, desc: '두꺼운 강철 방패. 공격력 +10' },
-      { id: 'w-tanker-3', tier: 3, name: '수호자의 성벽', price: 220, damage: 21, crit: 0.04, desc: '빛나는 수호자의 방패. 공격력 +21 · 치명타 +4%' },
+      { id: 'w-tanker-2', tier: 2, name: '강철 방패', price: 160, damage: 10, desc: '두꺼운 강철 방패. 공격력 +10' },
+      { id: 'w-tanker-3', tier: 3, name: '수호자의 성벽', price: 440, damage: 21, crit: 0.04, desc: '빛나는 수호자의 방패. 공격력 +21 · 치명타 +4%' },
     ],
     mage: [
-      { id: 'w-mage-2', tier: 2, name: '수정 지팡이', price: 80, damage: 11, desc: '맑은 수정이 박힌 지팡이. 공격력 +11' },
-      { id: 'w-mage-3', tier: 3, name: '대현자의 홀', price: 220, damage: 24, crit: 0.05, desc: '대현자의 홀. 공격력 +24 · 치명타 +5%' },
+      { id: 'w-mage-2', tier: 2, name: '수정 지팡이', price: 160, damage: 11, desc: '맑은 수정이 박힌 지팡이. 공격력 +11' },
+      { id: 'w-mage-3', tier: 3, name: '대현자의 홀', price: 440, damage: 24, crit: 0.05, desc: '대현자의 홀. 공격력 +24 · 치명타 +5%' },
     ],
   },
   // 갑옷 (Tier 1 · 2 · 3) — 사면 바로 장착되고 최대 HP · 피해 감소가 붙는다
   armors: [
     {
-      id: 'a-leather', tier: 1, name: '가죽 갑옷', price: 90, hp: 45, defense: 0.2,
+      id: 'a-leather', tier: 1, name: '가죽 갑옷', price: 180, hp: 45, defense: 0.2,
       desc: '질긴 가죽으로 두른 모험가의 갑옷. 최대 HP +45 · 받는 피해 20% 감소',
     },
     {
-      id: 'a-steel', tier: 2, name: '강철 판금 갑옷', price: 200, hp: 110, defense: 0.35,
+      id: 'a-steel', tier: 2, name: '강철 판금 갑옷', price: 400, hp: 110, defense: 0.35,
       desc: '두꺼운 강철 판금. 최대 HP +110 · 받는 피해 35% 감소',
     },
     {
-      id: 'a-gold', tier: 3, name: '황금 수호 갑옷', price: 380, hp: 200, defense: 0.5,
+      id: 'a-gold', tier: 3, name: '황금 수호 갑옷', price: 760, hp: 200, defense: 0.5,
       desc: '빛나는 황금 갑옷. 최대 HP +200 · 받는 피해 50% 감소',
     },
   ],
   potions: [
-    { id: 'potion-hp', name: '체력 포션', icon: '🧪', price: 30, heal: 80, key: '1', desc: 'HP 80 회복' },
-    { id: 'potion-hp-big', name: '고급 체력 포션', icon: '🍶', price: 70, heal: 99999, key: '2', desc: 'HP 전체 회복' },
-    { id: 'potion-atk', name: '전투의 비약', icon: '⚗️', price: 90, buff: 'elixir', duration: 20, mult: 1.35, key: '3', desc: '20초간 공격력 +35%' },
+    { id: 'potion-hp', name: '체력 포션', icon: '🧪', price: 60, heal: 80, key: '1', desc: 'HP 80 회복' },
+    { id: 'potion-hp-big', name: '고급 체력 포션', icon: '🍶', price: 140, heal: 99999, key: '2', desc: 'HP 전체 회복' },
+    { id: 'potion-atk', name: '전투의 비약', icon: '⚗️', price: 180, buff: 'elixir', duration: 20, mult: 1.35, key: '3', desc: '20초간 공격력 +35%' },
   ],
   // 시작 시 지급되는 포션
   starterPotions: { 'potion-hp': 1 },
@@ -823,50 +823,50 @@ export const SHOP2 = {
   // 직업별 상위 무기 (표시 Tier 4 · 5) — 사면 바로 장착됩니다
   weapons: {
     warrior: [
-      { id: 'w2-warrior-4', tier: 4, name: '흑요석 대검', price: 620, damage: 46, crit: 0.08, desc: '2세계 흑요석을 벼린 대검. 공격력 +46 · 치명타 +8%' },
-      { id: 'w2-warrior-5', tier: 5, name: '불멸의 심판검', price: 1320, damage: 84, crit: 0.12, desc: '차원을 가르는 심판의 검. 공격력 +84 · 치명타 +12%' },
+      { id: 'w2-warrior-4', tier: 4, name: '흑요석 대검', price: 1240, damage: 46, crit: 0.08, desc: '2세계 흑요석을 벼린 대검. 공격력 +46 · 치명타 +8%' },
+      { id: 'w2-warrior-5', tier: 5, name: '불멸의 심판검', price: 2640, damage: 84, crit: 0.12, desc: '차원을 가르는 심판의 검. 공격력 +84 · 치명타 +12%' },
     ],
     archer: [
-      { id: 'w2-archer-4', tier: 4, name: '심연의 장궁', price: 600, damage: 42, crit: 0.08, desc: '심연의 바람을 쏘는 장궁. 공격력 +42 · 치명타 +8%' },
-      { id: 'w2-archer-5', tier: 5, name: '유성의 명궁', price: 1300, damage: 76, crit: 0.12, desc: '유성을 떨어뜨리는 명궁. 공격력 +76 · 치명타 +12%' },
+      { id: 'w2-archer-4', tier: 4, name: '심연의 장궁', price: 1200, damage: 42, crit: 0.08, desc: '심연의 바람을 쏘는 장궁. 공격력 +42 · 치명타 +8%' },
+      { id: 'w2-archer-5', tier: 5, name: '유성의 명궁', price: 2600, damage: 76, crit: 0.12, desc: '유성을 떨어뜨리는 명궁. 공격력 +76 · 치명타 +12%' },
     ],
     rogue: [
-      { id: 'w2-rogue-4', tier: 4, name: '심연 쌍단검', price: 600, damage: 34, crit: 0.09, desc: '어둠을 베는 심연 쌍단검. 공격력 +34 · 치명타 +9%' },
-      { id: 'w2-rogue-5', tier: 5, name: '차원 쌍검', price: 1280, damage: 60, crit: 0.14, desc: '차원을 오가는 쌍검. 공격력 +60 · 치명타 +14%' },
+      { id: 'w2-rogue-4', tier: 4, name: '심연 쌍단검', price: 1200, damage: 34, crit: 0.09, desc: '어둠을 베는 심연 쌍단검. 공격력 +34 · 치명타 +9%' },
+      { id: 'w2-rogue-5', tier: 5, name: '차원 쌍검', price: 2560, damage: 60, crit: 0.14, desc: '차원을 오가는 쌍검. 공격력 +60 · 치명타 +14%' },
     ],
     tanker: [
-      { id: 'w2-tanker-4', tier: 4, name: '심연 수호방패', price: 620, damage: 42, crit: 0.06, desc: '2세계를 막아서는 수호방패. 공격력 +42 · 치명타 +6%' },
-      { id: 'w2-tanker-5', tier: 5, name: '불멸의 성벽', price: 1300, damage: 74, crit: 0.08, desc: '무너지지 않는 불멸의 성벽. 공격력 +74 · 치명타 +8%' },
+      { id: 'w2-tanker-4', tier: 4, name: '심연 수호방패', price: 1240, damage: 42, crit: 0.06, desc: '2세계를 막아서는 수호방패. 공격력 +42 · 치명타 +6%' },
+      { id: 'w2-tanker-5', tier: 5, name: '불멸의 성벽', price: 2600, damage: 74, crit: 0.08, desc: '무너지지 않는 불멸의 성벽. 공격력 +74 · 치명타 +8%' },
     ],
     mage: [
-      { id: 'w2-mage-4', tier: 4, name: '성운 지팡이', price: 640, damage: 48, crit: 0.08, desc: '성운을 담은 지팡이. 공격력 +48 · 치명타 +8%' },
-      { id: 'w2-mage-5', tier: 5, name: '태초의 홀', price: 1340, damage: 86, crit: 0.12, desc: '태초의 빛이 깃든 홀. 공격력 +86 · 치명타 +12%' },
+      { id: 'w2-mage-4', tier: 4, name: '성운 지팡이', price: 1280, damage: 48, crit: 0.08, desc: '성운을 담은 지팡이. 공격력 +48 · 치명타 +8%' },
+      { id: 'w2-mage-5', tier: 5, name: '태초의 홀', price: 2680, damage: 86, crit: 0.12, desc: '태초의 빛이 깃든 홀. 공격력 +86 · 치명타 +12%' },
     ],
   },
   // 2세계 갑옷 (Tier 4 · 5) — 1번째 세계 갑옷보다 훨씬 비싸고 튼튼하다
   armors: [
     {
-      id: 'a-mithril', tier: 4, name: '미스릴 성기사 갑옷', price: 720, hp: 340, defense: 0.62,
+      id: 'a-mithril', tier: 4, name: '미스릴 성기사 갑옷', price: 1440, hp: 340, defense: 0.62,
       desc: '별빛 미스릴로 벼린 성기사 갑옷. 최대 HP +340 · 받는 피해 62% 감소',
     },
     {
-      id: 'a-eternal', tier: 5, name: '차원의 불멸 갑옷', price: 1520, hp: 550, defense: 0.72,
+      id: 'a-eternal', tier: 5, name: '차원의 불멸 갑옷', price: 3040, hp: 550, defense: 0.72,
       desc: '차원의 장막을 두른 불멸의 갑옷. 최대 HP +550 · 받는 피해 72% 감소',
     },
   ],
   // 2세계 포션 — 1번째 세계 포션보다 훨씬 강하고 비싸다
   potions: [
     {
-      id: 'potion-hp-supreme', name: '초월 체력 포션', icon: '💠', price: 180, heal: 600, key: '4',
+      id: 'potion-hp-supreme', name: '초월 체력 포션', icon: '💠', price: 360, heal: 600, key: '4',
       desc: 'HP 600 회복',
     },
     {
-      id: 'potion-full-restore', name: '완전 회복의 성수', icon: '🏺', price: 320, heal: 'full',
+      id: 'potion-full-restore', name: '완전 회복의 성수', icon: '🏺', price: 640, heal: 'full',
       buff: 'guard', duration: 15, defense: 0.5, key: '5',
       desc: 'HP 전체 회복 · 15초간 받는 피해 50% 감소',
     },
     {
-      id: 'potion-rage', name: '광폭의 영약', icon: '🔥', price: 380, buff: 'rage', duration: 25, mult: 1.6, key: '6',
+      id: 'potion-rage', name: '광폭의 영약', icon: '🔥', price: 760, buff: 'rage', duration: 25, mult: 1.6, key: '6',
       desc: '25초간 공격력 +60%',
     },
   ],

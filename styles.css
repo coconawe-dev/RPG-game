@@ -93,6 +93,84 @@ html, body {
 
 .char-panel { width: 286px; }
 
+/* 왼쪽 위: 캐릭터 패널 + 퀘스트 (위에서 아래로 쌓는다) */
+.hud-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 286px;
+  flex: 0 0 auto;
+}
+.hud-left .char-panel { width: 100%; }
+
+/* 퀘스트 추적기 — 지금 세계의 진행 중인 퀘스트 하나만 보여 준다 */
+.quest-panel {
+  width: 100%;
+  padding: 9px 12px 10px;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.quest-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.quest-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--gold-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quest-body { margin-top: 5px; }
+.quest-goal {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.quest-bar {
+  position: relative;
+  margin-top: 6px;
+  height: 9px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(232, 194, 106, 0.35);
+  overflow: hidden;
+}
+.quest-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #8a6a1c, #e8c26a 60%, #ffe9ad);
+  transition: width 0.25s ease;
+}
+.quest-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8.5px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.quest-reward { margin-top: 4px; font-size: 10px; color: #ffe08a; letter-spacing: 0.01em; }
+/* 접었을 때: 제목 · 진행 한 줄만 남긴다 */
+.quest-panel.collapsed .quest-body { display: none; }
+.quest-panel.done .quest-goal { color: #b8f0a8; }
+.quest-panel.flash { animation: questFlash 1s ease; }
+@keyframes questFlash {
+  0% { box-shadow: var(--shadow); }
+  30% { box-shadow: 0 0 24px rgba(255, 215, 94, 0.85); border-color: rgba(255, 215, 94, 0.95); }
+  100% { box-shadow: var(--shadow); }
+}
+
 .char-head {
   display: flex;
   align-items: center;
@@ -715,6 +793,10 @@ kbd {
 
 @media (max-width: 720px) {
   .char-panel { width: 220px; }
+  .hud-left { width: 220px; gap: 6px; }
+  .quest-panel { padding: 7px 10px 8px; }
+  .quest-goal { font-size: 11px; }
+  .quest-reward { font-size: 9.5px; }
   .controls-panel { display: none; }
   .slot { width: 56px; height: 56px; }
   .region-name { font-size: 17px; }

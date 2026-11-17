@@ -868,6 +868,10 @@ export class Mob {
     if (gold > 0 && !multiplayerHost && typeof this.game.addGold === 'function') {
       this.game.addGold(gold, this.position);
     }
+    // 퀘스트: 혼자 하기에서 잡은 몹을 센다 (함께 하기에서는 호스트가 net.onMobDeath 로 센다)
+    if (!multiplayerHost && typeof this.game.recordKill === 'function') {
+      this.game.recordKill(this.typeId, this.worldId);
+    }
     this.game.effects.burst(new THREE.Vector3(this.position.x, this.position.y + this.height * 0.5, this.position.z), this.type.boss ? 0x9fe8ff : 0xffcf8a, this.type.boss ? 40 : 14, { power: this.type.boss ? 60 : 26, size: this.type.boss ? 2.2 : 0.8 });
     this.clearBolts();
     if (this.type.boss) {
@@ -918,6 +922,8 @@ export class Mob {
     }
 
     this.time += dt;
+    // 어둠 구체가 날아간다 (원거리 보스) — 대상이 죽어도 날아가던 구체는 계속 움직인다
+    if (this.bolts.length) this.updateBolts(dt);
     const target = this.pickTarget();
     if (!target) {
       this.root.position.copy(this.position);
@@ -971,7 +977,7 @@ export class Mob {
       const prog = 1 - this.attackT / this.attackDur;
       if (!this.attackHit && prog >= 0.52) {
         this.attackHit = true;
-        this.resolveAttack(dist);
+        this.resolveAttack();
       }
       speedMul = 0.1;
     } else if (this.aggro && target.alive) {
@@ -1065,9 +1071,6 @@ export class Mob {
     this.root.position.copy(this.position);
     this.root.rotation.y = this.facing;
 
-    // 어둠 구체가 날아간다 (원거리 보스)
-    if (this.bolts.length) this.updateBolts(dt);
-
     // 화면에 또렷하게 잡히는 거리에서만 뼈대 애니메이션을 돌린다 (먼 몹은 꿈쩍 않는 점과 구분되지 않는다)
     if (this.dist === undefined || this.dist < (this.game.mobManager ? this.game.mobManager.animRadius : 460) || this.type.boss) {
       this.animate(dt, dist);
@@ -1086,6 +1089,14 @@ export class Mob {
     }
   }
 
+  // 이 몹이 노릴 수 있는 상대인가 — 살아 있고, 같은 세계에 있어야 한다
+  // (다른 세계에 있는 친구가 보이지 않는 곳에서 맞거나, 반대로 맞지 않는 일을 막는다)
+  canTarget(t) {
+    if (!t || !t.alive) return false;
+    if (t.world === undefined || t.world === null) return true;
+    return (t.world === 2 ? 2 : 1) === this.worldId;
+  }
+
   // 가장 가까운 플레이어(나 또는 함께 하는 친구)를 노린다
   pickTarget() {
     const list = this.game.combatTargets ? this.game.combatTargets() : null;
@@ -1097,7 +1108,7 @@ export class Mob {
     let bd = Infinity;
     for (let i = 0; i < list.length; i++) {
       const t = list[i];
-      if (!t || !t.alive) continue;
+      if (!this.canTarget(t)) continue;
       const d = Math.hypot(t.position.x - this.position.x, t.position.z - this.position.z);
       if (d < bd) { bd = d; best = t; }
     }
@@ -1165,7 +1176,7 @@ export class Mob {
     const list = this.game.combatTargets ? this.game.combatTargets() : null;
     const targets = list || (this.game.player ? [{ local: true, alive: this.game.player.alive, radius: 4.6, position: this.game.player.position }] : []);
     for (const t of targets) {
-      if (!t || !t.alive) continue;
+      if (!this.canTarget(t)) continue;
       const d = Math.hypot(t.position.x - this.position.x, t.position.z - this.position.z);
       if (d > radius + (t.radius || 4.6)) continue;
       const falloff = clamp(1 - (d / radius) * 0.4, 0.6, 1);
@@ -1185,10 +1196,13 @@ export class Mob {
     this.game.shake(1.15);
   }
 
-  resolveAttack(dist) {
+  resolveAttack() {
     const target = this.targetRef;
-    if (!target || !target.alive) return;
-    const reach = this.type.attackRange + (target.radius || 4.6);
+    if (!this.canTarget(target)) return;
+    // 휘두르기 시작할 때 잰 거리가 아니라, 지금 거리로 판정한다
+    // (그 사이 상대가 조금 움직였거나 몹끼리 밀려나도 휘두른 타격이 헛돌지 않게)
+    const dist = Math.hypot(target.position.x - this.position.x, target.position.z - this.position.z);
+    const reach = this.type.attackRange + (target.radius || 4.6) + 8;
     if (dist > reach) return;
     // 원거리 보스(흑마법사): 화면에 어둠 구체가 실제로 날아가 박힌다
     if (this.type.enemyProjectile) {
@@ -1211,7 +1225,7 @@ export class Mob {
 
   /* ------------------- 어둠 구체 (흑마법사 원거리 공격) ------------------- */
   fireBolt(target) {
-    if (!target || !target.alive) return;
+    if (!this.canTarget(target)) return;
     const scene = this.game.scene;
     const from = new THREE.Vector3(this.position.x, this.position.y + this.height * 0.62, this.position.z);
     const tx = target.position.x - from.x;
@@ -1253,7 +1267,7 @@ export class Mob {
       b.mesh.rotation.y += dt * 6;
       let hit = null;
       for (const t of list) {
-        if (!t || !t.alive) continue;
+        if (!this.canTarget(t)) continue;
         const rr = 12 + (t.radius || 4.6);
         if (Math.hypot(t.position.x - b.x, t.position.z - b.z) < rr) { hit = t; break; }
       }
@@ -1656,25 +1670,62 @@ export class MobManager {
 
   update(dt) {
     const p = this.game.player;
-    const px = p ? p.position.x : 0;
-    const pz = p ? p.position.z : 0;
-    for (let i = 0; i < this.mobs.length; i++) {
-      const m = this.mobs[i];
-      if (!p) {
+    const anchors = this.anchorPoints();
+    if (!p) {
+      for (let i = 0; i < this.mobs.length; i++) {
+        const m = this.mobs[i];
         if (m.remote) m.updateRemote(dt);
         else m.update(dt);
-        continue;
       }
-      m.dist = Math.hypot(m.position.x - px, m.position.z - pz);
-      if (m.dist > this.cullRadius) {
+      return;
+    }
+    for (let i = 0; i < this.mobs.length; i++) {
+      const m = this.mobs[i];
+      // 내 화면(카메라)에서의 거리 — 그리기 · 숨기기는 이 거리로 정한다
+      const hostDist = Math.hypot(m.position.x - p.position.x, m.position.z - p.position.z);
+      // 이 몹과 싸우는 사람 중 가장 가까운 이 (나 또는 함께 하는 친구, 같은 세계)
+      // → 친구가 나에서 멀리 떨어져 싸워도 그 몹은 멈추지 않고 친구를 공격한다
+      let near = hostDist;
+      for (let k = 0; k < anchors.length; k++) {
+        const a = anchors[k];
+        if (a.world !== m.worldId) continue;
+        const d = Math.hypot(m.position.x - a.x, m.position.z - a.z);
+        if (d < near) near = d;
+      }
+      m.dist = near;
+      if (near > this.cullRadius) {
         if (m.root.visible) m.root.visible = false;
         m.updateFar(dt);
         continue;
       }
-      if (!m.root.visible && !m.dead) m.root.visible = true;
+      // 친구 곁에서 싸우는 먼 몹은 AI 만 돌리고 내 화면에는 그리지 않는다
+      const show = hostDist <= this.cullRadius;
+      if (!show) m.root.visible = false;
+      else if (!m.root.visible && !m.dead) m.root.visible = true;
       if (m.remote) m.updateRemote(dt);
       else m.update(dt);
     }
+  }
+
+  /* 몹과 싸우는 플레이어들의 자리 (나 + 함께 하는 친구들) — 세계까지 함께 돌려준다
+     함께 하기에서 친구가 나와 멀리 떨어져 있어도 그 곁의 몹이 계속 움직이게 하는 근거 */
+  anchorPoints() {
+    const g = this.game;
+    const out = [];
+    const list = g && g.combatTargets ? (g.combatTargets() || []) : null;
+    if (list) {
+      for (let i = 0; i < list.length; i++) {
+        const t = list[i];
+        if (!t || !t.alive || !t.position) continue;
+        const w = (t.world === undefined || t.world === null) ? (g.worldId === 2 ? 2 : 1) : (t.world === 2 ? 2 : 1);
+        out.push({ x: t.position.x, z: t.position.z, world: w });
+      }
+      return out;
+    }
+    if (g && g.player && g.player.position) {
+      out.push({ x: g.player.position.x, z: g.player.position.z, world: g.worldId === 2 ? 2 : 1 });
+    }
+    return out;
   }
 
   // AI 를 돌리지 않는 상태(시작 화면 · 상점 창 등)에서도 가까운 몸만 보이게 한다
