@@ -163,6 +163,22 @@ html, body {
 .quest-reward { margin-top: 4px; font-size: 10px; color: #ffe08a; letter-spacing: 0.01em; }
 /* 접었을 때: 제목 · 진행 한 줄만 남긴다 */
 .quest-panel.collapsed .quest-body { display: none; }
+/* 짧은 화면(가로로 든 휴대폰 · 520px 이하): 캐릭터 패널과 퀘스트 추적기를 나란히 놓는다.
+   아래로 쌓으면 도구 버튼이 조이스틱 위로 밀려 내려와 손이 닿지 않기 때문이다. */
+@media (max-height: 520px) {
+  .hud-left {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    width: auto;
+    gap: 8px;
+  }
+  .hud-left .char-panel { width: 286px; }
+  .hud-left .quest-panel { width: 220px; padding: 8px 10px; }
+  .quest-goal { font-size: 11px; }
+  .quest-reward { font-size: 9.5px; }
+}
+
 .quest-panel.done .quest-goal { color: #b8f0a8; }
 .quest-panel.flash { animation: questFlash 1s ease; }
 @keyframes questFlash {
@@ -796,8 +812,7 @@ kbd {
   .hud-left { width: 220px; gap: 6px; }
   .quest-panel { padding: 7px 10px 8px; }
   .quest-goal { font-size: 11px; }
-  .quest-reward { font-size: 9.5px; }
-  .controls-panel { display: none; }
+  .quest-reward { font-size: 9.5px; }  .controls-panel { display: none; }
   .slot { width: 56px; height: 56px; }
   .region-name { font-size: 17px; }
   .class-grid { grid-template-columns: 1fr; }
