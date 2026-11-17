@@ -692,13 +692,13 @@ export const MOB_TYPES = {
   fallen_hero: {
     id: 'fallen_hero', name: '타락한 영웅', hp: 7600, damage: 260, speed: 60, aggro: 320,
     attackRange: 58, attackCooldown: 1.4, xp: 4200, gold: 2800, height: 24, radius: 8,
-    leash: 560, kind: 'fallen_hero',
+    leash: 560, kind: 'fallen_hero', level: 78,
   },
   // 최종 보스 — 거대 강하닭 (한 마리만 · 사용자 요청: "강하닭은 크게만들어야되")
   strong_chicken: {
     id: 'strong_chicken', name: '강하닭', hp: 46000, damage: 360, speed: 42, aggro: 420,
     attackRange: 120, attackCooldown: 2.2, xp: 20000, gold: 12000, height: 58, radius: 22,
-    leash: 720, kind: 'strong_chicken', boss: true, level: 95,
+    leash: 720, kind: 'strong_chicken', boss: true, level: 99,
     enrageAt: 0.5, slamEvery: 3, slamRadius: 260, slamWindup: 1.5, slamCooldown: 9,
     slamLabel: '거대 발톱 내려찍기!',
   },

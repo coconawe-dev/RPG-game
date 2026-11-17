@@ -3047,8 +3047,8 @@ function buildOccupiedRanch(scene) {
     egg.castShadow = true;
     g.add(egg);
   }
-  const nestGlow = glowHalo(0xffc46a, 90, 0.14, 0.7);
-  nestGlow.position.y = 26;
+  const nestGlow = glowHalo(0xffc46a, 54, 0.09, 0.6);
+  nestGlow.position.y = 22;
   g.add(nestGlow);
   g.position.set(biome.landmarkPos.x, terrainHeight(biome.landmarkPos.x, biome.landmarkPos.z), biome.landmarkPos.z);
   scene.add(g);
