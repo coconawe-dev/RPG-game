@@ -722,7 +722,7 @@ export const MOB_TYPES = {
   // 심해의 거대 오징어 — 8개의 촉수를 휘두르는 2세계 강자
   giant_squid: {
     id: 'giant_squid', name: '거대 오징어', hp: 3100, damage: 112, speed: 40, aggro: 265,
-    attackRange: 62, attackCooldown: 1.9, xp: 980, gold: 520, height: 46, radius: 13,
+    attackRange: 62, attackCooldown: 1.9, xp: 980, gold: 520, height: 52, radius: 14,
     leash: 520, kind: 'giant_squid',
   },
   dark_mage: {

@@ -1358,42 +1358,43 @@ function buildGiantSquid() {
 
   // 1) 외투(mantle) — 뒤-위로 길게 뻗은 원뿔과 날개지느러미
   const mantle = new THREE.Group();
-  mantle.position.set(0, 10, -2);
-  mantle.rotation.x = -0.22;
+  mantle.position.set(0, 9, -3);
+  mantle.rotation.x = -0.3;
   body.add(mantle);
-  mantle.add(mkMesh(new THREE.ConeGeometry(11.5, 34, 14), mantleMat, 0, 4, 0));
-  mantle.add(mkMesh(new THREE.CylinderGeometry(11.4, 10.6, 8, 14), mantleDark, 0, -11, 0));
+  mantle.add(mkMesh(new THREE.ConeGeometry(9.6, 34, 14), mantleMat, 0, 3, 0));
+  mantle.add(mkMesh(new THREE.CylinderGeometry(9.4, 8.8, 7, 14), mantleDark, 0, -13, 0));
   const finL = new THREE.Group();
   const finR = new THREE.Group();
   for (const [fin, s] of [[finL, 1], [finR, -1]]) {
-    fin.position.set(s * 4, 17, 0);
-    const blade = mkMesh(new THREE.ConeGeometry(10, 19, 3), finMat, s * 6, 2, 0);
-    blade.scale.set(1, 1, 0.22);
-    blade.rotation.z = -s * (Math.PI / 2 + 0.25);
+    fin.position.set(s * 2.6, 15, 0);
+    const blade = mkMesh(new THREE.ConeGeometry(7.6, 17, 3), finMat, s * 5.4, 3.4, 0);
+    blade.scale.set(0.95, 1, 0.20);
+    blade.rotation.z = -s * 0.72;
     fin.add(blade);
     mantle.add(fin);
   }
   // 외투 위의 발광 반점
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
-    const spot = mkMesh(new THREE.SphereGeometry(1.5, 8, 6), spotMat, Math.cos(a) * 8.2, 1 + (i % 3) * 5, Math.sin(a) * 8.2);
+    const spot = mkMesh(new THREE.SphereGeometry(1.25, 8, 6), spotMat, Math.cos(a) * 6.8, -6 + (i % 3) * 6, Math.sin(a) * 6.8);
     mantle.add(spot);
   }
 
   // 2) 머리 — 아래로 처진 살덩이와 심연을 비추는 두 눈
   const head = new THREE.Group();
-  head.position.set(0, -5, 2);
+  head.position.set(0, -4, 2);
   body.add(head);
-  head.add(mkMesh(new THREE.SphereGeometry(11.0, 16, 13), fleshMat, 0, 0, 0));
+  head.add(mkMesh(new THREE.SphereGeometry(9.6, 16, 13), fleshMat, 0, 0, 0));
   for (const s of [-1, 1]) {
-    head.add(mkMesh(new THREE.SphereGeometry(5.4, 14, 12), eyeMat, s * 7.4, 1.4, 7.2));
-    head.add(mkMesh(new THREE.SphereGeometry(2.4, 10, 8), pupilMat, s * 7.8, 1.4, 11.2));
-    const brow = mkMesh(new THREE.BoxGeometry(6.0, 1.8, 2.4), mantleDark, s * 7.2, 6.2, 8.0);
+    head.add(mkMesh(new THREE.SphereGeometry(4.6, 14, 12), eyeMat, s * 7.0, 1.8, 6.4));
+    const pupil = mkMesh(new THREE.BoxGeometry(0.9, 3.4, 0.9), pupilMat, s * 7.1, 1.8, 10.2);
+    head.add(pupil);
+    const brow = mkMesh(new THREE.BoxGeometry(5.4, 1.6, 2.2), mantleDark, s * 6.8, 5.6, 7.4);
     brow.rotation.z = -s * 0.34;
     head.add(brow);
   }
   // 부리
-  const beak = mkMesh(new THREE.ConeGeometry(3.6, 9, 4), mantleDark, 0, -8.5, 6.2);
+  const beak = mkMesh(new THREE.ConeGeometry(3.2, 8, 4), mantleDark, 0, -7.4, 5.6);
   beak.rotation.set(Math.PI * 0.62, Math.PI / 4, 0);
   head.add(beak);
 
@@ -1425,11 +1426,11 @@ function buildGiantSquid() {
   };
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    const segs = mkArm(12, 3.2, 3);
-    segs[0].position.set(Math.cos(a) * 6.6, -9, Math.sin(a) * 6.6);
+    const segs = mkArm(10, 3.0, 3);
+    segs[0].position.set(Math.cos(a) * 6.0, -8, Math.sin(a) * 6.0);
     head.add(segs[0]);
     // 첫 마디 안쪽에 빛나는 빨판
-    segs[0].add(mkMesh(new THREE.SphereGeometry(1.35, 8, 6), suckerMat, Math.cos(a) * 1.0, -6.0, Math.sin(a) * 1.0));
+    segs[0].add(mkMesh(new THREE.SphereGeometry(1.25, 8, 6), suckerMat, Math.cos(a) * 0.9, -5.0, Math.sin(a) * 0.9));
     arms.push(segs);
     armAngles.push({ x: Math.cos(a), z: Math.sin(a) });
   }
@@ -1438,16 +1439,16 @@ function buildGiantSquid() {
   const tentacles = [];
   const tentacleAngles = [];
   for (const s of [-1, 1]) {
-    const segs = mkArm(15, 2.4, 3, fleshMat);
+    const segs = mkArm(13, 2.3, 3, fleshMat);
     const a = s > 0 ? 0.5 : Math.PI - 0.5;
-    segs[0].position.set(Math.cos(a) * 5.6, -8, Math.sin(a) * 5.6);
+    segs[0].position.set(Math.cos(a) * 5.2, -6, Math.sin(a) * 5.2);
     head.add(segs[0]);
     // 촉수 끝의 곤봉과 빨판
     const club = new THREE.Group();
-    club.position.y = -10.1;
+    club.position.y = -8.7;
     const lastJoint = segs[segs.length - 1];
     lastJoint.add(club);
-    const bulb = mkMesh(new THREE.SphereGeometry(2.6, 10, 8), suckerMat, 0, -5, 0);
+    const bulb = mkMesh(new THREE.SphereGeometry(2.4, 10, 8), suckerMat, 0, -4, 0);
     bulb.scale.set(1, 2.1, 1);
     club.add(bulb);
     tentacles.push(segs);
@@ -1456,7 +1457,7 @@ function buildGiantSquid() {
 
   // 5) 바닥의 어두운 그림자 같은 후광 (깊은 바다의 압박감)
   const bodyGlow = haloMesh(0x3fd8e8, 30, 0.05, 0.55);
-  bodyGlow.position.y = -8;
+  bodyGlow.position.y = -6;
   body.add(bodyGlow);
 
   return {
@@ -2918,7 +2919,7 @@ export class Mob {
     } else if (this.typeId === 'giant_squid') {
       // 깊은 바다를 떠다니는 거대 오징어 — 외투가 물결치고 여덟 다리가 따로 유영한다
       const bob = Math.sin(t * 1.25) * 2.2;
-      m.body.position.y = 24 + bob;
+      m.body.position.y = 28 + bob;
       m.body.rotation.x = Math.sin(t * 0.8) * 0.05;
       m.body.rotation.z = Math.sin(t * 0.65) * 0.045;
       const swing = atkP >= 0 ? clamp(Math.sin(clamp(atkP, 0, 1) * Math.PI), 0, 1) : 0;
@@ -2936,7 +2937,7 @@ export class Mob {
         const segs = m.arms[i];
         const dir = m.armAngles[i];
         const ph = i * 0.79;
-        const spread = 1.24 - swing * 0.36;
+        const spread = 1.0 - swing * 0.3;
         segs[0].rotation.x = dir.z * spread + Math.sin(t * 1.7 + ph) * 0.24 + swing * 0.5;
         segs[0].rotation.z = -dir.x * spread + Math.cos(t * 1.45 + ph) * 0.24;
         if (segs[1]) {
@@ -2950,8 +2951,8 @@ export class Mob {
         const segs = m.tentacles[i];
         const dir = m.tentacleAngles[i];
         const ph = i * 2.4 + 0.6;
-        segs[0].rotation.x = dir.z * 1.28 + Math.sin(t * 1.15 + ph) * 0.3 - swing * 0.35;
-        segs[0].rotation.z = -dir.x * 1.28 + Math.cos(t * 1.0 + ph) * 0.26;
+        segs[0].rotation.x = dir.z * 1.12 + Math.sin(t * 1.15 + ph) * 0.26 - swing * 0.35;
+        segs[0].rotation.z = -dir.x * 1.12 + Math.cos(t * 1.0 + ph) * 0.24;
         if (segs[1]) segs[1].rotation.x = 0.28 + Math.sin(t * 1.45 + ph * 1.6) * 0.34;
         if (segs[2]) segs[2].rotation.x = 0.34 + Math.sin(t * 1.8 + ph * 2.1) * 0.38;
       }
