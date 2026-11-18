@@ -1346,9 +1346,10 @@ function buildGiantSquid() {
   mats.push(mantleMat, mantleDark, fleshMat, finMat);
 
   const eyeMat = new THREE.MeshStandardMaterial({
-    color: 0xd8fbff, emissive: 0x8fe8ff, emissiveIntensity: 2.2, roughness: 0.18,
+    color: 0xd8fbff, emissive: 0x6fe0ff, emissiveIntensity: 2.4, roughness: 0.18,
   });
-  const pupilMat = new THREE.MeshBasicMaterial({ color: 0x06121a });
+  const socketMat = stdMat(0x0b1524, { roughness: 0.7, emissive: 0x061020, emissiveIntensity: 0.5 });
+  const pupilMat = new THREE.MeshBasicMaterial({ color: 0x03080e });
   const suckerMat = new THREE.MeshStandardMaterial({
     color: 0xffe0f2, emissive: 0xff86c8, emissiveIntensity: 1.1, roughness: 0.45,
   });
@@ -1386,10 +1387,11 @@ function buildGiantSquid() {
   body.add(head);
   head.add(mkMesh(new THREE.SphereGeometry(9.6, 16, 13), fleshMat, 0, 0, 0));
   for (const s of [-1, 1]) {
-    head.add(mkMesh(new THREE.SphereGeometry(4.6, 14, 12), eyeMat, s * 7.0, 1.8, 6.4));
-    const pupil = mkMesh(new THREE.BoxGeometry(0.9, 3.4, 0.9), pupilMat, s * 7.1, 1.8, 10.2);
-    head.add(pupil);
-    const brow = mkMesh(new THREE.BoxGeometry(5.4, 1.6, 2.2), mantleDark, s * 6.8, 5.6, 7.4);
+    // 검은 눈두덩 안에서 청록빛 홍채가 빛나고, 세로 동공이 심연을 향한다
+    head.add(mkMesh(new THREE.SphereGeometry(5.3, 14, 12), socketMat, s * 7.0, 1.8, 6.0));
+    head.add(mkMesh(new THREE.SphereGeometry(3.9, 14, 12), eyeMat, s * 7.1, 1.8, 7.8));
+    head.add(mkMesh(new THREE.BoxGeometry(0.9, 4.2, 0.9), pupilMat, s * 7.15, 1.8, 10.8));
+    const brow = mkMesh(new THREE.BoxGeometry(5.4, 1.6, 2.2), mantleDark, s * 6.8, 5.8, 7.2);
     brow.rotation.z = -s * 0.34;
     head.add(brow);
   }
@@ -1556,21 +1558,35 @@ function buildAncientSerpent() {
     const headG = new THREE.Group();
     headG.position.y = 13;
     upperJoint.add(headG);
-    headG.add(mkMesh(new THREE.BoxGeometry(8.6, 6.6, 15), scaleMat, 0, 0, 4));
-    headG.add(mkMesh(new THREE.BoxGeometry(7.0, 4.4, 8), scaleDark, 0, -1.0, 12.5));
-    // 눈 — 두 눈 모두 금빛으로 타오른다
+    // 코브라 같은 후드 — 뒤로 펼쳐져 뱀의 실루엣을 만든다
+    const hood = mkMesh(new THREE.ConeGeometry(8.4, 15, 3), scaleDark, 0, 1.6, -3.4);
+    hood.scale.set(1.2, 1, 0.32);
+    hood.rotation.x = 0.18;
+    headG.add(hood);
     for (const s of [-1, 1]) {
-      headG.add(mkMesh(new THREE.SphereGeometry(2.1, 10, 8), eyeMat, s * 3.5, 1.8, 5.6));
-      const slit = mkMesh(new THREE.BoxGeometry(0.7, 2.4, 0.7), stdMat(0x120800, { roughness: 0.9 }), s * 3.7, 1.8, 7.3);
+      const rib = mkMesh(new THREE.BoxGeometry(0.8, 11, 0.5), crestMat, s * 4.2, 2.2, -3.4);
+      rib.rotation.z = -s * 0.28;
+      headG.add(rib);
+    }
+    // 두개골 · 주둥이 · 코끝
+    headG.add(mkMesh(new THREE.BoxGeometry(7.8, 6.0, 13), scaleMat, 0, 0, 3.4));
+    headG.add(mkMesh(new THREE.BoxGeometry(5.8, 3.8, 9), scaleDark, 0, -1.2, 10.4));
+    const noseTip = mkMesh(new THREE.ConeGeometry(2.4, 4.4, 5), scaleDark, 0, -1.2, 16.0);
+    noseTip.rotation.x = Math.PI / 2;
+    headG.add(noseTip);
+    // 눈 — 두 눈 모두 금빛으로 타오르고, 세로 동공이 빛난다
+    for (const s of [-1, 1]) {
+      headG.add(mkMesh(new THREE.SphereGeometry(2.6, 12, 10), eyeMat, s * 3.5, 1.9, 5.4));
+      const slit = mkMesh(new THREE.BoxGeometry(0.8, 3.0, 0.8), stdMat(0x120800, { roughness: 0.9 }), s * 3.6, 1.9, 7.4);
       headG.add(slit);
       const horn = mkMesh(new THREE.ConeGeometry(1.3, 6.4, 5), crestMat, s * 3.2, 4.4, -1.2);
       horn.rotation.x = -0.55;
       horn.rotation.z = s * 0.24;
       headG.add(horn);
     }
-    // 이탈 치아 · 코뿔 크레스트
+    // 입천장 이탈 치아 · 코뿔 크레스트
     for (let k = 0; k < 4; k++) {
-      const f = mkMesh(new THREE.ConeGeometry(0.85, 3.6, 4), fangMat, -3 + k * 2, -2.9, 10 + (k % 2) * 3);
+      const f = mkMesh(new THREE.ConeGeometry(0.85, 3.8, 4), fangMat, -3 + k * 2, -2.7, 10.5 + (k % 2) * 3.4);
       f.rotation.x = Math.PI;
       headG.add(f);
     }
@@ -1580,10 +1596,10 @@ function buildAncientSerpent() {
     const jaw = new THREE.Group();
     jaw.position.set(0, -2.6, 3.2);
     headG.add(jaw);
-    jaw.add(mkMesh(new THREE.BoxGeometry(6.6, 2.4, 11), scaleDark, 0, -1.0, 5.0));
-    jaw.add(mkMesh(new THREE.BoxGeometry(6.0, 0.8, 10), mouthMat, 0, 0.4, 5.0));
+    jaw.add(mkMesh(new THREE.BoxGeometry(6.0, 2.2, 10), scaleDark, 0, -1.0, 5.4));
+    jaw.add(mkMesh(new THREE.BoxGeometry(5.4, 0.8, 9), mouthMat, 0, 0.4, 5.4));
     for (let k = 0; k < 3; k++) {
-      const f = mkMesh(new THREE.ConeGeometry(0.75, 3.0, 4), fangMat, -2 + k * 2, 1.6, 3 + (k % 2) * 4);
+      const f = mkMesh(new THREE.ConeGeometry(0.75, 3.0, 4), fangMat, -1.8 + k * 1.8, 1.6, 4 + (k % 2) * 3.6);
       jaw.add(f);
     }
 
