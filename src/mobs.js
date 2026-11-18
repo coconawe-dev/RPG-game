@@ -1475,8 +1475,8 @@ function buildAncientSerpent() {
   root.add(body);
   const mats = [];
 
-  const scaleMat = stdMat(0x2f5c46, { roughness: 0.62, metalness: 0.12, emissive: 0x0d2418, emissiveIntensity: 0.4 });
-  const scaleDark = stdMat(0x203e2e, { roughness: 0.7, emissive: 0x07130d, emissiveIntensity: 0.35 });
+  const scaleMat = stdMat(0x3f7d5a, { roughness: 0.6, metalness: 0.12, emissive: 0x123024, emissiveIntensity: 0.4 });
+  const scaleDark = stdMat(0x2b523d, { roughness: 0.68, emissive: 0x0a1c14, emissiveIntensity: 0.35 });
   const bellyMat = stdMat(0xbba76c, { roughness: 0.6, emissive: 0x3a2a08, emissiveIntensity: 0.3 });
   const crestMat = new THREE.MeshStandardMaterial({
     color: 0xffd27a, emissive: 0xc07a10, emissiveIntensity: 1.7, roughness: 0.35, metalness: 0.5,
@@ -1558,14 +1558,14 @@ function buildAncientSerpent() {
     const headG = new THREE.Group();
     headG.position.y = 13;
     upperJoint.add(headG);
-    // 코브라 같은 후드 — 뒤로 펼쳐져 뱀의 실루엣을 만든다
-    const hood = mkMesh(new THREE.ConeGeometry(8.4, 15, 3), scaleDark, 0, 1.6, -3.4);
-    hood.scale.set(1.2, 1, 0.32);
+    // 코브라 같은 후드 — 머리 뒤로 펼쳐져 뱀의 실루엣을 만든다
+    const hood = mkMesh(new THREE.ConeGeometry(6.4, 10.5, 3), scaleMat, 0, 2.4, -3.2);
+    hood.scale.set(1.25, 1, 0.3);
     hood.rotation.x = 0.18;
     headG.add(hood);
     for (const s of [-1, 1]) {
-      const rib = mkMesh(new THREE.BoxGeometry(0.8, 11, 0.5), crestMat, s * 4.2, 2.2, -3.4);
-      rib.rotation.z = -s * 0.28;
+      const rib = mkMesh(new THREE.BoxGeometry(0.6, 8, 0.5), crestMat, s * 3.2, 2.6, -3.2);
+      rib.rotation.z = -s * 0.3;
       headG.add(rib);
     }
     // 두개골 · 주둥이 · 코끝
@@ -1576,8 +1576,8 @@ function buildAncientSerpent() {
     headG.add(noseTip);
     // 눈 — 두 눈 모두 금빛으로 타오르고, 세로 동공이 빛난다
     for (const s of [-1, 1]) {
-      headG.add(mkMesh(new THREE.SphereGeometry(2.6, 12, 10), eyeMat, s * 3.5, 1.9, 5.4));
-      const slit = mkMesh(new THREE.BoxGeometry(0.8, 3.0, 0.8), stdMat(0x120800, { roughness: 0.9 }), s * 3.6, 1.9, 7.4);
+      headG.add(mkMesh(new THREE.SphereGeometry(2.9, 12, 10), eyeMat, s * 3.5, 2.0, 5.8));
+      const slit = mkMesh(new THREE.BoxGeometry(0.8, 3.2, 0.8), stdMat(0x120800, { roughness: 0.9 }), s * 3.6, 2.0, 7.9);
       headG.add(slit);
       const horn = mkMesh(new THREE.ConeGeometry(1.3, 6.4, 5), crestMat, s * 3.2, 4.4, -1.2);
       horn.rotation.x = -0.55;
