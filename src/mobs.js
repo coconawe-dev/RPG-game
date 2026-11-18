@@ -1346,7 +1346,7 @@ function buildGiantSquid() {
   mats.push(mantleMat, mantleDark, fleshMat, finMat);
 
   const eyeMat = new THREE.MeshStandardMaterial({
-    color: 0xd8fbff, emissive: 0x6fe0ff, emissiveIntensity: 2.4, roughness: 0.18,
+    color: 0x74ecff, emissive: 0x2fbde0, emissiveIntensity: 2.0, roughness: 0.18,
   });
   const socketMat = stdMat(0x0b1524, { roughness: 0.7, emissive: 0x061020, emissiveIntensity: 0.5 });
   const pupilMat = new THREE.MeshBasicMaterial({ color: 0x03080e });
