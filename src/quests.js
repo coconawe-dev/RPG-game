@@ -20,7 +20,8 @@ export const QUEST_CHAINS = {
     { id: 'w2_q2', mobType: 'skeleton', target: 12, rewardGold: 1100 },
     { id: 'w2_q3', mobType: 'samurai', target: 10, rewardGold: 1600 },
     { id: 'w2_q4', mobType: 'iron_golem', target: 6, rewardGold: 2400 },
-    { id: 'w2_q5', mobType: 'dark_mage', target: 1, rewardGold: 4500 },
+    { id: 'w2_q5', mobType: 'giant_squid', target: 8, rewardGold: 3200 },
+    { id: 'w2_q6', mobType: 'dark_mage', target: 1, rewardGold: 4500 },
   ],
   3: [
     { id: 'w3_q1', mobType: 'dragon', target: 8, rewardGold: 8000 },
@@ -28,7 +29,8 @@ export const QUEST_CHAINS = {
     { id: 'w3_q3', mobType: 'tyrannosaurus', target: 8, rewardGold: 13000 },
     { id: 'w3_q4', mobType: 'spinosaurus', target: 8, rewardGold: 15000 },
     { id: 'w3_q5', mobType: 'fallen_hero', target: 10, rewardGold: 20000 },
-    { id: 'w3_q6', mobType: 'strong_chicken', target: 1, rewardGold: 35000 },
+    { id: 'w3_q6', mobType: 'ancient_serpent', target: 8, rewardGold: 24000 },
+    { id: 'w3_q7', mobType: 'strong_chicken', target: 1, rewardGold: 35000 },
   ],
 };
 

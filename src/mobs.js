@@ -1332,6 +1332,277 @@ function buildStrongChicken() {
   };
 }
 
+/* --------------------------- 2세계 심해 · 거대 오징어 --------------------------- */
+function buildGiantSquid() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const mats = [];
+
+  const mantleMat = stdMat(0x6d3d78, { roughness: 0.55, metalness: 0.05, emissive: 0x2a0f38, emissiveIntensity: 0.4 });
+  const mantleDark = stdMat(0x472852, { roughness: 0.6, emissive: 0x180a20, emissiveIntensity: 0.35 });
+  const fleshMat = stdMat(0xb07a94, { roughness: 0.62, emissive: 0x3a1628, emissiveIntensity: 0.3 });
+  const finMat = stdMat(0x8a5296, { roughness: 0.55, emissive: 0x2a1038, emissiveIntensity: 0.35 });
+  mats.push(mantleMat, mantleDark, fleshMat, finMat);
+
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: 0xd8fbff, emissive: 0x8fe8ff, emissiveIntensity: 2.2, roughness: 0.18,
+  });
+  const pupilMat = new THREE.MeshBasicMaterial({ color: 0x06121a });
+  const suckerMat = new THREE.MeshStandardMaterial({
+    color: 0xffe0f2, emissive: 0xff86c8, emissiveIntensity: 1.1, roughness: 0.45,
+  });
+  const spotMat = new THREE.MeshStandardMaterial({
+    color: 0x9ff4ff, emissive: 0x35d8e8, emissiveIntensity: 1.9, roughness: 0.3,
+  });
+
+  // 1) 외투(mantle) — 뒤-위로 길게 뻗은 원뿔과 날개지느러미
+  const mantle = new THREE.Group();
+  mantle.position.set(0, 10, -2);
+  mantle.rotation.x = -0.22;
+  body.add(mantle);
+  mantle.add(mkMesh(new THREE.ConeGeometry(11.5, 34, 14), mantleMat, 0, 4, 0));
+  mantle.add(mkMesh(new THREE.CylinderGeometry(11.4, 10.6, 8, 14), mantleDark, 0, -11, 0));
+  const finL = new THREE.Group();
+  const finR = new THREE.Group();
+  for (const [fin, s] of [[finL, 1], [finR, -1]]) {
+    fin.position.set(s * 4, 17, 0);
+    const blade = mkMesh(new THREE.ConeGeometry(10, 19, 3), finMat, s * 6, 2, 0);
+    blade.scale.set(1, 1, 0.22);
+    blade.rotation.z = -s * (Math.PI / 2 + 0.25);
+    fin.add(blade);
+    mantle.add(fin);
+  }
+  // 외투 위의 발광 반점
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const spot = mkMesh(new THREE.SphereGeometry(1.5, 8, 6), spotMat, Math.cos(a) * 8.2, 1 + (i % 3) * 5, Math.sin(a) * 8.2);
+    mantle.add(spot);
+  }
+
+  // 2) 머리 — 아래로 처진 살덩이와 심연을 비추는 두 눈
+  const head = new THREE.Group();
+  head.position.set(0, -5, 2);
+  body.add(head);
+  head.add(mkMesh(new THREE.SphereGeometry(11.0, 16, 13), fleshMat, 0, 0, 0));
+  for (const s of [-1, 1]) {
+    head.add(mkMesh(new THREE.SphereGeometry(5.4, 14, 12), eyeMat, s * 7.4, 1.4, 7.2));
+    head.add(mkMesh(new THREE.SphereGeometry(2.4, 10, 8), pupilMat, s * 7.8, 1.4, 11.2));
+    const brow = mkMesh(new THREE.BoxGeometry(6.0, 1.8, 2.4), mantleDark, s * 7.2, 6.2, 8.0);
+    brow.rotation.z = -s * 0.34;
+    head.add(brow);
+  }
+  // 부리
+  const beak = mkMesh(new THREE.ConeGeometry(3.6, 9, 4), mantleDark, 0, -8.5, 6.2);
+  beak.rotation.set(Math.PI * 0.62, Math.PI / 4, 0);
+  head.add(beak);
+
+  // 3) 다리 8개 — 각 다리는 관절 세 마디가 따로 흔들린다
+  const arms = [];
+  const armAngles = [];
+  const mkArm = (len, thick, segments, tipMat) => {
+    const j0 = new THREE.Group();
+    const segs = [j0];
+    let parent = j0;
+    let l = len;
+    for (let i = 0; i < segments; i++) {
+      const last = i === segments - 1;
+      const rad = thick * (1 - i * 0.22);
+      const mesh = last
+        ? mkMesh(new THREE.ConeGeometry(rad * 0.75, l, 6), tipMat || mantleMat, 0, -l * 0.5, 0)
+        : mkMesh(new THREE.CylinderGeometry(rad * 0.82, rad, l, 7), i % 2 ? mantleDark : mantleMat, 0, -l * 0.5, 0);
+      parent.add(mesh);
+      if (!last) {
+        const joint = new THREE.Group();
+        joint.position.y = -l;
+        parent.add(joint);
+        parent = joint;
+        segs.push(joint);
+      }
+      l *= 0.82;
+    }
+    return segs;
+  };
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const segs = mkArm(12, 3.2, 3);
+    segs[0].position.set(Math.cos(a) * 6.6, -9, Math.sin(a) * 6.6);
+    head.add(segs[0]);
+    // 첫 마디 안쪽에 빛나는 빨판
+    segs[0].add(mkMesh(new THREE.SphereGeometry(1.35, 8, 6), suckerMat, Math.cos(a) * 1.0, -6.0, Math.sin(a) * 1.0));
+    arms.push(segs);
+    armAngles.push({ x: Math.cos(a), z: Math.sin(a) });
+  }
+
+  // 4) 긴 촉수 2개 — 앞쪽으로 길게 뻗어 바닥을 더듬는다
+  const tentacles = [];
+  const tentacleAngles = [];
+  for (const s of [-1, 1]) {
+    const segs = mkArm(15, 2.4, 3, fleshMat);
+    const a = s > 0 ? 0.5 : Math.PI - 0.5;
+    segs[0].position.set(Math.cos(a) * 5.6, -8, Math.sin(a) * 5.6);
+    head.add(segs[0]);
+    // 촉수 끝의 곤봉과 빨판
+    const club = new THREE.Group();
+    club.position.y = -10.1;
+    const lastJoint = segs[segs.length - 1];
+    lastJoint.add(club);
+    const bulb = mkMesh(new THREE.SphereGeometry(2.6, 10, 8), suckerMat, 0, -5, 0);
+    bulb.scale.set(1, 2.1, 1);
+    club.add(bulb);
+    tentacles.push(segs);
+    tentacleAngles.push({ x: Math.cos(a), z: Math.sin(a) });
+  }
+
+  // 5) 바닥의 어두운 그림자 같은 후광 (깊은 바다의 압박감)
+  const bodyGlow = haloMesh(0x3fd8e8, 30, 0.05, 0.55);
+  bodyGlow.position.y = -8;
+  body.add(bodyGlow);
+
+  return {
+    root, body, head, mantle, finL, finR, arms, armAngles, tentacles, tentacleAngles,
+    eyeMat, suckerMat, spotMat, bodyGlow, mats, height: 40,
+  };
+}
+
+/* --------------------------- 3세계 고대유적 · 고대 뱀 (머리 세 개) --------------------------- */
+function buildAncientSerpent() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const mats = [];
+
+  const scaleMat = stdMat(0x2f5c46, { roughness: 0.62, metalness: 0.12, emissive: 0x0d2418, emissiveIntensity: 0.4 });
+  const scaleDark = stdMat(0x203e2e, { roughness: 0.7, emissive: 0x07130d, emissiveIntensity: 0.35 });
+  const bellyMat = stdMat(0xbba76c, { roughness: 0.6, emissive: 0x3a2a08, emissiveIntensity: 0.3 });
+  const crestMat = new THREE.MeshStandardMaterial({
+    color: 0xffd27a, emissive: 0xc07a10, emissiveIntensity: 1.7, roughness: 0.35, metalness: 0.5,
+  });
+  const fangMat = stdMat(0xf2e8cf, { roughness: 0.4 });
+  const mouthMat = stdMat(0x4a1414, { roughness: 0.85, emissive: 0x260606, emissiveIntensity: 0.6 });
+  mats.push(scaleMat, scaleDark, bellyMat, crestMat);
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: 0xfff2b8, emissive: 0xffa020, emissiveIntensity: 2.6, roughness: 0.22,
+  });
+
+  // 1) 바닥에 감긴 몸통 — 두 겹의 고리
+  const coil1 = mkMesh(new THREE.TorusGeometry(19, 7.0, 9, 20), scaleMat, 0, 6.4, 0);
+  coil1.rotation.x = Math.PI / 2;
+  coil1.scale.set(1, 0.86, 1);
+  body.add(coil1);
+  const coil2 = mkMesh(new THREE.TorusGeometry(13.5, 5.6, 9, 18), scaleDark, 0, 13.4, 0);
+  coil2.rotation.x = Math.PI / 2;
+  coil2.scale.set(1, 0.82, 1);
+  body.add(coil2);
+  // 배 비놀
+  body.add(mkMesh(new THREE.BoxGeometry(13, 3.2, 20), bellyMat, 0, 4.0, 12));
+
+  // 2) 꼬리 — 일곱 마디가 물결처럼 흔들린다
+  const tailSegs = [];
+  let tailParent = new THREE.Group();
+  tailParent.position.set(0, 9, -16);
+  body.add(tailParent);
+  let tr = 5.4;
+  for (let i = 0; i < 7; i++) {
+    const g = new THREE.Group();
+    tailParent.add(g);
+    const seg = mkMesh(new THREE.CylinderGeometry(tr * 0.78, tr, 13, 8), i % 2 ? scaleDark : scaleMat, 0, 0, -6.5);
+    seg.rotation.x = Math.PI / 2;
+    g.add(seg);
+    // 등 위의 비놀
+    const ridge = mkMesh(new THREE.ConeGeometry(1.5, 4.4, 4), crestMat, 0, tr * 0.8, -6);
+    g.add(ridge);
+    g.position.z = i === 0 ? 0 : -13;
+    g.position.y = -i * 0.7;
+    tailSegs.push(g);
+    tailParent = g;
+    tr *= 0.86;
+  }
+
+  // 3) 목덜미 받침 (가슴)
+  const chest = new THREE.Group();
+  chest.position.y = 16;
+  body.add(chest);
+  chest.add(mkMesh(new THREE.CylinderGeometry(10.5, 13.0, 16, 10), scaleMat, 0, 0, 0));
+  chest.add(mkMesh(new THREE.BoxGeometry(9, 13, 4.2), bellyMat, 0, -1, 10.4));
+
+  // 4) 세 개의 목과 머리 — 각각 따로 흔들린다
+  const necks = [];
+  const heads = [];
+  for (let i = 0; i < 3; i++) {
+    const side = i - 1;                 // -1 왼쪽 · 0 가운데 · 1 오른쪽
+    const neck = new THREE.Group();
+    neck.position.set(side * 8.4, 6, 1.0);
+    neck.rotation.z = -side * 0.30;
+    chest.add(neck);
+    // 목 마디 두 개 — 위로 뻗으며 바깥으로 젖혀진다
+    const lower = mkMesh(new THREE.CylinderGeometry(4.4, 5.6, 15, 9), i === 1 ? scaleMat : scaleDark, 0, 7.5, 0);
+    neck.add(lower);
+    const upperJoint = new THREE.Group();
+    upperJoint.position.y = 15;
+    upperJoint.rotation.z = -side * 0.22;
+    upperJoint.rotation.x = -0.16;
+    neck.add(upperJoint);
+    upperJoint.add(mkMesh(new THREE.CylinderGeometry(3.6, 4.6, 13, 9), scaleMat, 0, 6.5, 0));
+    // 목의 비놀 · 금빛 깃
+    for (let k = 0; k < 3; k++) {
+      const frill = mkMesh(new THREE.ConeGeometry(1.7, 5.2, 4), crestMat, 0, 3 + k * 5.5, -3.6);
+      frill.rotation.x = -0.5;
+      upperJoint.add(frill);
+    }
+
+    // 머리
+    const headG = new THREE.Group();
+    headG.position.y = 13;
+    upperJoint.add(headG);
+    headG.add(mkMesh(new THREE.BoxGeometry(8.6, 6.6, 15), scaleMat, 0, 0, 4));
+    headG.add(mkMesh(new THREE.BoxGeometry(7.0, 4.4, 8), scaleDark, 0, -1.0, 12.5));
+    // 눈 — 두 눈 모두 금빛으로 타오른다
+    for (const s of [-1, 1]) {
+      headG.add(mkMesh(new THREE.SphereGeometry(2.1, 10, 8), eyeMat, s * 3.5, 1.8, 5.6));
+      const slit = mkMesh(new THREE.BoxGeometry(0.7, 2.4, 0.7), stdMat(0x120800, { roughness: 0.9 }), s * 3.7, 1.8, 7.3);
+      headG.add(slit);
+      const horn = mkMesh(new THREE.ConeGeometry(1.3, 6.4, 5), crestMat, s * 3.2, 4.4, -1.2);
+      horn.rotation.x = -0.55;
+      horn.rotation.z = s * 0.24;
+      headG.add(horn);
+    }
+    // 이탈 치아 · 코뿔 크레스트
+    for (let k = 0; k < 4; k++) {
+      const f = mkMesh(new THREE.ConeGeometry(0.85, 3.6, 4), fangMat, -3 + k * 2, -2.9, 10 + (k % 2) * 3);
+      f.rotation.x = Math.PI;
+      headG.add(f);
+    }
+    headG.add(mkMesh(new THREE.ConeGeometry(1.8, 9, 4), crestMat, 0, 3.6, -0.5));
+    headG.add(mkMesh(new THREE.ConeGeometry(1.3, 6, 4), crestMat, 0, 3.0, 3.0));
+    // 아래턱 — 문을 때 크게 벌어진다
+    const jaw = new THREE.Group();
+    jaw.position.set(0, -2.6, 3.2);
+    headG.add(jaw);
+    jaw.add(mkMesh(new THREE.BoxGeometry(6.6, 2.4, 11), scaleDark, 0, -1.0, 5.0));
+    jaw.add(mkMesh(new THREE.BoxGeometry(6.0, 0.8, 10), mouthMat, 0, 0.4, 5.0));
+    for (let k = 0; k < 3; k++) {
+      const f = mkMesh(new THREE.ConeGeometry(0.75, 3.0, 4), fangMat, -2 + k * 2, 1.6, 3 + (k % 2) * 4);
+      jaw.add(f);
+    }
+
+    necks.push({ group: neck, upper: upperJoint, baseZ: -side * 0.30, side });
+    heads.push({ group: headG, jaw, side });
+  }
+
+  // 5) 바닥의 금빛 오라 — 신전의 룬이 몸을 감싼다
+  const aura = new THREE.Mesh(new THREE.RingGeometry(26, 33, 40), new THREE.MeshBasicMaterial({
+    color: 0xffc25a, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+  }));
+  aura.rotation.x = -Math.PI / 2;
+  aura.position.y = 1.2;
+  body.add(aura);
+
+  return {
+    root, body, chest, necks, heads, tailSegs, coil1, coil2, aura, eyeMat, crestMat, mats, height: 46,
+  };
+}
+
 const BUILDERS = {
   slime: buildSlime, zombie: buildZombie, hyena: buildHyena, gorilla: buildGorilla,
   raider: buildRaider, golem: buildGolem,
@@ -1340,6 +1611,8 @@ const BUILDERS = {
   dragon: buildDragon, wyvern: buildWyvern, spinosaurus: buildSpinosaurus,
   tyrannosaurus: buildTyrannosaurus, fallen_hero: buildFallenHero,
   strong_chicken: buildStrongChicken,
+  giant_squid: buildGiantSquid,
+  ancient_serpent: buildAncientSerpent,
 };
 
 /* -------------------------------- 몹 -------------------------------- */
@@ -2642,6 +2915,80 @@ export class Mob {
         if (m.eyeMat) m.eyeMat.color.setHex(Math.sin(t * 9) > 0 ? 0xff3a1a : 0x2a0a0a);
       }
       if (hurt > 0) m.body.rotation.z = Math.sin(hurt * 22) * 0.06;
+    } else if (this.typeId === 'giant_squid') {
+      // 깊은 바다를 떠다니는 거대 오징어 — 외투가 물결치고 여덟 다리가 따로 유영한다
+      const bob = Math.sin(t * 1.25) * 2.2;
+      m.body.position.y = 24 + bob;
+      m.body.rotation.x = Math.sin(t * 0.8) * 0.05;
+      m.body.rotation.z = Math.sin(t * 0.65) * 0.045;
+      const swing = atkP >= 0 ? clamp(Math.sin(clamp(atkP, 0, 1) * Math.PI), 0, 1) : 0;
+      // 날개지느러미가 물을 가른다
+      const flap = Math.sin(t * 2.4) * 0.16;
+      if (m.finL) m.finL.rotation.z = 0.12 + flap;
+      if (m.finR) m.finR.rotation.z = -0.12 - flap;
+      // 외투 수축 · 이완 (제트 추진)
+      if (m.mantle) {
+        const pump = 1 + Math.sin(t * 1.9) * 0.05 + swing * 0.1;
+        m.mantle.scale.set(1 / Math.sqrt(pump), pump, 1 / Math.sqrt(pump));
+      }
+      // 여덟 다리 — 마디 세 개가 서로 다른 위상으로 흔들린다
+      for (let i = 0; i < m.arms.length; i++) {
+        const segs = m.arms[i];
+        const dir = m.armAngles[i];
+        const ph = i * 0.79;
+        const spread = 1.24 - swing * 0.36;
+        segs[0].rotation.x = dir.z * spread + Math.sin(t * 1.7 + ph) * 0.24 + swing * 0.5;
+        segs[0].rotation.z = -dir.x * spread + Math.cos(t * 1.45 + ph) * 0.24;
+        if (segs[1]) {
+          segs[1].rotation.x = Math.sin(t * 2.2 + ph * 1.4) * 0.34;
+          segs[1].rotation.z = Math.cos(t * 1.9 + ph) * 0.28;
+        }
+        if (segs[2]) segs[2].rotation.x = Math.sin(t * 2.7 + ph * 1.9) * 0.42;
+      }
+      // 긴 촉수 두 개는 느리게 크게 휘젓는다
+      for (let i = 0; i < m.tentacles.length; i++) {
+        const segs = m.tentacles[i];
+        const dir = m.tentacleAngles[i];
+        const ph = i * 2.4 + 0.6;
+        segs[0].rotation.x = dir.z * 1.28 + Math.sin(t * 1.15 + ph) * 0.3 - swing * 0.35;
+        segs[0].rotation.z = -dir.x * 1.28 + Math.cos(t * 1.0 + ph) * 0.26;
+        if (segs[1]) segs[1].rotation.x = 0.28 + Math.sin(t * 1.45 + ph * 1.6) * 0.34;
+        if (segs[2]) segs[2].rotation.x = 0.34 + Math.sin(t * 1.8 + ph * 2.1) * 0.38;
+      }
+      // 심연을 비추는 눈 — 사냥할 때 더 타오른다
+      if (m.eyeMat) m.eyeMat.emissiveIntensity = 1.9 + Math.sin(t * 2.6) * 0.5 + swing * 1.3;
+      if (m.spotMat) m.spotMat.emissiveIntensity = 1.6 + Math.sin(t * 3.4) * 0.5;
+      if (m.bodyGlow) m.bodyGlow.material.opacity = 0.045 + Math.sin(t * 1.4) * 0.015;
+      if (hurt > 0) m.body.rotation.z = Math.sin(hurt * 24) * 0.12;
+    } else if (this.typeId === 'ancient_serpent') {
+      // 고대 신전의 수호자 — 꼬리는 물결치고 세 개의 목과 머리가 따로 흔들린다
+      m.body.rotation.z = Math.sin(t * 0.9) * 0.05;
+      m.body.rotation.y = Math.sin(t * 0.6) * 0.03;
+      m.body.position.y = Math.abs(Math.sin(this.walkPhase * 0.75)) * 0.8;
+      const swing = atkP >= 0 ? clamp(Math.sin(clamp(atkP, 0, 1) * Math.PI), 0, 1) : 0;
+      // 꼬리 — 마디를 따라 흐르는 파동
+      for (let i = 0; i < m.tailSegs.length; i++) {
+        const seg = m.tailSegs[i];
+        seg.rotation.y = Math.sin(t * 1.5 + i * 0.75) * 0.22;
+        seg.rotation.x = Math.cos(t * 1.2 + i * 0.5) * 0.06;
+      }
+      if (m.tailSegs[0]) m.tailSegs[0].rotation.y += Math.sin(t * 0.9) * 0.14;
+      // 감긴 몸통 고리도 살아 숨쉰다
+      if (m.coil1) m.coil1.scale.set(1 + Math.sin(t * 1.1) * 0.02, 0.86, 1 + Math.cos(t * 1.1) * 0.02);
+      // 세 개의 목 — 저마다 다른 리듬으로 흔들린다
+      for (let i = 0; i < m.necks.length; i++) {
+        const n = m.necks[i];
+        n.group.rotation.z = n.baseZ + Math.sin(t * 1.05 + i * 2.1) * 0.13 - swing * 0.1 * n.side;
+        n.group.rotation.x = Math.sin(t * 0.85 + i * 1.5) * 0.10 - swing * 0.18;
+        if (n.upper) n.upper.rotation.y = Math.sin(t * 0.95 + i * 1.7) * 0.16;
+        const h = m.heads[i];
+        h.group.rotation.y = Math.sin(t * 1.2 + i * 2.4) * 0.30;
+        h.group.rotation.x = Math.sin(t * 0.95 + i * 1.1) * 0.12 + swing * 0.55;
+        h.jaw.rotation.x = 0.06 + Math.sin(t * 1.6 + i) * 0.05 + swing * 0.95;
+      }
+      if (m.eyeMat) m.eyeMat.emissiveIntensity = 2.3 + Math.sin(t * 3.2) * 0.6 + swing * 0.9;
+      if (m.aura) m.aura.material.opacity = 0.13 + Math.sin(t * 2.2) * 0.04 + swing * 0.08;
+      if (hurt > 0) m.body.rotation.z = Math.sin(hurt * 24) * 0.11;
     }
   }
 

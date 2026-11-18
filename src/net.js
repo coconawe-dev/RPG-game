@@ -38,12 +38,14 @@ export const MOB_CODES = [
   'slime', 'zombie', 'hyena', 'gorilla', 'raider', 'golem',
   'goblin', 'skeleton', 'samurai', 'iron_golem', 'dark_mage',
   'dragon', 'wyvern', 'spinosaurus', 'tyrannosaurus', 'fallen_hero', 'strong_chicken',
+  'giant_squid', 'ancient_serpent',
 ];
 const BIOME_OF_TYPE = {
   slime: 'forest', zombie: 'graveyard', hyena: 'savanna', gorilla: 'jungle', raider: 'old_village', golem: 'temple',
   goblin: 'goblin_forest', skeleton: 'misty_plains', samurai: 'sakura', iron_golem: 'ominous_cave', dark_mage: 'dark_realm',
   dragon: 'fantasy_forest', wyvern: 'secret_cave', spinosaurus: 'annoying_forest',
   tyrannosaurus: 'annoying_forest', fallen_hero: 'corrupted_city', strong_chicken: 'occupied_ranch',
+  giant_squid: 'deep_sea', ancient_serpent: 'ancient_ruins',
 };
 
 // 스냅샷 주기

@@ -110,6 +110,8 @@ export const WORLD2 = {
   // 남쪽은 2세계 태초마을(z +2000 ~ +2500)의 끝까지 — 1번째 세계는 동 · 서로 길고, 이쪽은 남쪽으로 길다
   zMax: 8000 + 2470,
   southCell: 2000,     // 2세계 태초마을 중심의 local z
+  // 십자 통로에 덧붙은 곁가지 지역 — 심해(고블린 숲 동쪽)는 걸어서 들어간다
+  extraCells: [{ x0: 500, x1: 1500, z0: 8500, z1: 9500 }],
 };
 
 /* ------------------------------------------------------------------
@@ -134,6 +136,8 @@ export const WORLD3 = {
   // 남쪽은 3세계 태초마을(z +2000 ~ +2500)의 끝까지
   zMax: 16000 + 2470,
   southCell: 2000,     // 3세계 태초마을 중심의 local z
+  // 십자 통로에 덧붙은 곁가지 지역 — 고대유적(선사시대 숲 동쪽)은 걸어서 들어간다
+  extraCells: [{ x0: 500, x1: 1500, z0: 16500, z1: 17500 }],
 };
 
 // 세계 번호를 1 · 2 · 3 중 하나로 맞춘다 (모르는 값은 1번째 세계)
@@ -249,6 +253,8 @@ export function terrainHeight(x, z) {
 export function regionAt(x, z) {
   if (z > WORLD3.zSplit) {
     const lz = z - WORLD3.originZ;
+    // 동쪽 곁가지 — 선사시대 숲 바로 동쪽의 고대유적
+    if (x > WORLD3.halfCell && lz > WORLD3.halfCell && lz <= WORLD3.halfCell * 3) return 'ancient_ruins';
     if (Math.abs(x) <= WORLD3.halfCell && Math.abs(lz) <= WORLD3.halfCell) return 'corrupted_city';
     if (lz < -WORLD3.halfCell) return 'occupied_ranch';
     // 남쪽 끝의 3세계 태초마을 (선사시대 숲보다 먼저 확인해야 한다)
@@ -259,6 +265,8 @@ export function regionAt(x, z) {
   }
   if (z > WORLD2.zSplit) {
     const lz = z - WORLD2.originZ;
+    // 동쪽 곁가지 — 고블린 숲 바로 동쪽의 심해
+    if (x > WORLD2.halfCell && lz > WORLD2.halfCell && lz <= WORLD2.halfCell * 3) return 'deep_sea';
     if (Math.abs(x) <= WORLD2.halfCell && Math.abs(lz) <= WORLD2.halfCell) return 'dark_realm';
     if (lz < -WORLD2.halfCell) return 'ominous_cave';
     // 남쪽 끝의 2세계 태초마을 (고블린 숲보다 먼저 확인해야 한다)
@@ -275,61 +283,63 @@ export function regionAt(x, z) {
   return 'forest';
 }
 
+/* ------------------------------------------------------------------
+   통행 영역 — 십자 통로(수직 · 수평) + 곁가지 지역(2세계 심해 · 3세계 고대유적).
+   곁가지 지역은 1000x1000 한 칸을 그대로 통로에 이어 붙인 것이라
+   이웃 지역과의 경계를 그대로 걸어서 넘을 수 있다.
+------------------------------------------------------------------ */
+const WALK_RECTS = (function buildWalkRects() {
+  const out = {};
+  for (const [id, w] of [[1, WORLD], [2, WORLD2], [3, WORLD3]]) {
+    const zc = w.originZ || 0;
+    const rects = [
+      // 세로 통로 (남북)
+      { x0: -w.halfCell, x1: w.halfCell, z0: w.zMin, z1: w.zMax },
+      // 가로 통로 (동서)
+      { x0: w.xMin, x1: w.xMax, z0: zc - w.halfCell, z1: zc + w.halfCell },
+    ];
+    for (const c of (w.extraCells || [])) rects.push({ x0: c.x0, x1: c.x1, z0: c.z0, z1: c.z1 });
+    out[id] = rects;
+  }
+  return out;
+})();
+
 // 십자 형태의 통행 가능 영역으로 위치를 제한 (worldId 를 주면 그 세계 기준)
 export function clampToWorld(p, worldId) {
-  if (worldId === 3) {
-    p.x = clamp(p.x, WORLD3.xMin, WORLD3.xMax);
-    p.z = clamp(p.z, WORLD3.zMin, WORLD3.zMax);
-    const ax = Math.abs(p.x);
-    const lz = p.z - WORLD3.originZ;
-    if (ax > WORLD3.halfCell && Math.abs(lz) > WORLD3.halfCell) {
-      if (ax - WORLD3.halfCell < Math.abs(lz) - WORLD3.halfCell) {
-        p.x = Math.sign(p.x) * (WORLD3.halfCell - 4);
-      } else {
-        p.z = WORLD3.originZ + Math.sign(lz) * (WORLD3.halfCell - 4);
-      }
-    }
-    return p;
+  const wid = normWorld(worldId);
+  const w = wid === 3 ? WORLD3 : (wid === 2 ? WORLD2 : WORLD);
+  p.x = clamp(p.x, w.xMin, w.xMax);
+  p.z = clamp(p.z, w.zMin, w.zMax);
+  const rects = WALK_RECTS[wid];
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    if (p.x >= r.x0 && p.x <= r.x1 && p.z >= r.z0 && p.z <= r.z1) return p;
   }
-  if (worldId === 2) {
-    p.x = clamp(p.x, WORLD2.xMin, WORLD2.xMax);
-    p.z = clamp(p.z, WORLD2.zMin, WORLD2.zMax);
-    const ax = Math.abs(p.x);
-    const lz = p.z - WORLD2.originZ;
-    if (ax > WORLD2.halfCell && Math.abs(lz) > WORLD2.halfCell) {
-      if (ax - WORLD2.halfCell < Math.abs(lz) - WORLD2.halfCell) {
-        p.x = Math.sign(p.x) * (WORLD2.halfCell - 4);
-      } else {
-        p.z = WORLD2.originZ + Math.sign(lz) * (WORLD2.halfCell - 4);
-      }
-    }
-    return p;
+  // 통로 밖이면 가장 가까운 통로로 4만큼 안쪽까지 밀어 넣는다
+  let bx = p.x, bz = p.z, best = Infinity;
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    const cx = clamp(p.x, r.x0 + 4, r.x1 - 4);
+    const cz = clamp(p.z, r.z0 + 4, r.z1 - 4);
+    const d = (cx - p.x) * (cx - p.x) + (cz - p.z) * (cz - p.z);
+    if (d < best) { best = d; bx = cx; bz = cz; }
   }
-  p.x = clamp(p.x, WORLD.xMin, WORLD.xMax);
-  p.z = clamp(p.z, WORLD.zMin, WORLD.zMax);
-  const ax = Math.abs(p.x), az = Math.abs(p.z);
-  if (ax > WORLD.halfCell && az > WORLD.halfCell) {
-    if (ax - WORLD.halfCell < az - WORLD.halfCell) {
-      p.x = Math.sign(p.x) * (WORLD.halfCell - 4);
-    } else {
-      p.z = Math.sign(p.z) * (WORLD.halfCell - 4);
-    }
-  }
+  p.x = bx;
+  p.z = bz;
   return p;
 }
 
 export function isInsideWorld(x, z, worldId) {
-  if (worldId === 3) {
-    if (x < WORLD3.xMin || x > WORLD3.xMax || z < WORLD3.zMin || z > WORLD3.zMax) return false;
-    return Math.abs(x) <= WORLD3.halfCell || Math.abs(z - WORLD3.originZ) <= WORLD3.halfCell;
+  const wid = normWorld(worldId);
+  const w = wid === 3 ? WORLD3 : (wid === 2 ? WORLD2 : WORLD);
+  if (x < w.xMin || x > w.xMax || z < w.zMin || z > w.zMax) return false;
+  const zc = w.originZ || 0;
+  // 십자 통로(수직 · 수평) + 남쪽 마을 길 + 곁가지 지역
+  if (Math.abs(x) <= w.halfCell || Math.abs(z - zc) <= w.halfCell) return true;
+  for (const c of (w.extraCells || [])) {
+    if (x >= c.x0 && x <= c.x1 && z >= c.z0 && z <= c.z1) return true;
   }
-  if (worldId === 2) {
-    if (x < WORLD2.xMin || x > WORLD2.xMax || z < WORLD2.zMin || z > WORLD2.zMax) return false;
-    // 십자 통로(수직 · 수평) + 남쪽 2세계 태초마을 길
-    return Math.abs(x) <= WORLD2.halfCell || Math.abs(z - WORLD2.originZ) <= WORLD2.halfCell;
-  }
-  if (x < WORLD.xMin || x > WORLD.xMax || z < WORLD.zMin || z > WORLD.zMax) return false;
-  return Math.abs(x) <= WORLD.halfCell || Math.abs(z) <= WORLD.halfCell;
+  return false;
 }
 
 // 플레이어 주변 바이옴 가중치 (색 전환을 부드럽게)

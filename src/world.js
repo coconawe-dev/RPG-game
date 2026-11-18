@@ -22,7 +22,8 @@ const NEIGHBORS = {
   ],
   // 2번째 세계 — 중앙 암흑지역을 네 방향이 감싸고, 남쪽 끝에 2세계 태초마을
   village_w2: [{ side: 'north', id: 'goblin_forest' }],
-  goblin_forest: [{ side: 'north', id: 'dark_realm' }, { side: 'south', id: 'village_w2' }],
+  goblin_forest: [{ side: 'north', id: 'dark_realm' }, { side: 'south', id: 'village_w2' }, { side: 'east', id: 'deep_sea' }],
+  deep_sea: [{ side: 'west', id: 'goblin_forest' }, { side: 'south', id: 'sakura' }],
   misty_plains: [{ side: 'east', id: 'dark_realm' }],
   sakura: [{ side: 'west', id: 'dark_realm' }],
   ominous_cave: [{ side: 'south', id: 'dark_realm' }],
@@ -34,7 +35,8 @@ const NEIGHBORS = {
   ],
   // 3번째 세계 — 중앙 부패한 도시를 네 방향이 감싸고, 남쪽 끝에 3세계 태초마을
   village_w3: [{ side: 'north', id: 'annoying_forest' }],
-  annoying_forest: [{ side: 'north', id: 'corrupted_city' }, { side: 'south', id: 'village_w3' }],
+  annoying_forest: [{ side: 'north', id: 'corrupted_city' }, { side: 'south', id: 'village_w3' }, { side: 'east', id: 'ancient_ruins' }],
+  ancient_ruins: [{ side: 'west', id: 'annoying_forest' }, { side: 'south', id: 'fantasy_forest' }],
   secret_cave: [{ side: 'east', id: 'corrupted_city' }],
   fantasy_forest: [{ side: 'west', id: 'corrupted_city' }],
   occupied_ranch: [{ side: 'south', id: 'corrupted_city' }],
@@ -187,6 +189,20 @@ function buildGround(scene, biome) {
       const petals = fbm(wx * 0.045 + 11, wz * 0.045 - 7, 2);
       tmp.lerp(C(0xe9a8bd), smoothstep(0.34, 0.5, petals) * 0.55);
     }
+    // 심해: 검푸른 해저 진흙 · 물결이 일렁이는 모래등성 · 발광 미생물 반점
+    if (biome.id === 'deep_sea') {
+      const silt = fbm(wx * 0.010, wz * 0.010, 3);
+      tmp.lerp(C(0x0f3247), clamp(0.45 + silt * 0.85, 0, 1) * 0.5);
+      // 잔물결 — 해저에 남은 파문 자국
+      const ripple = Math.sin(wx * 0.085 + fbm(wx * 0.02, wz * 0.02, 2) * 5.0 + wz * 0.02);
+      tmp.lerp(C(0x1b4a5c), smoothstep(0.55, 1, ripple) * 0.28);
+      // 바닥을 덮은 발광 미생물
+      const glow = fbm(wx * 0.045 + 21, wz * 0.045 - 13, 2);
+      tmp.lerp(C(0x2ae8d8), smoothstep(0.42, 0.55, Math.abs(glow)) * 0.38);
+      // 성소를 감싸는 둥근 성단 무늬
+      const r = Math.hypot(lx, lz);
+      tmp.lerp(C(0x2f7fa8), smoothstep(198, 186, Math.abs(r - 190)) * 0.35);
+    }
     // 암흑지역: 흑요석 판 · 제단을 감싼 자줏빛 룬 미늘
     if (biome.id === 'dark_realm') {      const shard = fbm(wx * 0.026, wz * 0.026, 2);
       tmp.lerp(C(0x141020), clamp(0.4 - shard * 0.7, 0, 0.45));
@@ -243,6 +259,21 @@ function buildGround(scene, biome) {
       tmp.lerp(C(0x4f9b64), clamp(0.4 + grass * 0.85, 0, 1) * 0.45);
       const spores = fbm(wx * 0.05 + 9, wz * 0.05 - 4, 2);
       tmp.lerp(C(0xd8f0a0), smoothstep(0.38, 0.52, spores) * 0.4);
+    }
+    // 고대유적: 모래가 덮인 사암 바닥 · 이끼 낀 돌 틈 · 신전 마당의 큰 석판
+    if (biome.id === 'ancient_ruins') {
+      const sand = fbm(wx * 0.011, wz * 0.011, 3);
+      tmp.lerp(C(0xa89467), clamp(0.42 + sand * 0.9, 0, 1) * 0.5);
+      const moss = fbm(wx * 0.032 + 17, wz * 0.032 - 9, 2);
+      tmp.lerp(C(0x4f6a34), smoothstep(0.30, 0.48, Math.abs(moss)) * 0.4);
+      // 신전 마당 — 성소를 중심으로 도는 큰 석판 줄눈
+      const r = Math.hypot(lx, lz);
+      const ring = Math.abs(((r + 900) % 140) - 70) / 70;
+      tmp.lerp(C(0x6d5b38), smoothstep(0.88, 1, ring) * 0.4);
+      const spoke = Math.abs(Math.sin(Math.atan2(lz, lx) * 6));
+      tmp.lerp(C(0x7a6540), smoothstep(0.97, 1, spoke) * (r < 330 ? 0.45 : 0));
+      // 바닥에 남은 금빛 룬 자국
+      tmp.lerp(C(0xffc85a), smoothstep(190, 176, Math.abs(r - 180)) * 0.35);
     }
     // 부패한 도시: 갈라진 포석 · 자줏빛 부패 무늬
     if (biome.id === 'corrupted_city') {
@@ -2208,6 +2239,174 @@ function buildSakura(scene) {
   return { landmark: g, drift };
 }
 
+/* ------------------------------ 2세계 심해 ------------------------------ */
+function buildDeepSea(scene) {
+  const b = BIOMES.deep_sea;
+  const cx = b.center.x;
+  const cz = b.center.z;
+  const keep = [{ x: cx, z: cz, r: 205 }, { x: 620, z: cz, r: 130 }];
+
+  const rockMat = propMat(0x243a4c, { roughness: 1 });
+  const rockDark = propMat(0x142330, { roughness: 1 });
+  const stoneMat = propMat(0x2e4a58, { roughness: 0.95 });
+  const mossMat = propMat(0x1d6156, { roughness: 0.9 });
+  const kelpMat = propMat(0x1a6a52, { roughness: 0.85, transparent: true, opacity: 0.92 });
+  const kelpMat2 = propMat(0x2a8a5e, { roughness: 0.85, transparent: true, opacity: 0.9 });
+  const coralA = new THREE.MeshStandardMaterial({
+    color: 0x39e8d8, emissive: 0x0d8f92, emissiveIntensity: 1.9, roughness: 0.4,
+  });
+  const coralB = new THREE.MeshStandardMaterial({
+    color: 0x8a6cf0, emissive: 0x4320b8, emissiveIntensity: 1.7, roughness: 0.45,
+  });
+  const coralC = new THREE.MeshStandardMaterial({
+    color: 0xff86d4, emissive: 0xb02678, emissiveIntensity: 1.5, roughness: 0.45,
+  });
+
+  // 1) 해저에 가라앉은 석주 · 부서진 기둥 — 심해의 옛 건축물
+  const pillars = scatter(7701, b, 26, keep, { margin: 90, minScale: 0.8, maxScale: 1.6 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(7.2, 9.0, 68, 8), mat: stoneMat, pos: [0, 34, 0], rot: [0.07, 0, 0.09], castShadow: true },
+    { geo: new THREE.CylinderGeometry(10.5, 11.5, 9, 8), mat: rockDark, pos: [0, 4, 0] },
+    { geo: new THREE.CylinderGeometry(8.4, 8.4, 6, 8), mat: rockMat, pos: [0, 6, 0], rot: [0, 11, 0] },
+    { geo: new THREE.IcosahedronGeometry(5.2, 0), mat: rockDark, pos: [9, 4, 5], scale: 0.9 },
+    { geo: new THREE.IcosahedronGeometry(3.4, 0), mat: mossMat, pos: [-9, 6, 3], scale: 0.8 },
+  ], pillars);
+
+  // 2) 발광 산호 군락 — 바닥을 덮은 청록 · 보라 · 분홍 빛
+  const coralParts = [
+    { mats: coralA, geo: new THREE.IcosahedronGeometry(3.6, 0) },
+    { mats: coralB, geo: new THREE.ConeGeometry(2.4, 12, 5) },
+    { mats: coralC, geo: new THREE.SphereGeometry(2.6, 8, 6) },
+  ];
+  for (let i = 0; i < coralParts.length; i++) {
+    const p = coralParts[i];
+    const spots = scatter(7710 + i, b, 38, keep.concat([]), { margin: 50, minScale: 0.6, maxScale: 1.5 });
+    buildInstancedSet(scene, [
+      { geo: p.geo, mat: p.mats, pos: [0, 4.0, 0], castShadow: true },
+      { geo: p.geo, mat: p.mats, pos: [3.6, 2.6, 2.2], scale: 0.55 },
+      { geo: p.geo, mat: p.mats, pos: [-3.2, 2.4, -2.6], scale: 0.48 },
+    ], spots);
+  }
+
+  // 3) 해초(켈프) 숲 — 물결을 따라 천천히 흔들린다 (updateWorld2)
+  const kelp = [];
+  const kelpRnd = mulberry32(7720);
+  for (let i = 0; i < 12; i++) {
+    const x = lerp(b.bounds.x0 + 80, b.bounds.x1 - 80, kelpRnd());
+    const z = lerp(b.bounds.z0 + 80, b.bounds.z1 - 80, kelpRnd());
+    if (keep.some((k) => Math.hypot(x - k.x, z - k.z) < k.r * 0.8)) continue;
+    const g = new THREE.Group();
+    g.position.set(x, terrainHeight(x, z), z);
+    const strands = 3 + Math.floor(kelpRnd() * 2);
+    for (let s = 0; s < strands; s++) {
+      const h = 34 + kelpRnd() * 46;
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(2.4, h, 1.1), s % 2 ? kelpMat : kelpMat2);
+      blade.position.set((kelpRnd() - 0.5) * 12, h * 0.5, (kelpRnd() - 0.5) * 12);
+      blade.rotation.z = (kelpRnd() - 0.5) * 0.5;
+      blade.castShadow = true;
+      g.add(blade);
+    }
+    scene.add(g);
+    kelp.push({ group: g, phase: kelpRnd() * 6.28, sway: 0.1 + kelpRnd() * 0.12 });
+  }
+
+  // 4) 수정 분출구 — 바닥에서 빛이 새는 틈 (후광으로 빛을 대신한다)
+  const ventCrystals = [];
+  const ventHalo = [];
+  const ventMats = [
+    new THREE.MeshStandardMaterial({ color: 0x7af0ff, emissive: 0x1fa8c8, emissiveIntensity: 2.2, roughness: 0.25, metalness: 0.1 }),
+    new THREE.MeshStandardMaterial({ color: 0x9affe0, emissive: 0x1fc89a, emissiveIntensity: 2.2, roughness: 0.25, metalness: 0.1 }),
+  ];
+  const ventSpots = scatter(7731, b, 8, keep, { margin: 110, minScale: 0.9, maxScale: 1.4 });
+  for (const s of ventSpots) {
+    const g = new THREE.Group();
+    g.position.set(s.x, terrainHeight(s.x, s.z), s.z);
+    for (let i = 0; i < 4; i++) {
+      const h = 16 + (i % 3) * 12;
+      const cr = new THREE.Mesh(new THREE.ConeGeometry(3.0 - i * 0.3, h, 5), ventMats[i % 2]);
+      cr.position.set(Math.cos(i * 1.6) * 4.2, h * 0.5, Math.sin(i * 1.6) * 4.2);
+      cr.rotation.z = Math.cos(i * 1.6) * 0.22;
+      cr.rotation.x = Math.sin(i * 1.6) * 0.22;
+      cr.castShadow = true;
+      g.add(cr);
+    }
+    const hal = glowHalo(0x4fe8ff, 22, 0.14, 1.0);
+    hal.position.y = 14;
+    g.add(hal);
+    ventHalo.push(hal);
+    ventCrystals.push(g);
+    scene.add(g);
+  }
+
+  // 5) 떠오르는 기포 — Points 로 가볍게
+  const BN = 130;
+  const bubGeo = new THREE.BufferGeometry();
+  const bub = new Float32Array(BN * 3);
+  const bubRnd = mulberry32(7741);
+  for (let i = 0; i < BN; i++) {
+    bub[i * 3] = lerp(b.bounds.x0 + 40, b.bounds.x1 - 40, bubRnd());
+    bub[i * 3 + 1] = bubRnd() * 120;
+    bub[i * 3 + 2] = lerp(b.bounds.z0 + 40, b.bounds.z1 - 40, bubRnd());
+  }
+  bubGeo.setAttribute('position', new THREE.BufferAttribute(bub, 3));
+  const bubbles = new THREE.Points(bubGeo, new THREE.PointsMaterial({
+    color: 0xaef4ff, size: 2.4, transparent: true, opacity: 0.55, depthWrite: false, sizeAttenuation: true,
+  }));
+  bubbles.frustumCulled = true;
+  scene.add(bubbles);
+
+  // 6) 랜드마크: 심연의 성소 — 가라앉은 신전의 둥근 마당과 떠 있는 수정
+  const g = new THREE.Group();
+  g.position.set(cx, terrainHeight(cx, cz), cz);
+  const baseRing = new THREE.Mesh(new THREE.CylinderGeometry(96, 104, 7, 40), stoneMat);
+  baseRing.position.y = 2.5;
+  baseRing.receiveShadow = true;
+  g.add(baseRing);
+  const innerRing = new THREE.Mesh(new THREE.CylinderGeometry(74, 78, 9, 36), rockMat);
+  innerRing.position.y = 4.0;
+  g.add(innerRing);
+  // 여덟 개의 무너진 기둥
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const h = 54 + (i % 3) * 16;
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 8.2, h, 8), i % 2 ? stoneMat : rockMat);
+    col.position.set(Math.cos(a) * 82, h * 0.5, Math.sin(a) * 82);
+    col.rotation.z = Math.cos(a) * 0.05 + (i % 2 ? 0.04 : -0.05);
+    col.rotation.x = Math.sin(a) * 0.05;
+    col.castShadow = true;
+    g.add(col);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(8.6, 8.0, 5, 8), rockDark);
+    cap.position.set(Math.cos(a) * 82, h + 2, Math.sin(a) * 82);
+    g.add(cap);
+  }
+  // 떠 있는 거대 수정과 룬 고리
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(18, 0), new THREE.MeshStandardMaterial({
+    color: 0x8ff8ff, emissive: 0x22c8d8, emissiveIntensity: 2.6, roughness: 0.2, metalness: 0.2,
+  }));
+  core.position.y = 66;
+  core.castShadow = true;
+  g.add(core);
+  const coreGlow = glowHalo(0x4fe8ff, 40, 0.16);
+  coreGlow.position.y = 66;
+  g.add(coreGlow);
+  const runeRing = new THREE.Group();
+  runeRing.position.y = 8;
+  const ringRuneMat = new THREE.MeshStandardMaterial({
+    color: 0x6ff0ff, emissive: 0x1fc0d8, emissiveIntensity: 2.4, roughness: 0.3,
+  });
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    const rune = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.0, 9), ringRuneMat);
+    rune.position.set(Math.cos(a) * 64, 0, Math.sin(a) * 64);
+    rune.rotation.y = -a;
+    runeRing.add(rune);
+  }
+  g.add(runeRing);
+  scene.add(g);
+
+  return { landmark: g, kelp, ventHalo, bubbles, core, coreGlow, runeRing };
+}
+
 /* ------------------------------ 암흑지역 ------------------------------ */
 function buildDarkRealm(scene) {
   const biome = BIOMES.dark_realm;
@@ -2368,6 +2567,9 @@ function buildWorld2Boundary(scene) {
     { x0: -500, z0: W2 + 1500, x1: -500, z1: W2 + 2500 },
     { x0: 500, z0: W2 + 1500, x1: 500, z1: W2 + 2500 },
     { x0: -500, z0: W2 + 2500, x1: 500, z1: W2 + 2500 },
+    // 심해(동쪽 곁가지)의 바깥 벽 — 동 · 북쪽 끝을 가린다
+    { x0: 1500, z0: W2 + 500, x1: 1500, z1: W2 + 1500 },
+    { x0: 500, z0: W2 + 1500, x1: 1500, z1: W2 + 1500 },
   ];
   const rnd = mulberry32(9601);
   const list = [];
@@ -2397,6 +2599,7 @@ export function buildWorld2(scene, groups) {
   out.goblinForest = buildGoblinForest(groups.goblin_forest);
   out.mistyPlains = buildMistyPlains(groups.misty_plains);
   out.sakura = buildSakura(groups.sakura);
+  out.deepSea = buildDeepSea(groups.deep_sea);
   out.ominousCave = buildOminousCave(groups.ominous_cave);
   out.darkRealm = buildDarkRealm(groups.dark_realm);
   buildWorld2Boundary(groups.dark_realm);
@@ -2436,6 +2639,39 @@ export function updateWorld2(world, dt, t, pos) {
   // 고블린 숲: 토템 눈빛이 약하게 깜박인다
   if (w2.goblinForest && w2.goblinForest.totemGlow) {
     w2.goblinForest.totemGlow.material.opacity = 0.1 + Math.sin(t * 1.9) * 0.04;
+  }
+  // 심해: 해초가 물결에 흔들리고 · 기포가 떠오르고 · 수정 분출구와 성소가 숨 쉰다
+  if (w2.deepSea) {
+    const ds = w2.deepSea;
+    if (ds.kelp) {
+      for (let i = 0; i < ds.kelp.length; i++) {
+        const k = ds.kelp[i];
+        k.group.rotation.z = Math.sin(t * 0.9 + k.phase) * k.sway;
+        k.group.rotation.x = Math.cos(t * 0.7 + k.phase * 1.3) * k.sway * 0.8;
+      }
+    }
+    if (ds.bubbles && ds.bubbles.geometry) {
+      const arr = ds.bubbles.geometry.attributes.position;
+      for (let i = 0; i < arr.count; i++) {
+        let y = arr.getY(i) + dt * (8 + (i % 5) * 2.4);
+        if (y > 150) y = 0;
+        arr.setY(i, y);
+        arr.setX(i, arr.getX(i) + Math.sin(t * 1.6 + i) * dt * 1.4);
+      }
+      arr.needsUpdate = true;
+    }
+    if (ds.ventHalo) {
+      for (let i = 0; i < ds.ventHalo.length; i++) {
+        const h = ds.ventHalo[i];
+        h.material.opacity = 0.11 + 0.05 * (0.5 + 0.5 * Math.sin(t * 1.9 + i * 1.4));
+      }
+    }
+    if (ds.core) {
+      ds.core.rotation.y += dt * 0.35;
+      ds.core.position.y = 66 + Math.sin(t * 1.1) * 3.2;
+    }
+    if (ds.coreGlow) ds.coreGlow.material.opacity = 0.13 + Math.sin(t * 1.7) * 0.05;
+    if (ds.runeRing) ds.runeRing.rotation.y += dt * 0.1;
   }
   // 2세계 태초마을: 등불이 은은하게 숨 쉬고 상점 주인이 인사한다
   if (w2.villageW2) {
@@ -2823,6 +3059,161 @@ function buildFantasyForest(scene) {
   return { landmark: g, eggGlow };
 }
 
+/* ------------------------------ 3세계 고대유적 ------------------------------ */
+function buildAncientRuins(scene) {
+  const b = BIOMES.ancient_ruins;
+  const cx = b.center.x;
+  const cz = b.center.z;
+  const keep = [{ x: cx, z: cz, r: 215 }, { x: 620, z: cz, r: 130 }];
+
+  const sandstone = propMat(0xb39a63, { roughness: 0.95 });
+  const sandstoneDark = propMat(0x8a7448, { roughness: 1 });
+  const sandstoneWorn = propMat(0x9c8551, { roughness: 1 });
+  const mossMat = propMat(0x4f6a34, { roughness: 0.95 });
+  const goldMat = new THREE.MeshStandardMaterial({
+    color: 0xffd27a, emissive: 0xc07a10, emissiveIntensity: 1.8, roughness: 0.35, metalness: 0.6,
+  });
+  const runeMat = new THREE.MeshStandardMaterial({
+    color: 0xffe9a8, emissive: 0xffa020, emissiveIntensity: 2.6, roughness: 0.3,
+  });
+
+  // 1) 부서진 신전 기둥 — 줄지어 선 석주와 쓰러진 기둥 조각
+  const columns = scatter(8801, b, 30, keep, { margin: 90, minScale: 0.85, maxScale: 1.5 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(7.0, 8.4, 64, 10), mat: sandstone, pos: [0, 32, 0], rot: [0.04, 0, -0.03], castShadow: true },
+    { geo: new THREE.BoxGeometry(19, 5, 19), mat: sandstoneDark, pos: [0, 66, 0], rot: [0.05, 0.2, 0], castShadow: true },
+    { geo: new THREE.BoxGeometry(17, 4, 17), mat: sandstoneWorn, pos: [0, 3, 0] },
+    { geo: new THREE.CylinderGeometry(7.0, 7.0, 26, 10), mat: sandstoneWorn, pos: [16, 7, 9], rot: [0, 0.6, Math.PI / 2 - 0.12], castShadow: true },
+    { geo: new THREE.IcosahedronGeometry(4.6, 0), mat: sandstoneDark, pos: [-12, 3.6, -8], scale: 0.9 },
+    { geo: new THREE.IcosahedronGeometry(3.2, 0), mat: mossMat, pos: [9, 3.0, -11], scale: 0.85 },
+  ], columns);
+
+  // 2) 부러진 오벨리스크 — 기울어진 화강암 탑과 빛나는 룬 홈
+  const obelisks = scatter(8811, b, 14, keep, { margin: 120, minScale: 0.9, maxScale: 1.3 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.CylinderGeometry(3.4, 6.6, 78, 4), mat: sandstone, pos: [0, 39, 0], rot: [0.02, Math.PI / 4, 0.06], castShadow: true },
+    { geo: new THREE.BoxGeometry(3.0, 46, 0.9), mat: runeMat, pos: [0, 40, 4.4] },
+    { geo: new THREE.BoxGeometry(3.0, 30, 0.9), mat: runeMat, pos: [0, 34, -4.4] },
+    { geo: new THREE.BoxGeometry(12, 5, 12), mat: sandstoneDark, pos: [0, 2.6, 0] },
+    { geo: new THREE.ConeGeometry(4.2, 9, 4), mat: goldMat, pos: [0, 82, 0], rot: [0, Math.PI / 4, 0] },
+  ], obelisks);
+
+  // 3) 모래에 반쯤 묻힌 석판 바닥 · 잔해
+  const slabs = scatter(8821, b, 90, keep, { margin: 40, minScale: 0.7, maxScale: 1.5 });
+  buildInstancedSet(scene, [
+    { geo: new THREE.BoxGeometry(22, 1.6, 22), mat: sandstoneWorn, pos: [0, 0.9, 0] },
+    { geo: new THREE.BoxGeometry(9, 2.2, 9), mat: sandstoneDark, pos: [14, 1.4, 6], scale: 0.8 },
+  ], slabs);
+
+  // 4) 룬 석비 — 신전 마당을 감싸는 빛나는 비석
+  const steles = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + 0.2;
+    steles.push({ x: cx + Math.cos(a) * 178, z: cz + Math.sin(a) * 178, ry: -a + Math.PI / 2, s: 1 });
+  }
+  buildInstancedSet(scene, [
+    { geo: new THREE.BoxGeometry(9, 44, 4.4), mat: sandstone, pos: [0, 22, 0], rot: [0, 0, 0.05], castShadow: true },
+    { geo: new THREE.BoxGeometry(5.2, 3.2, 1.0), mat: runeMat, pos: [0, 34, 2.6] },
+    { geo: new THREE.BoxGeometry(5.2, 3.2, 1.0), mat: runeMat, pos: [0, 24, 2.6] },
+    { geo: new THREE.BoxGeometry(5.2, 1.6, 1.0), mat: runeMat, pos: [0, 15, 2.6] },
+    { geo: new THREE.BoxGeometry(13, 4, 9), mat: sandstoneDark, pos: [0, 2, 0] },
+  ], steles.map((p) => ({ x: p.x, z: p.z, y: terrainHeight(p.x, p.z), ry: p.ry, s: p.s })));
+
+  // 5) 화롯불(브레이지어) — 따뜻한 주황빛이 숨 쉬다
+  const braziers = [];
+  const flames = [];
+  const braziersSpots = [
+    { x: cx - 150, z: cz - 150 }, { x: cx + 150, z: cz - 150 },
+    { x: cx - 150, z: cz + 150 }, { x: cx + 150, z: cz + 150 },
+    { x: cx, z: cz - 210 }, { x: cx, z: cz + 210 },
+  ];
+  for (const s of braziersSpots) {
+    const y = terrainHeight(s.x, s.z);
+    const g = new THREE.Group();
+    g.position.set(s.x, y, s.z);
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 5.2, 26, 8), sandstoneDark);
+    stand.position.y = 13;
+    stand.castShadow = true;
+    g.add(stand);
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(11, 6.4, 7, 10), sandstone);
+    bowl.position.y = 27;
+    bowl.castShadow = true;
+    g.add(bowl);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(7.4, 20, 7), new THREE.MeshStandardMaterial({
+      color: 0xffc06a, emissive: 0xff8a1c, emissiveIntensity: 2.8, roughness: 0.3, transparent: true, opacity: 0.9,
+    }));
+    flame.position.y = 40;
+    g.add(flame);
+    const hal = glowHalo(0xffb44a, 20, 0.16, 1.1);
+    hal.position.y = 38;
+    g.add(hal);
+    flames.push({ flame, halo: hal, phase: braziers.length * 1.3 });
+    scene.add(g);
+    braziers.push(g);
+  }
+
+  // 6) 랜드마크: 태고의 뱀 신전 — 계단식 제단과 세 머리 뱀 조각
+  const g = new THREE.Group();
+  g.position.set(cx, terrainHeight(cx, cz), cz);
+  const tiers = [
+    { r: 108, h: 12, mat: sandstoneDark },
+    { r: 84, h: 12, mat: sandstone },
+    { r: 62, h: 12, mat: sandstoneWorn },
+  ];
+  let y = 0;
+  for (const t of tiers) {
+    const tier = new THREE.Mesh(new THREE.CylinderGeometry(t.r, t.r + 5, t.h, 32), t.mat);
+    tier.position.y = y + t.h / 2;
+    tier.receiveShadow = true;
+    tier.castShadow = true;
+    g.add(tier);
+    y += t.h;
+  }
+  // 제단 상판과 금빛 룬 고리
+  const altar = new THREE.Mesh(new THREE.BoxGeometry(56, 8, 56), sandstone);
+  altar.position.y = y + 4;
+  altar.castShadow = true;
+  g.add(altar);
+  const runeRing = new THREE.Group();
+  runeRing.position.y = 6;
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    const rune = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.9, 10), runeMat);
+    rune.position.set(Math.cos(a) * 94, 0, Math.sin(a) * 94);
+    rune.rotation.y = -a;
+    runeRing.add(rune);
+  }
+  g.add(runeRing);
+  // 제단 위에 얽힌 뱀 몸통과 세 머리 조각
+  const coil = new THREE.Mesh(new THREE.TorusGeometry(22, 5.4, 8, 20), sandstoneWorn);
+  coil.position.y = y + 14;
+  coil.rotation.x = Math.PI / 2;
+  g.add(coil);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 4.6, 26, 7), sandstoneWorn);
+    neck.position.set(Math.cos(a) * 15, y + 26, Math.sin(a) * 15);
+    neck.rotation.z = Math.cos(a) * 0.25;
+    neck.rotation.x = Math.sin(a) * 0.25;
+    neck.castShadow = true;
+    g.add(neck);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(10, 7, 13), sandstone);
+    head.position.set(Math.cos(a) * 19, y + 40, Math.sin(a) * 19);
+    head.rotation.y = -a;
+    head.castShadow = true;
+    g.add(head);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 6), runeMat);
+    eye.position.set(Math.cos(a) * 24, y + 42, Math.sin(a) * 24);
+    g.add(eye);
+  }
+  const coreGlow = glowHalo(0xffc25a, 46, 0.14, 0.8);
+  coreGlow.position.y = y + 18;
+  g.add(coreGlow);
+  scene.add(g);
+
+  return { landmark: g, flames, runeRing, coreGlow };
+}
+
 /* ------------------------------ 부패한 도시 ------------------------------ */
 function buildCorruptedCity(scene) {
   const biome = BIOMES.corrupted_city;
@@ -3075,6 +3466,9 @@ function buildWorld3Boundary(scene) {
     { x0: -500, z0: W3 + 1500, x1: -500, z1: W3 + 2500 },
     { x0: 500, z0: W3 + 1500, x1: 500, z1: W3 + 2500 },
     { x0: -500, z0: W3 + 2500, x1: 500, z1: W3 + 2500 },
+    // 고대유적(동쪽 곁가지)의 바깥 벽 — 동 · 북쪽 끝을 가린다
+    { x0: 1500, z0: W3 + 500, x1: 1500, z1: W3 + 1500 },
+    { x0: 500, z0: W3 + 1500, x1: 1500, z1: W3 + 1500 },
   ];
   const rnd = mulberry32(9861);
   const list = [];
@@ -3102,6 +3496,7 @@ export function buildWorld3(scene, groups) {
   const out = {};
   out.villageW3 = buildVillageW3(groups.village_w3);
   out.annoyingForest = buildAnnoyingForest(groups.annoying_forest);
+  out.ancientRuins = buildAncientRuins(groups.ancient_ruins);
   out.secretCave = buildSecretCave(groups.secret_cave);
   out.fantasyForest = buildFantasyForest(groups.fantasy_forest);
   out.corruptedCity = buildCorruptedCity(groups.corrupted_city);
@@ -3138,6 +3533,22 @@ export function updateWorld3(world, dt, t) {
   }
   if (w3.fantasyForest && w3.fantasyForest.eggGlow) {
     w3.fantasyForest.eggGlow.material.opacity = 0.1 + Math.sin(t * 1.6) * 0.04;
+  }
+  if (w3.ancientRuins) {
+    const ar = w3.ancientRuins;
+    if (ar.flames) {
+      for (let i = 0; i < ar.flames.length; i++) {
+        const f = ar.flames[i];
+        const k = 1 + Math.sin(t * 7.4 + f.phase) * 0.14 + Math.sin(t * 13.1 + f.phase) * 0.06;
+        if (f.flame) {
+          f.flame.scale.set(k, 1 + Math.sin(t * 9.2 + f.phase) * 0.16, k);
+          f.flame.rotation.y += dt * 0.8;
+        }
+        if (f.halo) f.halo.material.opacity = 0.13 + 0.06 * (0.5 + 0.5 * Math.sin(t * 6.2 + f.phase));
+      }
+    }
+    if (ar.runeRing) ar.runeRing.rotation.y += dt * 0.09;
+    if (ar.coreGlow) ar.coreGlow.material.opacity = 0.12 + Math.sin(t * 1.5) * 0.05;
   }
   if (w3.corruptedCity) {
     const c = w3.corruptedCity;

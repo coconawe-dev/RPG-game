@@ -7,7 +7,7 @@ import { Effects } from '/workspace/RPG-game/src/effects.js';
 import { Combat } from '/workspace/RPG-game/src/combat.js';
 import { castSkill } from '/workspace/RPG-game/src/skills.js';
 import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, BIOME_ORDER_W3, ALL_BIOME_ORDER, BOSS_POS, BOSS2_POS, BOSS3_POS, MOB_TYPES, SHOP, SHOP2, SHOP3, SHOPS, shopById, bossPosFor, compassOrderFor, biomeOrderFor, bossSkillById, bossSkillByCode, bossSkillCode, START_GOLD, WORLD2, WORLD3, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS, WORLD2_PORTAL_POS, WORLD3_ARRIVAL, WORLD3_RETURN_POS, MAX_ARMOR_TIER, MAX_WEAPON_TIER, shopForBiome, shopWeaponsFor, allArmors, allPotions, homeBiomeFor, homeSpawnFor, CLASSES, ULT_LEVEL, EVOLUTION_LEVEL, ULT_COOLDOWN, skillDefFor } from '/workspace/RPG-game/src/config.js';
-import { terrainHeight, regionAt, clampToWorld, worldAt, normWorld, WORLD } from '/workspace/RPG-game/src/utils.js';
+import { terrainHeight, regionAt, clampToWorld, worldAt, normWorld, isInsideWorld, WORLD } from '/workspace/RPG-game/src/utils.js';
 import { Portals, handleBossDefeated, travelPlayer } from '/workspace/RPG-game/src/portals.js';
 import { buyItem } from '/workspace/RPG-game/src/shop.js';
 import { QuestLog, QUEST_CHAINS, QuestChain, questGoalText, mobName } from '/workspace/RPG-game/src/quests.js';
@@ -93,9 +93,11 @@ check(cl3.x === -2000 && cl3.z === 400, 'clamp moved a valid village position');
   const expectMob = {
     village_w2: null,
     goblin_forest: 'goblin', misty_plains: 'skeleton', sakura: 'samurai',
+    // 고블린 숲 동쪽 곁가지 — 심해
+    deep_sea: 'giant_squid',
     ominous_cave: 'iron_golem', dark_realm: 'dark_mage',
   };
-  check(BIOME_ORDER_W2.length === 6, 'world 2 must have 6 biomes, got ' + BIOME_ORDER_W2.length);
+  check(BIOME_ORDER_W2.length === 7, 'world 2 must have 7 biomes, got ' + BIOME_ORDER_W2.length);
   check(ALL_BIOME_ORDER.length === BIOME_ORDER.length + BIOME_ORDER_W2.length + BIOME_ORDER_W3.length, 'ALL_BIOME_ORDER must cover all three worlds');
 
   for (const region of Object.keys(expectMob)) {
@@ -195,8 +197,11 @@ check(cl3.x === -2000 && cl3.z === 400, 'clamp moved a valid village position');
   check(clampToWorld({ x: 9e9, z: W2 }, 2).x === WORLD2.xMax, 'world 2 east clamp failed');
   check(clampToWorld({ x: -9e9, z: W2 }, 2).x === WORLD2.xMin, 'world 2 west clamp failed');
   check(clampToWorld({ x: 0, z: W2 + 9e9 }, 2).z === WORLD2.zMax, 'world 2 south clamp failed');
-  const corner = clampToWorld({ x: 900, z: W2 + 900 }, 2);
+  const corner = clampToWorld({ x: -900, z: W2 + 900 }, 2);
   check(Math.abs(corner.x) <= 500 || Math.abs(corner.z - W2) <= 500, 'world 2 cross clamp failed: ' + corner.x + ',' + corner.z);
+  // 동쪽 곁가지(심해)는 걸어서 들어가는 통로다 — 막지 않는다
+  const crossInto = clampToWorld({ x: 900, z: W2 + 900 }, 2);
+  check(crossInto.x === 900 && crossInto.z === W2 + 900, 'the deep sea side cell must be walkable: ' + crossInto.x + ',' + crossInto.z);
   const okSpot = clampToWorld({ x: 120, z: W2 + 1200 }, 2);
   check(okSpot.x === 120 && okSpot.z === W2 + 1200, 'clamp moved a valid world 2 position');
 
@@ -812,7 +817,7 @@ check(game.combat.projectiles.length < 200, 'projectile leak: ' + game.combat.pr
   // 몹은 자기 바이옴 안에서만 산다
   const home = {
     goblin: 'goblin_forest', skeleton: 'misty_plains', samurai: 'sakura',
-    iron_golem: 'ominous_cave', dark_mage: 'dark_realm',
+    giant_squid: 'deep_sea', iron_golem: 'ominous_cave', dark_mage: 'dark_realm',
   };
   for (const m of w2mobs) {
     const r = regionAt(m.position.x, m.position.z);
@@ -1646,7 +1651,8 @@ for (const classId of CLASS_ORDER) {
   // 퀘스트 목록이 기획 그대로인지
   const spec = {
     1: [['slime', 10, 150], ['zombie', 12, 280], ['hyena', 15, 450], ['raider', 12, 650], ['gorilla', 12, 900], ['golem', 1, 1600]],
-    2: [['goblin', 12, 700], ['skeleton', 12, 1100], ['samurai', 10, 1600], ['iron_golem', 6, 2400], ['dark_mage', 1, 4500]],
+    // 2세계: 4단계 뒤에 심해의 거대 오징어가 끼어들고, 그 다음이 보스
+    2: [['goblin', 12, 700], ['skeleton', 12, 1100], ['samurai', 10, 1600], ['iron_golem', 6, 2400], ['giant_squid', 8, 3200], ['dark_mage', 1, 4500]],
   };
   for (const w of [1, 2]) {
     const list = QUEST_CHAINS[w];
@@ -2306,12 +2312,14 @@ for (const classId of CLASS_ORDER) {
   const expectMob3 = {
     village_w3: [],
     annoying_forest: ['tyrannosaurus', 'spinosaurus'],
+    // 선사시대 숲 동쪽 곁가지 — 고대유적
+    ancient_ruins: ['ancient_serpent'],
     secret_cave: ['wyvern'],
     fantasy_forest: ['dragon'],
     corrupted_city: ['fallen_hero'],
     occupied_ranch: ['strong_chicken'],
   };
-  check(BIOME_ORDER_W3.length === 6, 'world 3 must have 6 biomes, got ' + BIOME_ORDER_W3.length);
+  check(BIOME_ORDER_W3.length === 7, 'world 3 must have 7 biomes, got ' + BIOME_ORDER_W3.length);
   for (const region of Object.keys(expectMob3)) {
     const b = BIOMES[region];
     check(!!b, 'world 3 biome missing: ' + region);
@@ -2383,7 +2391,7 @@ for (const classId of CLASS_ORDER) {
   check(homeBiomeFor(3) === BIOMES.village_w3, 'home biome of world 3 wrong');
   check(regionAt(homeSpawnFor(3).x, homeSpawnFor(3).z) === 'village_w3', 'respawn point of world 3 must be inside the world 3 village');
   check(biomeOrderFor(3) === BIOME_ORDER_W3, 'biomeOrderFor(3) wrong');
-  check(compassOrderFor(3)[0] === 'occupied_ranch' && compassOrderFor(3).length === 6, 'world 3 compass wrong: ' + compassOrderFor(3).join(','));
+  check(compassOrderFor(3)[0] === 'occupied_ranch' && compassOrderFor(3).length === 7, 'world 3 compass wrong: ' + compassOrderFor(3).join(','));
   check(regionAt(BOSS3_POS.x, BOSS3_POS.z) === 'occupied_ranch', 'strong chicken must stand in the occupied ranch');
   check(bossPosFor('occupied_ranch') === BOSS3_POS && bossPosFor('dark_realm') === BOSS2_POS, 'bossPosFor wrong');
 
@@ -2514,6 +2522,7 @@ for (const classId of CLASS_ORDER) {
   const home3 = {
     dragon: 'fantasy_forest', wyvern: 'secret_cave', spinosaurus: 'annoying_forest',
     tyrannosaurus: 'annoying_forest', fallen_hero: 'corrupted_city', strong_chicken: 'occupied_ranch',
+    ancient_serpent: 'ancient_ruins',
   };
   for (const m of w3mobs) {
     const r = regionAt(m.position.x, m.position.z);
@@ -2701,16 +2710,18 @@ for (const classId of CLASS_ORDER) {
   /* ---------------------- 5) 3세계 순차 퀘스트 ---------------------- */
   const want3 = [
     ['dragon', 8, 8000], ['wyvern', 10, 10000], ['tyrannosaurus', 8, 13000],
-    ['spinosaurus', 8, 15000], ['fallen_hero', 10, 20000], ['strong_chicken', 1, 35000],
+    ['spinosaurus', 8, 15000], ['fallen_hero', 10, 20000], ['ancient_serpent', 8, 24000],
+    ['strong_chicken', 1, 35000],
   ];
-  check(QUEST_CHAINS[3].length === 6, 'world 3 must have 6 quests');
-  for (let i = 0; i < 6; i++) {
+  check(QUEST_CHAINS[3].length === 7, 'world 3 must have 7 quests');
+  for (let i = 0; i < 7; i++) {
     const q = QUEST_CHAINS[3][i];
     check(q.id === 'w3_q' + (i + 1), 'world 3 quest id wrong: ' + q.id);
     check(q.mobType === want3[i][0] && q.target === want3[i][1] && q.rewardGold === want3[i][2], 'world 3 quest ' + (i + 1) + ' wrong: ' + JSON.stringify(q));
   }
   check(questGoalText(QUEST_CHAINS[3][0]) === '용 8마리 잡기', 'world 3 goal text wrong: ' + questGoalText(QUEST_CHAINS[3][0]));
-  check(questGoalText(QUEST_CHAINS[3][5]) === '강하닭 1마리 처치', 'world 3 boss goal text wrong: ' + questGoalText(QUEST_CHAINS[3][5]));
+  check(questGoalText(QUEST_CHAINS[3][6]) === '강하닭 1마리 처치', 'world 3 boss goal text wrong: ' + questGoalText(QUEST_CHAINS[3][6]));
+  check(questGoalText(QUEST_CHAINS[3][5]) === '고대 뱀 8마리 잡기', 'world 3 serpent goal text wrong: ' + questGoalText(QUEST_CHAINS[3][5]));
   const total3 = QUEST_CHAINS[3].reduce((a, q) => a + q.rewardGold, 0);
   check(total3 >= 100000, 'world 3 quest rewards must fund the 100,000G shop: ' + total3);
 
@@ -2724,9 +2735,216 @@ for (const classId of CLASS_ORDER) {
   check(qlog3.chainFor(3).index === 1 && qlog3.chainFor(1).index === 0 && qlog3.chainFor(2).index === 0, 'quest chains must stay independent');
   check(qlog3.status(3).goal === '와이번 10마리 잡기', 'world 3 second quest must be the wyvern: ' + qlog3.status(3).goal);
   check(qlog3.summary(3) === '와이번 0/10', 'world 3 summary wrong: ' + qlog3.summary(3));
-  check(qlog3.status(3).title.indexOf('3세계') < 0 && qlog3.status(3).index === 2 && qlog3.status(3).total === 6, 'world 3 quest status wrong');
-  // 2번째 세계 퀘스트도 그대로 남아 있다
-  check(QUEST_CHAINS[2].length === 5 && QUEST_CHAINS[1].length === 6, 'world 1/2 quest chains must not change');
+  check(qlog3.status(3).title.indexOf('3세계') < 0 && qlog3.status(3).index === 2 && qlog3.status(3).total === 7, 'world 3 quest status wrong');
+  // 2번째 세계 퀘스트도 그대로 남아 있다 (심해 단계가 하나 늘었다)
+  check(QUEST_CHAINS[2].length === 6 && QUEST_CHAINS[1].length === 6, 'world 1/2 quest chains must keep their shape');
+}
+
+/* =====================================================================
+   새 지역 · 새 몹 — 2세계 심해(거대 오징어) · 3세계 고대유적(고대 뱀 · 머리 세 개)
+   ===================================================================== */
+{
+  const W2 = WORLD2.originZ;
+  const W3 = WORLD3.originZ;
+
+  /* ---------------------- 1) 심해 — 고블린 숲 바로 동쪽 ---------------------- */
+  const sea = BIOMES.deep_sea;
+  check(!!sea, 'deep sea biome missing');
+  check(sea.name === '심해' && sea.en === 'Deep Sea', 'the deep sea must be named 심해, got ' + (sea && sea.name));
+  check(sea.world === 2, 'the deep sea must belong to world 2');
+  check(sea.bounds.x1 - sea.bounds.x0 === 1000 && sea.bounds.z1 - sea.bounds.z0 === 1000, 'the deep sea must be 1000x1000');
+  check(sea.bounds.x0 === BIOMES.goblin_forest.bounds.x1, 'the deep sea must sit right east of the goblin forest: ' + sea.bounds.x0);
+  check(sea.bounds.z0 === BIOMES.goblin_forest.bounds.z0 && sea.bounds.z1 === BIOMES.goblin_forest.bounds.z1, 'the deep sea must share the goblin forest edge');
+  check(regionAt(sea.center.x, sea.center.z) === 'deep_sea', 'deep sea region lookup wrong: ' + regionAt(sea.center.x, sea.center.z));
+  check(regionAt(450, W2 + 1000) === 'goblin_forest', 'the goblin forest west of the deep sea must stay intact');
+  check(regionAt(560, W2 + 1000) === 'deep_sea', 'walking east out of the goblin forest must enter the deep sea');
+  const seaSpot = clampToWorld({ x: 1380, z: W2 + 1380 }, 2);
+  check(seaSpot.x === 1380 && seaSpot.z === W2 + 1380, 'the deep sea floor must be walkable: ' + seaSpot.x + ',' + seaSpot.z);
+  check(isInsideWorld(1000, W2 + 1000, 2) === true, 'the deep sea must count as inside world 2');
+  check(sea.mob === 'giant_squid' && sea.mobCount >= 6, 'the deep sea must spawn giant squids, got ' + sea.mob + ' x' + sea.mobCount);
+  check(!!sea.landmark && !!sea.landmarkPos && !!sea.minimap, 'the deep sea needs a landmark and a map colour');
+  check(BIOME_ORDER_W2.indexOf('deep_sea') >= 0, 'the deep sea must be in the world 2 biome order');
+  check(compassOrderFor(2).indexOf('deep_sea') >= 0 && compassOrderFor(2).length === 7, 'the world 2 compass must list the deep sea: ' + compassOrderFor(2).join(','));
+  check(biomeOrderFor(2).indexOf('deep_sea') >= 0, 'biomeOrderFor(2) must list the deep sea');
+  // 분위기: 검푸른 안개 · 바다 쪽 색
+  const seaFog = new THREE.Color(sea.fog);
+  const seaSky = new THREE.Color(sea.sky);
+  check(seaFog.b > seaFog.r && seaSky.b > seaSky.r, 'the deep sea fog and sky must be deep navy-teal');
+  check(sea.fogFar < BIOMES.goblin_forest.fogFar && sea.hemiIntensity < BIOMES.goblin_forest.hemiIntensity, 'the deep sea must be darker and murkier than the goblin forest');
+  let seaMeshes = 0;
+  world.biomeGroups.deep_sea.traverse((o) => { if (o.isMesh || o.isInstancedMesh || o.isPoints) seaMeshes++; });
+  check(seaMeshes > 30, 'the deep sea has too few objects: ' + seaMeshes);
+  updateBiomeCulling(world, { x: 1000, z: W2 + 1000 }, 1280);
+  check(world.biomeGroups.deep_sea.visible === true, 'the deep sea must show while standing in it');
+  updateBiomeCulling(world, { x: -2000, z: 0 }, 1280);
+  check(world.biomeGroups.deep_sea.visible === false, 'the deep sea must be culled while in world 1');
+
+  /* ---------------------- 2) 고대유적 — 선사시대 숲 바로 동쪽 ---------------------- */
+  const ruins = BIOMES.ancient_ruins;
+  check(!!ruins, 'ancient ruins biome missing');
+  check(ruins.name === '고대유적' && ruins.en === 'Ancient Ruins', 'the ruins must be named 고대유적, got ' + (ruins && ruins.name));
+  check(ruins.world === 3, 'the ancient ruins must belong to world 3');
+  check(ruins.bounds.x1 - ruins.bounds.x0 === 1000 && ruins.bounds.z1 - ruins.bounds.z0 === 1000, 'the ancient ruins must be 1000x1000');
+  check(ruins.bounds.x0 === BIOMES.annoying_forest.bounds.x1, 'the ruins must sit right east of the prehistoric forest: ' + ruins.bounds.x0);
+  check(ruins.bounds.z0 === BIOMES.annoying_forest.bounds.z0 && ruins.bounds.z1 === BIOMES.annoying_forest.bounds.z1, 'the ruins must share the forest edge');
+  check(regionAt(ruins.center.x, ruins.center.z) === 'ancient_ruins', 'ancient ruins region lookup wrong: ' + regionAt(ruins.center.x, ruins.center.z));
+  check(regionAt(450, W3 + 1000) === 'annoying_forest', 'the prehistoric forest west of the ruins must stay intact');
+  check(regionAt(560, W3 + 1000) === 'ancient_ruins', 'walking east out of the prehistoric forest must enter the ruins');
+  const ruinSpot = clampToWorld({ x: 1380, z: W3 + 1380 }, 3);
+  check(ruinSpot.x === 1380 && ruinSpot.z === W3 + 1380, 'the ancient ruins floor must be walkable: ' + ruinSpot.x + ',' + ruinSpot.z);
+  check(isInsideWorld(1000, W3 + 1000, 3) === true, 'the ancient ruins must count as inside world 3');
+  check(ruins.mob === 'ancient_serpent' && ruins.mobCount >= 6, 'the ruins must spawn ancient serpents, got ' + ruins.mob + ' x' + ruins.mobCount);
+  check(BIOME_ORDER_W3.indexOf('ancient_ruins') >= 0, 'the ancient ruins must be in the world 3 biome order');
+  check(compassOrderFor(3).indexOf('ancient_ruins') >= 0 && compassOrderFor(3).length === 7, 'the world 3 compass must list the ruins: ' + compassOrderFor(3).join(','));
+  const ruinFog = new THREE.Color(ruins.fog);
+  check(ruinFog.r > ruinFog.b && ruinFog.g > ruinFog.b, 'the ruins fog must be golden amber');
+  let ruinMeshes = 0;
+  world.biomeGroups.ancient_ruins.traverse((o) => { if (o.isMesh || o.isInstancedMesh) ruinMeshes++; });
+  check(ruinMeshes > 30, 'the ancient ruins have too few objects: ' + ruinMeshes);
+  updateBiomeCulling(world, { x: 1000, z: W3 + 1000 }, 1280);
+  check(world.biomeGroups.ancient_ruins.visible === true, 'the ruins must show while standing in them');
+  updateBiomeCulling(world, { x: 0, z: 0 }, 1280);
+  check(world.biomeGroups.ancient_ruins.visible === false, 'the ruins must be culled while in world 1');
+
+  /* ---------------------- 3) 거대 오징어 — 수치 · 모델 · 유영 ---------------------- */
+  const squidT = MOB_TYPES.giant_squid;
+  check(!!squidT, 'giant squid missing from MOB_TYPES');
+  check(squidT.name === '거대 오징어', 'the giant squid must be named 거대 오징어, got ' + squidT.name);
+  check(squidT.hp === 3100 && squidT.damage === 112 && squidT.xp === 980 && squidT.gold === 520, 'giant squid stats wrong: ' + JSON.stringify(squidT));
+  check(squidT.hp > MOB_TYPES.samurai.hp && squidT.hp < MOB_TYPES.iron_golem.hp, 'the giant squid must sit between the samurai and the iron golem');
+  check(squidT.gold >= 500 && squidT.xp >= 900, 'the giant squid must pay generously: ' + squidT.gold + 'G / ' + squidT.xp + 'xp');
+  check(squidT.height >= 38 && squidT.radius >= 12, 'the giant squid must be big: ' + squidT.height + '/' + squidT.radius);
+  check(squidT.hp < MOB_TYPES.dragon.hp, 'world 2 must not outclass world 3');
+
+  const squid = new Mob(game, 'giant_squid', { x: sea.center.x, z: sea.center.z }, 'deep_sea');
+  check(squid.worldId === 2, 'the giant squid must live in world 2');
+  check(regionAt(squid.position.x, squid.position.z) === 'deep_sea', 'the giant squid spawned outside the deep sea');
+  check(squid.model.arms.length === 8, 'the giant squid needs 8 arms, got ' + squid.model.arms.length);
+  check(squid.model.tentacles.length >= 2, 'the giant squid needs long tentacles too');
+  check(squid.model.arms.every((a) => a.length >= 3), 'every squid arm needs three joints');
+  check(!!squid.model.eyeMat && squid.model.eyeMat.emissiveIntensity > 0, 'the giant squid needs glowing abyssal eyes');
+  check(!!squid.model.mantle && !!squid.model.finL && !!squid.model.finR, 'the giant squid needs a mantle and fins');
+  squid.time = 0;
+  squid.animate(1 / 60, 60);
+  const armBefore = squid.model.arms[0][0].rotation.x;
+  const arm1Before = squid.model.arms[3][1].rotation.x;
+  const tentBefore = squid.model.tentacles[0][1].rotation.x;
+  const floatBefore = squid.model.body.position.y;
+  squid.time = 1.35;
+  squid.animate(1 / 60, 60);
+  check(Math.abs(squid.model.arms[0][0].rotation.x - armBefore) > 0.01, 'the squid arms must writhe');
+  check(Math.abs(squid.model.arms[3][1].rotation.x - arm1Before) > 0.01, 'the squid arm joints must move separately');
+  check(Math.abs(squid.model.tentacles[0][1].rotation.x - tentBefore) > 0.01, 'the long tentacles must writhe');
+  check(squid.model.body.position.y > 12, 'the squid must float above the sea floor: ' + squid.model.body.position.y);
+  check(Math.abs(squid.model.body.position.y - floatBefore) > 0.2, 'the squid must bob up and down');
+  game.scene.remove(squid.root);
+
+  /* ---------------------- 4) 고대 뱀 — 머리 세 개 ---------------------- */
+  const serpT = MOB_TYPES.ancient_serpent;
+  check(!!serpT, 'ancient serpent missing from MOB_TYPES');
+  check(serpT.name === '고대 뱀', 'the serpent must be named 고대 뱀, got ' + serpT.name);
+  check(serpT.hp === 6800 && serpT.damage === 240 && serpT.xp === 3600 && serpT.gold === 2500, 'serpent stats wrong: ' + JSON.stringify(serpT));
+  check(serpT.hp > MOB_TYPES.spinosaurus.hp && serpT.gold >= 2500, 'the serpent must be a strong world 3 monster');
+  check(serpT.hp > Math.max(...['goblin', 'skeleton', 'samurai', 'iron_golem', 'giant_squid'].map((id) => MOB_TYPES[id].hp)), 'the serpent must beat every world 2 monster');
+  check(serpT.height >= 42, 'the serpent must be tall, height=' + serpT.height);
+  check(serpT.heads === 3, 'the serpent must be declared three-headed');
+
+  const serp = new Mob(game, 'ancient_serpent', { x: ruins.center.x, z: ruins.center.z }, 'ancient_ruins');
+  check(serp.worldId === 3, 'the ancient serpent must live in world 3');
+  check(regionAt(serp.position.x, serp.position.z) === 'ancient_ruins', 'the serpent spawned outside the ruins');
+  check(serp.model.heads.length === 3, 'the serpent must have THREE heads, got ' + serp.model.heads.length);
+  check(serp.model.necks.length === 3, 'the serpent must have three necks, got ' + serp.model.necks.length);
+  const neckX = serp.model.necks.map((n) => n.group.position.x);
+  check(new Set(neckX.map((v) => v.toFixed(2))).size === 3, 'the three necks must stand apart: ' + neckX.join(','));
+  for (const h of serp.model.heads) {
+    check(!!h.jaw, 'every serpent head needs a jaw');
+    const eyes = h.group.children.filter((c) => c.material === serp.model.eyeMat).length;
+    check(eyes >= 2, 'every serpent head needs two glowing eyes, got ' + eyes);
+    check(h.group.children.length >= 8, 'the serpent heads need detail (crest, horns, fangs)');
+  }
+  check(serp.model.tailSegs.length >= 6, 'the serpent needs a long tail, got ' + serp.model.tailSegs.length);
+  check(!!serp.model.eyeMat && serp.model.eyeMat.emissiveIntensity > 0, 'the serpent eyes must glow');
+
+  serp.time = 0;
+  serp.animate(1 / 60, 60);
+  const yaw0 = serp.model.heads.map((h) => h.group.rotation.y);
+  const jawBefore = serp.model.heads[1].jaw.rotation.x;
+  const tailBefore = serp.model.tailSegs[2].rotation.y;
+  serp.time = 1.15;
+  serp.animate(1 / 60, 60);
+  const yaw1 = serp.model.heads.map((h) => h.group.rotation.y);
+  check(yaw1.some((v, i) => Math.abs(v - yaw0[i]) > 0.02), 'the serpent heads must sway');
+  check(new Set(yaw1.map((v) => v.toFixed(3))).size === 3, 'each serpent head must sway on its own: ' + yaw1.join(','));
+  check(Math.abs(serp.model.tailSegs[2].rotation.y - tailBefore) > 0.02, 'the serpent tail must slither');
+  check(Math.abs(serp.model.heads[1].jaw.rotation.x - jawBefore) > 0.001, 'the serpent jaws must breathe');
+  // 물 때는 세 머리가 함께 달려들며 입을 크게 벌린다
+  serp.attackT = serp.attackDur * 0.5;
+  serp.animate(1 / 60, 60);
+  check(serp.model.heads.every((h) => h.jaw.rotation.x > 0.3), 'all three heads must bite with open jaws');
+  game.scene.remove(serp.root);
+
+  /* ---------------------- 5) 함께 하기 — 새 몹도 동기화된다 ---------------------- */
+  for (const id of ['giant_squid', 'ancient_serpent']) {
+    check(MOB_CODES.indexOf(id) >= 0, 'mob code table missing ' + id);
+    const rec = packMob({ netId: 66, typeId: id, position: new THREE.Vector3(0, 0, W2), hp: 1200, attackT: 0, attackDur: 1.15, state: 'chase' });
+    const un = unpackMob(rec);
+    check(un.typeId === id, id + ' type lost in sync: ' + un.typeId);
+  }
+  check(MOB_CODES.length === Object.keys(MOB_TYPES).length, 'every mob type needs a sync code: ' + MOB_CODES.length + '/' + Object.keys(MOB_TYPES).length);
+
+  /* ---------------------- 6) 순차 퀘스트에 자연스럽게 끼어든다 ---------------------- */
+  const chain2 = QUEST_CHAINS[2];
+  check(chain2.length === 6, 'world 2 must have 6 quests now, got ' + chain2.length);
+  check(chain2[4].mobType === 'giant_squid' && chain2[4].target === 8 && chain2[4].rewardGold === 3200, 'the squid quest must sit before the boss: ' + JSON.stringify(chain2[4]));
+  check(chain2[5].mobType === 'dark_mage', 'the dark mage must stay the last world 2 quest');
+  const chain3 = QUEST_CHAINS[3];
+  check(chain3.length === 7, 'world 3 must have 7 quests now, got ' + chain3.length);
+  check(chain3[5].mobType === 'ancient_serpent' && chain3[5].target === 8 && chain3[5].rewardGold === 24000, 'the serpent quest must sit before the final boss: ' + JSON.stringify(chain3[5]));
+  check(chain3[6].mobType === 'strong_chicken', 'the strong chicken must stay the last world 3 quest');
+  check(chain2.reduce((a, q) => a + q.rewardGold, 0) >= 10300, 'world 2 quest rewards must not shrink');
+  check(chain3.reduce((a, q) => a + q.rewardGold, 0) >= 100000, 'world 3 rewards must still fund the 100,000G shop');
+  // 앞 단계를 차례로 깨면 심해 퀘스트가 열린다 (건너뛰기는 안 된다)
+  const qlog = new QuestLog();
+  check(qlog.recordKill(2, 'giant_squid') === null, 'the squid must not count before its quest is active');
+  for (const q of chain2.slice(0, 4)) for (let i = 0; i < q.target; i++) qlog.recordKill(2, q.mobType);
+  check(qlog.status(2).quest.mobType === 'giant_squid', 'the squid quest must open after the iron golem: ' + qlog.status(2).goal);
+  check(qlog.status(2).goal === '거대 오징어 8마리 잡기', 'world 2 squid goal text wrong: ' + qlog.status(2).goal);
+  let last = null;
+  for (let i = 0; i < 8; i++) last = qlog.recordKill(2, 'giant_squid');
+  check(last && last.completed === true && last.rewardGold === 3200, 'the squid quest must pay 3200G');
+  const qlog3b = new QuestLog();
+  for (const q of chain3.slice(0, 5)) for (let i = 0; i < q.target; i++) qlog3b.recordKill(3, q.mobType);
+  check(qlog3b.status(3).goal === '고대 뱀 8마리 잡기', 'world 3 serpent goal text wrong: ' + qlog3b.status(3).goal);
+  let last3 = null;
+  for (let i = 0; i < 8; i++) last3 = qlog3b.recordKill(3, 'ancient_serpent');
+  check(last3 && last3.completed === true && last3.rewardGold === 24000, 'the serpent quest must pay 24000G');
+  check(qlog3b.status(3).quest.mobType === 'strong_chicken' && qlog3b.status(3).index === 7, 'the final boss quest must come last');
+
+  /* ---------------------- 7) 실제 스폰 — 새 지역에 새 몹만 산다 ---------------------- */
+  const popScene = new THREE.Scene();
+  const popGame = {
+    scene: popScene,
+    world2Unlocked: true,
+    world3Unlocked: true,
+    state: 'playing',
+    worldId: 1,
+    gold: 0,
+    after() {},
+    shake() {},
+    sfx: new Proxy({}, { get: () => () => {} }),
+    recordKill() { return null; },
+    onBossEngage() {},
+  };
+  const popMgr = new MobManager(popGame);
+  const squids = popMgr.mobs.filter((m) => m.typeId === 'giant_squid');
+  const serpents = popMgr.mobs.filter((m) => m.typeId === 'ancient_serpent');
+  check(squids.length >= 6, 'the deep sea must spawn squids, got ' + squids.length);
+  check(serpents.length >= 6, 'the ruins must spawn serpents, got ' + serpents.length);
+  check(squids.every((m) => m.biomeId === 'deep_sea' && m.worldId === 2), 'squids must live only in the world 2 deep sea');
+  check(serpents.every((m) => m.biomeId === 'ancient_ruins' && m.worldId === 3), 'serpents must live only in the world 3 ruins');
+  check(popMgr.mobs.some((m) => m.biomeId === 'deep_sea' && m.typeId !== 'giant_squid') === false, 'nothing else may live in the deep sea');
+  check(popMgr.mobs.some((m) => m.biomeId === 'ancient_ruins' && m.typeId !== 'ancient_serpent') === false, 'nothing else may live in the ruins');
+  popMgr.clearAll();
 }
 
 console.log('feature report:', JSON.stringify(FEATURE_REPORT));

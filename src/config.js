@@ -344,6 +344,36 @@ export const BIOMES_W2 = {
     landmarkPos: { x: 1000, z: W2 },
     spawn: { x: 740, z: W2 },
   },
+  // 심해 — 고블린 숲 바로 동쪽(x 500 ~ 1500 · z W2+500 ~ W2+1500)에 붙은 곁가지 지역.
+  // 고블린 숲에서 동쪽으로 걸어 들어가면 그대로 심해 바닥으로 이어진다.
+  deep_sea: {
+    id: 'deep_sea',
+    world: 2,
+    name: '심해',
+    en: 'Deep Sea',
+    short: '심해',
+    center: { x: 1000, z: W2 + 1000 },
+    bounds: { x0: 500, x1: 1500, z0: W2 + 500, z1: W2 + 1500 },
+    ground: 0x0a2133,
+    ground2: 0x05121f,
+    edge: 0x03101a,
+    minimap: '#123c5e',
+    sky: 0x05141f,
+    fog: 0x07252f,
+    fogNear: 80,
+    fogFar: 520,
+    sun: 0x6fe0f0,
+    sunIntensity: 0.9,
+    hemiSky: 0x2f9ec0,
+    hemiGround: 0x03101a,
+    hemiIntensity: 0.52,
+    mob: 'giant_squid',
+    mobCount: 8,
+    landmark: '심연의 성소',
+    landmarkPos: { x: 1000, z: W2 + 1000 },
+    // 서쪽(고블린 숲)에서 걸어 들어오는 길목
+    spawn: { x: 620, z: W2 + 1000 },
+  },
   dark_realm: {
     id: 'dark_realm',
     world: 2,
@@ -501,6 +531,36 @@ export const BIOMES_W3 = {
     landmarkPos: { x: 1000, z: W3 },
     spawn: { x: 740, z: W3 },
   },
+  // 고대유적 — 선사시대 숲 바로 동쪽(x 500 ~ 1500 · z W3+500 ~ W3+1500)에 붙은 곁가지 지역.
+  // 선사시대 숲에서 동쪽으로 걸어 들어가면 무너진 신전 마당으로 이어진다.
+  ancient_ruins: {
+    id: 'ancient_ruins',
+    world: 3,
+    name: '고대유적',
+    en: 'Ancient Ruins',
+    short: '고대유적',
+    center: { x: 1000, z: W3 + 1000 },
+    bounds: { x0: 500, x1: 1500, z0: W3 + 500, z1: W3 + 1500 },
+    ground: 0x8a774e,
+    ground2: 0x6a5a38,
+    edge: 0x51462c,
+    minimap: '#c9a253',
+    sky: 0x6b4a1c,
+    fog: 0x8a6526,
+    fogNear: 210,
+    fogFar: 1020,
+    sun: 0xffcf7a,
+    sunIntensity: 1.65,
+    hemiSky: 0xe8c88e,
+    hemiGround: 0x2a2113,
+    hemiIntensity: 0.68,
+    mob: 'ancient_serpent',
+    mobCount: 8,
+    landmark: '태고의 뱀 신전',
+    landmarkPos: { x: 1000, z: W3 + 1000 },
+    // 서쪽(선사시대 숲)에서 걸어 들어오는 길목
+    spawn: { x: 620, z: W3 + 1000 },
+  },
   corrupted_city: {
     id: 'corrupted_city',
     world: 3,
@@ -558,13 +618,13 @@ export const BIOMES_W3 = {
 };
 
 // 2번째 세계 지역 순서 (도착지인 2세계 태초마을이 먼저 — 북쪽으로 고블린 숲 → 암흑지역)
-export const BIOME_ORDER_W2 = ['village_w2', 'goblin_forest', 'misty_plains', 'sakura', 'ominous_cave', 'dark_realm'];
+export const BIOME_ORDER_W2 = ['village_w2', 'goblin_forest', 'misty_plains', 'sakura', 'deep_sea', 'ominous_cave', 'dark_realm'];
 
 // 1번째 세계 지역 순서
 export const BIOME_ORDER = ['village', 'forest', 'graveyard', 'savanna', 'old_village', 'jungle', 'temple'];
 
 // 3번째 세계 지역 순서 (도착지인 3세계 태초마을이 먼저 — 북쪽으로 선사시대 숲 → 부패한 도시 → 목장)
-export const BIOME_ORDER_W3 = ['village_w3', 'annoying_forest', 'secret_cave', 'fantasy_forest', 'corrupted_city', 'occupied_ranch'];
+export const BIOME_ORDER_W3 = ['village_w3', 'annoying_forest', 'ancient_ruins', 'secret_cave', 'fantasy_forest', 'corrupted_city', 'occupied_ranch'];
 
 // 세 세계를 한 곳에서 찾을 수 있게 합쳐 둔다 (지역 이름 · 색 · 경계 조회용)
 Object.assign(BIOMES, BIOMES_W2);
@@ -589,10 +649,10 @@ export function biomeOrderFor(worldId) {
 export const COMPASS_ORDER = ['temple', 'village', 'forest', 'graveyard', 'savanna', 'old_village', 'jungle'];
 
 // 2번째 세계 나침반 (보스가 있는 암흑지역을 맨 위에 · 안전 지대인 2세계 태초마을도 표시)
-export const COMPASS_ORDER_W2 = ['dark_realm', 'goblin_forest', 'misty_plains', 'sakura', 'ominous_cave', 'village_w2'];
+export const COMPASS_ORDER_W2 = ['dark_realm', 'goblin_forest', 'misty_plains', 'sakura', 'deep_sea', 'ominous_cave', 'village_w2'];
 
 // 3번째 세계 나침반 (최종 보스가 있는 목장을 맨 위에 · 3세계 태초마을도 표시)
-export const COMPASS_ORDER_W3 = ['occupied_ranch', 'fantasy_forest', 'annoying_forest', 'corrupted_city', 'secret_cave', 'village_w3'];
+export const COMPASS_ORDER_W3 = ['occupied_ranch', 'fantasy_forest', 'annoying_forest', 'ancient_ruins', 'corrupted_city', 'secret_cave', 'village_w3'];
 
 export function compassOrderFor(worldId) {
   if (worldId === 3) return COMPASS_ORDER_W3;
@@ -659,6 +719,12 @@ export const MOB_TYPES = {
     attackRange: 70, attackCooldown: 2.0, xp: 1200, gold: 620, height: 46, radius: 16,
     leash: 600, kind: 'iron_golem',
   },
+  // 심해의 거대 오징어 — 8개의 촉수를 휘두르는 2세계 강자
+  giant_squid: {
+    id: 'giant_squid', name: '거대 오징어', hp: 3100, damage: 112, speed: 40, aggro: 265,
+    attackRange: 62, attackCooldown: 1.9, xp: 980, gold: 520, height: 46, radius: 13,
+    leash: 520, kind: 'giant_squid',
+  },
   dark_mage: {
     id: 'dark_mage', name: '흑마법사', hp: 13600, damage: 156, speed: 32, aggro: 380,
     attackRange: 170, attackCooldown: 2.3, xp: 6500, gold: 2600, height: 40, radius: 12,
@@ -693,6 +759,12 @@ export const MOB_TYPES = {
     id: 'fallen_hero', name: '타락한 영웅', hp: 7600, damage: 260, speed: 60, aggro: 320,
     attackRange: 58, attackCooldown: 1.4, xp: 4200, gold: 2800, height: 24, radius: 8,
     leash: 560, kind: 'fallen_hero', level: 78,
+  },
+  // 고대유적의 고대 뱀 — 머리 세 개가 따로 흔들리는 신전의 수호자
+  ancient_serpent: {
+    id: 'ancient_serpent', name: '고대 뱀', hp: 6800, damage: 240, speed: 54, aggro: 310,
+    attackRange: 66, attackCooldown: 1.55, xp: 3600, gold: 2500, height: 48, radius: 14,
+    leash: 560, kind: 'ancient_serpent', heads: 3,
   },
   // 최종 보스 — 거대 강하닭 (한 마리만 · 사용자 요청: "강하닭은 크게만들어야되")
   strong_chicken: {
