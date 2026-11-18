@@ -1339,10 +1339,10 @@ function buildGiantSquid() {
   root.add(body);
   const mats = [];
 
-  const mantleMat = stdMat(0x6d3d78, { roughness: 0.55, metalness: 0.05, emissive: 0x2a0f38, emissiveIntensity: 0.4 });
-  const mantleDark = stdMat(0x472852, { roughness: 0.6, emissive: 0x180a20, emissiveIntensity: 0.35 });
-  const fleshMat = stdMat(0xb07a94, { roughness: 0.62, emissive: 0x3a1628, emissiveIntensity: 0.3 });
-  const finMat = stdMat(0x8a5296, { roughness: 0.55, emissive: 0x2a1038, emissiveIntensity: 0.35 });
+  const mantleMat = stdMat(0x84498f, { roughness: 0.52, metalness: 0.05, emissive: 0x3a1450, emissiveIntensity: 0.55 });
+  const mantleDark = stdMat(0x5a3268, { roughness: 0.58, emissive: 0x220c30, emissiveIntensity: 0.45 });
+  const fleshMat = stdMat(0xc08aa6, { roughness: 0.6, emissive: 0x4a1c32, emissiveIntensity: 0.35 });
+  const finMat = stdMat(0xa266ad, { roughness: 0.52, emissive: 0x3a1450, emissiveIntensity: 0.45 });
   mats.push(mantleMat, mantleDark, fleshMat, finMat);
 
   const eyeMat = new THREE.MeshStandardMaterial({
