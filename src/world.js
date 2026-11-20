@@ -3932,8 +3932,8 @@ function buildSpecialNpc(scene, def, worldId) {
   beam.position.y = 96;
   g.add(beam);
 
-  const halo = glowShell(pal.glow || 0xffcf8a, 18, 0.12);
-  halo.position.set(0, 38, 0);
+  const halo = glowShell(pal.glow || 0xffcf8a, 11, 0.1);
+  halo.position.set(0, 40, 0);
   g.add(halo);
 
   // 이름 팻말 — 어느 방향에서 보든 정면으로 읽히도록 카메라를 향하는 스프라이트
@@ -3959,9 +3959,6 @@ function buildSpecialNpc(scene, def, worldId) {
     g.add(back);
     label = front;
   }
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(52, 18, 0.5), trim);
-  frame.position.set(0, 43.6, -0.3);
-  g.add(frame);
 
   // 자리 · 방향 (광장 중심 쪽을 바라본다)
   const pos = d.pos || { x: -1912, z: 34 };
