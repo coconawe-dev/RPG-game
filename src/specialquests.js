@@ -191,7 +191,7 @@ export class SpecialQuestLog {
     if (ready.length) hint = '보상 받으러 ' + def.npc.name + ' 에게!';
     else if (focus) hint = specialProgressText(focus);
     else if (claimed.length === all.length && all.length) hint = '모든 특별 퀘스트 완료 ✨';
-    else hint = 'NPC 에게 말을 걸어 의뢰를 받으세요';
+    else hint = 'NPC 앞에서 F · 터치 안내 버튼으로 의뢰 받기';
     return {
       world: w,
       npcName: def.npc.name,

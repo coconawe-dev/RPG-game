@@ -3900,7 +3900,7 @@ function buildSpecialNpc(scene, def, worldId) {
   dot.position.y = -10.2;
   dot.castShadow = true;
   marker.add(dot);
-  marker.position.set(0, 60, 0);
+  marker.position.set(0, 70, 0);
   g.add(marker);
 
   const ringGeo = new THREE.RingGeometry(40, 46, 44);
@@ -3930,23 +3930,23 @@ function buildSpecialNpc(scene, def, worldId) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
       map: labelTex, transparent: true, depthWrite: false,
     }));
-    sprite.scale.set(58, 18, 1);
-    sprite.position.set(0, 48, 0);
+    sprite.scale.set(50, 16, 1);
+    sprite.position.set(0, 44, 0);
     g.add(sprite);
     label = sprite;
   } else {
     const labelMat = signMaterial(d.name, '특별 퀘스트', 0x241c34);
-    const front = new THREE.Mesh(new THREE.PlaneGeometry(58, 18), labelMat);
-    front.position.set(0, 48, 0.4);
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(50, 16), labelMat);
+    front.position.set(0, 44, 0.4);
     g.add(front);
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(58, 18), labelMat);
-    back.position.set(0, 48, -0.4);
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(50, 16), labelMat);
+    back.position.set(0, 44, -0.4);
     back.rotation.y = Math.PI;
     g.add(back);
     label = front;
   }
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(60, 20, 0.5), trim);
-  frame.position.set(0, 47.6, -0.3);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(52, 18, 0.5), trim);
+  frame.position.set(0, 43.6, -0.3);
   g.add(frame);
 
   // 자리 · 방향 (광장 중심 쪽을 바라본다)
@@ -3960,7 +3960,7 @@ function buildSpecialNpc(scene, def, worldId) {
   scene.add(g);
   return {
     group: g, npc, marker, ring, beam, halo, label,
-    npcBaseY: 0, markerBaseY: 60, world, def: d,
+    npcBaseY: 0, markerBaseY: 70, world, def: d,
   };
 }
 
