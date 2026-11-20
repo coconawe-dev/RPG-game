@@ -1500,7 +1500,7 @@ export const SPECIAL_QUESTS = {
       {
         id: 'sp_w1_jungle',
         title: '정글의 수호자',
-        desc: '정글 사원을 지키던 고릴라가 흥포해졌다. 고릴라 15마리와 고대 골렘 1마리를 처치하라.',
+        desc: '정글 사원을 지키던 고릴라가 흉포해졌다. 고릴라 15마리와 고대 골렘 1마리를 처치하라.',
         goals: [{ mob: 'gorilla', target: 15 }, { mob: 'golem', target: 1 }],
         rewardGold: 5000,
         rewardXp: 900,
@@ -1533,7 +1533,7 @@ export const SPECIAL_QUESTS = {
       {
         id: 'sp_w2_squid',
         title: '심해의 괴수',
-        desc: '심해의 거대 오정어와 암흑지역의 흑마법사를 함께 처치하라. 거대 오정어 10마리 · 흑마법사 1마리.',
+        desc: '심해의 거대 오징어와 암흑지역의 흑마법사를 함께 처치하라. 거대 오징어 10마리 · 흑마법사 1마리.',
         goals: [{ mob: 'giant_squid', target: 10 }, { mob: 'dark_mage', target: 1 }],
         rewardGold: 44000,
         rewardXp: 4500,
