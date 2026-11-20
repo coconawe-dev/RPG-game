@@ -260,6 +260,8 @@ export function feedSpecialKill(game, worldId, mobType) {
   const w = normWorld(worldId);
   const events = log.recordKill(w, mobType);
   if (!events.length) return events;
+  // 친구(멀티플레이) 처치로 창이 열린 채 진행이 바뀔 수 있다 — 열려 있으면 다시 그린다
+  if (game.specialDialog && game.specialDialog.isOpen) game.specialDialog.refresh();
   if (game.hud && game.hud.refreshSpecial) game.hud.refreshSpecial();
   const done = events.filter((e) => e.completed);
   if (!done.length) return events;
