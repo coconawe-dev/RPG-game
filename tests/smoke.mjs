@@ -283,7 +283,7 @@ check(!game.mobManager.mobs.some((m) => m.typeId === 'raider' && regionAt(m.posi
 // 강화된 고대 골렘
 check(MOB_TYPES.golem.hp === 6400, 'golem hp must be 6400, got ' + MOB_TYPES.golem.hp);
 check(MOB_TYPES.golem.damage === 108, 'golem damage must be 108');
-check(MOB_TYPES.golem.xp === 2500 && MOB_TYPES.golem.gold === 800, 'golem rewards must be xp 2500 / gold 800');
+check(MOB_TYPES.golem.xp === 2500 && MOB_TYPES.golem.gold === 1600, 'golem rewards must be xp 2500 / gold 1600 (2배)');
 check(MOB_TYPES.raider.hp === 270 && MOB_TYPES.raider.attackRange === 30 && MOB_TYPES.raider.speed === 44, 'raider stats wrong');
 
 // 모든 몹 2배 강화: HP · 공격력이 기존 수치의 정확히 2배 (XP · 골드는 그대로)
@@ -296,8 +296,8 @@ for (const [id, base] of Object.entries(MOB_BASE_STATS)) {
   check(MOB_TYPES[id].hp === base[0] * 2, id + ' hp must be doubled to ' + base[0] * 2 + ', got ' + MOB_TYPES[id].hp);
   check(MOB_TYPES[id].damage === base[1] * 2, id + ' damage must be doubled to ' + base[1] * 2 + ', got ' + MOB_TYPES[id].damage);
 }
-check(MOB_TYPES.goblin.xp === 300 && MOB_TYPES.goblin.gold === 150, 'goblin rewards must stay 300 xp / 150 gold');
-check(MOB_TYPES.golem.xp === 2500 && MOB_TYPES.golem.gold === 800, 'golem rewards must stay 2500 xp / 800 gold');
+check(MOB_TYPES.goblin.xp === 300 && MOB_TYPES.goblin.gold === 300, 'goblin rewards must be 300 xp / 300 gold (2배)');
+check(MOB_TYPES.golem.xp === 2500 && MOB_TYPES.golem.gold === 1600, 'golem rewards must be 2500 xp / 1600 gold (2배)');
 
 
 const boss = game.mobManager.boss();
@@ -387,7 +387,7 @@ for (const classId of CLASS_ORDER) {
   const zombie = game.mobManager.mobs.find((m) => m.typeId === 'zombie' && !m.dead);
   zombie.takeDamage(99999, {});
   check(game.gold === MOB_TYPES.slime.gold + MOB_TYPES.zombie.gold, 'zombie gold drop wrong: ' + game.gold);
-  check(MOB_TYPES.golem.gold === 800, 'boss gold must be 800');
+  check(MOB_TYPES.golem.gold === 1600, 'boss gold must be 1600 (2배)');
 
   // 태초마을 스폰 · 부활
   p.hp = 1;
@@ -1760,9 +1760,9 @@ for (const classId of CLASS_ORDER) {
 {
   // 퀘스트 목록이 기획 그대로인지
   const spec = {
-    1: [['slime', 10, 150], ['zombie', 12, 280], ['hyena', 15, 450], ['raider', 12, 650], ['gorilla', 12, 900], ['golem', 1, 1600]],
+    1: [['slime', 10, 300], ['zombie', 12, 560], ['hyena', 15, 900], ['raider', 12, 1300], ['gorilla', 12, 1800], ['golem', 1, 3200]],
     // 2세계: 4단계 뒤에 심해의 거대 오징어가 끼어들고, 그 다음이 보스
-    2: [['goblin', 12, 700], ['skeleton', 12, 1100], ['samurai', 10, 1600], ['iron_golem', 6, 2400], ['giant_squid', 8, 3200], ['dark_mage', 1, 4500]],
+    2: [['goblin', 12, 1400], ['skeleton', 12, 2200], ['samurai', 10, 3200], ['iron_golem', 6, 4800], ['giant_squid', 8, 6400], ['dark_mage', 1, 9000]],
   };
   for (const w of [1, 2]) {
     const list = QUEST_CHAINS[w];
@@ -1795,7 +1795,7 @@ for (const classId of CLASS_ORDER) {
   let res = null;
   for (let i = 0; i < 9; i++) res = log.recordKill(1, 'slime');
   check(res && res.completed === true, 'slime 10th kill must complete the quest');
-  check(res.rewardGold === 150, 'first quest reward must be 150G, got ' + (res && res.rewardGold));
+  check(res.rewardGold === 300, 'first quest reward must be 300G (2배), got ' + (res && res.rewardGold));
   check(res.chainDone === false, 'chain must not be done after the first quest');
   st = log.status(1);
   check(st.index === 2 && st.quest.mobType === 'zombie' && st.progress === 0, 'must advance to the zombie quest: ' + JSON.stringify(st));
@@ -1823,7 +1823,7 @@ for (const classId of CLASS_ORDER) {
     }
   }
   check(rewards.length === 6, 'all six world 1 quests must complete: ' + rewards.length);
-  check(rewards.reduce((a, b) => a + b, 0) === 150 + 280 + 450 + 650 + 900 + 1600, 'world 1 rewards must add up: ' + rewards.join(','));
+  check(rewards.reduce((a, b) => a + b, 0) === 300 + 560 + 900 + 1300 + 1800 + 3200, 'world 1 rewards must add up (2배): ' + rewards.join(','));
   const fin1 = solo.status(1);
   check(fin1.done === true, 'world 1 chain must be marked done');
   check(solo.recordKill(1, 'slime') === null, 'a finished chain must not count kills');
@@ -1831,7 +1831,7 @@ for (const classId of CLASS_ORDER) {
   check(solo.status(2).done === false && solo.status(2).index === 1, 'finishing world 1 must not finish world 2');
   // 2세계 끝까지
   const r5 = (() => { let last = null; for (const q of QUEST_CHAINS[2]) for (let i = 0; i < q.target; i++) last = solo.recordKill(2, q.mobType); return last; })();
-  check(r5 && r5.completed && r5.rewardGold === 4500 && r5.chainDone === true, 'the last world 2 quest must award 4500G and finish the chain');
+  check(r5 && r5.completed && r5.rewardGold === 9000 && r5.chainDone === true, 'the last world 2 quest must award 9000G and finish the chain');
   check(solo.status(2).done === true, 'world 2 chain must be marked done');
 
   // 6) 한 마리도 빠짐없이 세는지 (10 · 12 · 15 …)
@@ -2521,16 +2521,16 @@ for (const classId of CLASS_ORDER) {
 
   /* ---------------------- 2) 몹 · 최종 보스 강하닭 ---------------------- */
   const EXPECT_MOB3 = {
-    dragon: [5200, 190, 2600, 1800], wyvern: [4200, 160, 2100, 1500],
-    spinosaurus: [6000, 210, 3000, 2000], tyrannosaurus: [5400, 230, 2900, 2000],
-    fallen_hero: [7600, 260, 4200, 2800], strong_chicken: [46000, 360, 20000, 12000],
+    dragon: [5200, 190, 2600, 3600], wyvern: [4200, 160, 2100, 3000],
+    spinosaurus: [6000, 210, 3000, 4000], tyrannosaurus: [5400, 230, 2900, 4000],
+    fallen_hero: [7600, 260, 4200, 5600], strong_chicken: [46000, 360, 20000, 24000],
   };
   for (const [id, v] of Object.entries(EXPECT_MOB3)) {
     const t = MOB_TYPES[id];
     check(!!t, 'world 3 mob missing: ' + id);
     if (!t) continue;
     check(t.hp === v[0] && t.damage === v[1] && t.xp === v[2] && t.gold === v[3], id + ' stats wrong: ' + JSON.stringify(t));
-    check(t.gold >= 1500, id + ' must drop generous gold for the 100,000G shop');
+    check(t.gold >= 3000, id + ' must drop generous gold for the 100,000G shop');
   }
   // 두 번째 세계보다 확실히 강하다
   const w2Strongest = Math.max(...['goblin', 'skeleton', 'samurai', 'iron_golem'].map((id) => MOB_TYPES[id].hp));
@@ -2819,9 +2819,9 @@ for (const classId of CLASS_ORDER) {
 
   /* ---------------------- 5) 3세계 순차 퀘스트 ---------------------- */
   const want3 = [
-    ['dragon', 8, 8000], ['wyvern', 10, 10000], ['tyrannosaurus', 8, 13000],
-    ['spinosaurus', 8, 15000], ['fallen_hero', 10, 20000], ['ancient_serpent', 8, 24000],
-    ['strong_chicken', 1, 35000],
+    ['dragon', 8, 16000], ['wyvern', 10, 20000], ['tyrannosaurus', 8, 26000],
+    ['spinosaurus', 8, 30000], ['fallen_hero', 10, 40000], ['ancient_serpent', 8, 48000],
+    ['strong_chicken', 1, 70000],
   ];
   check(QUEST_CHAINS[3].length === 7, 'world 3 must have 7 quests');
   for (let i = 0; i < 7; i++) {
@@ -2833,7 +2833,7 @@ for (const classId of CLASS_ORDER) {
   check(questGoalText(QUEST_CHAINS[3][6]) === '강하닭 1마리 처치', 'world 3 boss goal text wrong: ' + questGoalText(QUEST_CHAINS[3][6]));
   check(questGoalText(QUEST_CHAINS[3][5]) === '고대 뱀 8마리 잡기', 'world 3 serpent goal text wrong: ' + questGoalText(QUEST_CHAINS[3][5]));
   const total3 = QUEST_CHAINS[3].reduce((a, q) => a + q.rewardGold, 0);
-  check(total3 >= 100000, 'world 3 quest rewards must fund the 100,000G shop: ' + total3);
+  check(total3 >= 200000, 'world 3 quest rewards must fund the 100,000G shop: ' + total3);
 
   const qlog3 = new QuestLog();
   check(qlog3.chainFor(1).index === 0 && qlog3.chainFor(2).index === 0 && qlog3.chainFor(3).index === 0, 'all quest chains must start at 1');
@@ -2841,7 +2841,7 @@ for (const classId of CLASS_ORDER) {
   check(qlog3.recordKill(2, 'dragon') === null, 'a dragon must not count for world 2');
   let qres = null;
   for (let i = 0; i < 8; i++) qres = qlog3.recordKill(3, 'dragon');
-  check(qres && qres.completed === true && qres.rewardGold === 8000, 'world 3 first quest must pay 8000G: ' + JSON.stringify(qres));
+  check(qres && qres.completed === true && qres.rewardGold === 16000, 'world 3 first quest must pay 16000G (2배): ' + JSON.stringify(qres));
   check(qlog3.chainFor(3).index === 1 && qlog3.chainFor(1).index === 0 && qlog3.chainFor(2).index === 0, 'quest chains must stay independent');
   check(qlog3.status(3).goal === '와이번 10마리 잡기', 'world 3 second quest must be the wyvern: ' + qlog3.status(3).goal);
   check(qlog3.summary(3) === '와이번 0/10', 'world 3 summary wrong: ' + qlog3.summary(3));
@@ -2920,7 +2920,7 @@ for (const classId of CLASS_ORDER) {
   const squidT = MOB_TYPES.giant_squid;
   check(!!squidT, 'giant squid missing from MOB_TYPES');
   check(squidT.name === '거대 오징어', 'the giant squid must be named 거대 오징어, got ' + squidT.name);
-  check(squidT.hp === 3100 && squidT.damage === 112 && squidT.xp === 980 && squidT.gold === 520, 'giant squid stats wrong: ' + JSON.stringify(squidT));
+  check(squidT.hp === 3100 && squidT.damage === 112 && squidT.xp === 980 && squidT.gold === 1040, 'giant squid stats wrong: ' + JSON.stringify(squidT));
   check(squidT.hp > MOB_TYPES.samurai.hp && squidT.hp < MOB_TYPES.iron_golem.hp, 'the giant squid must sit between the samurai and the iron golem');
   check(squidT.gold >= 500 && squidT.xp >= 900, 'the giant squid must pay generously: ' + squidT.gold + 'G / ' + squidT.xp + 'xp');
   check(squidT.height >= 38 && squidT.radius >= 12, 'the giant squid must be big: ' + squidT.height + '/' + squidT.radius);
@@ -2953,7 +2953,7 @@ for (const classId of CLASS_ORDER) {
   const serpT = MOB_TYPES.ancient_serpent;
   check(!!serpT, 'ancient serpent missing from MOB_TYPES');
   check(serpT.name === '고대 뱀', 'the serpent must be named 고대 뱀, got ' + serpT.name);
-  check(serpT.hp === 6800 && serpT.damage === 240 && serpT.xp === 3600 && serpT.gold === 2500, 'serpent stats wrong: ' + JSON.stringify(serpT));
+  check(serpT.hp === 6800 && serpT.damage === 240 && serpT.xp === 3600 && serpT.gold === 5000, 'serpent stats wrong: ' + JSON.stringify(serpT));
   check(serpT.hp > MOB_TYPES.spinosaurus.hp && serpT.gold >= 2500, 'the serpent must be a strong world 3 monster');
   check(serpT.hp > Math.max(...['goblin', 'skeleton', 'samurai', 'iron_golem', 'giant_squid'].map((id) => MOB_TYPES[id].hp)), 'the serpent must beat every world 2 monster');
   check(serpT.height >= 42, 'the serpent must be tall, height=' + serpT.height);
@@ -3005,11 +3005,11 @@ for (const classId of CLASS_ORDER) {
   /* ---------------------- 6) 순차 퀘스트에 자연스럽게 끼어든다 ---------------------- */
   const chain2 = QUEST_CHAINS[2];
   check(chain2.length === 6, 'world 2 must have 6 quests now, got ' + chain2.length);
-  check(chain2[4].mobType === 'giant_squid' && chain2[4].target === 8 && chain2[4].rewardGold === 3200, 'the squid quest must sit before the boss: ' + JSON.stringify(chain2[4]));
+  check(chain2[4].mobType === 'giant_squid' && chain2[4].target === 8 && chain2[4].rewardGold === 6400, 'the squid quest must sit before the boss: ' + JSON.stringify(chain2[4]));
   check(chain2[5].mobType === 'dark_mage', 'the dark mage must stay the last world 2 quest');
   const chain3 = QUEST_CHAINS[3];
   check(chain3.length === 7, 'world 3 must have 7 quests now, got ' + chain3.length);
-  check(chain3[5].mobType === 'ancient_serpent' && chain3[5].target === 8 && chain3[5].rewardGold === 24000, 'the serpent quest must sit before the final boss: ' + JSON.stringify(chain3[5]));
+  check(chain3[5].mobType === 'ancient_serpent' && chain3[5].target === 8 && chain3[5].rewardGold === 48000, 'the serpent quest must sit before the final boss: ' + JSON.stringify(chain3[5]));
   check(chain3[6].mobType === 'strong_chicken', 'the strong chicken must stay the last world 3 quest');
   check(chain2.reduce((a, q) => a + q.rewardGold, 0) >= 10300, 'world 2 quest rewards must not shrink');
   check(chain3.reduce((a, q) => a + q.rewardGold, 0) >= 100000, 'world 3 rewards must still fund the 100,000G shop');
@@ -3021,13 +3021,13 @@ for (const classId of CLASS_ORDER) {
   check(qlog.status(2).goal === '거대 오징어 8마리 잡기', 'world 2 squid goal text wrong: ' + qlog.status(2).goal);
   let last = null;
   for (let i = 0; i < 8; i++) last = qlog.recordKill(2, 'giant_squid');
-  check(last && last.completed === true && last.rewardGold === 3200, 'the squid quest must pay 3200G');
+  check(last && last.completed === true && last.rewardGold === 6400, 'the squid quest must pay 6400G (2배)');
   const qlog3b = new QuestLog();
   for (const q of chain3.slice(0, 5)) for (let i = 0; i < q.target; i++) qlog3b.recordKill(3, q.mobType);
   check(qlog3b.status(3).goal === '고대 뱀 8마리 잡기', 'world 3 serpent goal text wrong: ' + qlog3b.status(3).goal);
   let last3 = null;
   for (let i = 0; i < 8; i++) last3 = qlog3b.recordKill(3, 'ancient_serpent');
-  check(last3 && last3.completed === true && last3.rewardGold === 24000, 'the serpent quest must pay 24000G');
+  check(last3 && last3.completed === true && last3.rewardGold === 48000, 'the serpent quest must pay 48000G (2배)');
   check(qlog3b.status(3).quest.mobType === 'strong_chicken' && qlog3b.status(3).index === 7, 'the final boss quest must come last');
 
   /* ---------------------- 7) 실제 스폰 — 새 지역에 새 몹만 산다 ---------------------- */
@@ -3252,6 +3252,78 @@ for (const classId of CLASS_ORDER) {
   check(homeBiomeFor(1) === BIOMES.village, '1세계 부활 자리가 태초마을이 아닙니다');
   check(regionAt(homeSpawnFor(1).x, homeSpawnFor(1).z) === 'village', '1세계 부활 지점이 태초마을 밖입니다');
   check(worldAt(homeSpawnFor(1).x, homeSpawnFor(1).z) === 1, '1세계 부활 지점이 다른 세계입니다');
+}
+
+/* =====================================================================
+   골드 수입 2배 — 몹 드랍 · 순차 퀘스트 · 특별 퀘스트 (사용자 요청: "돈 버는걸 2배로 해줘")
+   상점 가격과 시작 골드는 그대로 둔다 (버는 돈만 2배)
+   ===================================================================== */
+{
+  // 1) 몹 드랍 골드 = 2배 전 값 × 2 (경험치는 그대로)
+  const MOB_GOLD_BEFORE = {
+    slime: 15, zombie: 30, hyena: 45, gorilla: 70, raider: 65, golem: 800,
+    goblin: 150, skeleton: 230, samurai: 330, iron_golem: 620, giant_squid: 520, dark_mage: 2600,
+    dragon: 1800, wyvern: 1500, spinosaurus: 2000, tyrannosaurus: 2000,
+    fallen_hero: 2800, ancient_serpent: 2500, strong_chicken: 12000,
+  };
+  const MOB_XP = {
+    slime: 16, zombie: 26, hyena: 32, gorilla: 52, raider: 48, golem: 2500,
+    goblin: 300, skeleton: 450, samurai: 700, iron_golem: 1200, giant_squid: 980, dark_mage: 6500,
+    dragon: 2600, wyvern: 2100, spinosaurus: 3000, tyrannosaurus: 2900,
+    fallen_hero: 4200, ancient_serpent: 3600, strong_chicken: 20000,
+  };
+  for (const id in MOB_GOLD_BEFORE) {
+    const t = MOB_TYPES[id];
+    check(!!t, 'mob missing: ' + id);
+    if (!t) continue;
+    check(t.gold === MOB_GOLD_BEFORE[id] * 2, id + ' gold must be doubled to ' + (MOB_GOLD_BEFORE[id] * 2) + ', got ' + t.gold);
+    check(t.xp === MOB_XP[id], id + ' xp must stay ' + MOB_XP[id] + ', got ' + t.xp);
+  }
+
+  // 2) 순차 퀘스트 보상 = 2배 전 값 × 2 (1·2·3세계 전부)
+  const QUEST_BEFORE = {
+    1: [150, 280, 450, 650, 900, 1600],
+    2: [700, 1100, 1600, 2400, 3200, 4500],
+    3: [8000, 10000, 13000, 15000, 20000, 24000, 35000],
+  };
+  for (const w of [1, 2, 3]) {
+    const chain = QUEST_CHAINS[w];
+    check(chain.length === QUEST_BEFORE[w].length, w + '세계 퀘스트 수가 다릅니다');
+    chain.forEach((q, i) => {
+      check(q.rewardGold === QUEST_BEFORE[w][i] * 2, w + '세계 ' + (i + 1) + '번째 퀘스트 보상은 ' + (QUEST_BEFORE[w][i] * 2) + 'G 여야 합니다 (2배), got ' + q.rewardGold);
+    });
+  }
+
+  // 3) 특별 퀘스트 보상도 2배 (골드만 · 경험치는 그대로)
+  const SPECIAL_BEFORE = {
+    1: [[2500, 900], [1800, 600]],
+    2: [[22000, 4500], [15000, 3000]],
+    3: [[180000, 30000], [120000, 20000]],
+  };
+  for (const w of [1, 2, 3]) {
+    SPECIAL_QUESTS[w].quests.forEach((q, i) => {
+      check(q.rewardGold === SPECIAL_BEFORE[w][i][0] * 2, w + '세계 특별 퀘스트 ' + q.id + ' 보상 골드는 ' + (SPECIAL_BEFORE[w][i][0] * 2) + 'G 여야 합니다 (2배), got ' + q.rewardGold);
+      check(q.rewardXp === SPECIAL_BEFORE[w][i][1], w + '세계 특별 퀘스트 ' + q.id + ' 경험치는 그대로여야 합니다');
+    });
+  }
+
+  // 4) 실제로 두 배가 들어온다 — 잡으면 골드, 퀘스트를 채우면 보상
+  const p = new Player(game, 'warrior');
+  game.player = p;
+  p.spawnAt(BIOMES.forest.spawn.x, BIOMES.forest.spawn.z);
+  const slime2 = game.mobManager.mobs.find((m) => m.typeId === 'slime' && !m.dead);
+  game.gold = 0;
+  slime2.takeDamage(99999, {});
+  check(game.gold === 30, 'slime must now drop 30G (2배), got ' + game.gold);
+  const qlog = new QuestLog();
+  let qr = null;
+  for (let i = 0; i < 10; i++) qr = qlog.recordKill(1, 'slime');
+  check(qr && qr.rewardGold === 300, '첫 순차 퀘스트 보상은 300G 여야 합니다 (2배)');
+
+  // 5) 시작 골드 · 상점 가격은 그대로
+  check(START_GOLD === 100, '시작 골드는 100G 그대로여야 합니다, got ' + START_GOLD);
+  check(SHOP.weapons.warrior[0].price === 160 && SHOP.weapons.warrior[4].price === 440, '상점 가격은 그대로여야 합니다');
+  check(SHOP3.weapons.warrior[0].price === 104000 && SHOP3.weapons.warrior[4].price === 232000, '3세계 가격은 그대로여야 합니다');
 }
 
 console.log('feature report:', JSON.stringify(FEATURE_REPORT));

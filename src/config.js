@@ -665,7 +665,7 @@ export const START_GOLD = 100;
 export const MOB_TYPES = {
   slime: {
     id: 'slime', name: '슬라임', hp: 92, damage: 14, speed: 20, aggro: 120,
-    attackRange: 24, attackCooldown: 1.7, xp: 16, gold: 15, height: 12, radius: 6,
+    attackRange: 24, attackCooldown: 1.7, xp: 16, gold: 30, height: 12, radius: 6,
     // 슬라임은 납작하게 땅에 붙어 있어 몸 높이(12)보다 위쪽으로 넉넉한 피격 판정을 둔다.
     // 마법사 구체(y ≈ 18) · 궁수 화살이 슬라임을 그냥 지나쳐 버리지 않도록 hitHeight = 20.
     hitHeight: 20,
@@ -673,27 +673,27 @@ export const MOB_TYPES = {
   },
   zombie: {
     id: 'zombie', name: '좀비', hp: 148, damage: 22, speed: 30, aggro: 150,
-    attackRange: 28, attackCooldown: 1.9, xp: 26, gold: 30, height: 18, radius: 6,
+    attackRange: 28, attackCooldown: 1.9, xp: 26, gold: 60, height: 18, radius: 6,
     leash: 300, kind: 'humanoid',
   },
   hyena: {
     id: 'hyena', name: '하이에나', hp: 164, damage: 26, speed: 54, aggro: 190,
-    attackRange: 26, attackCooldown: 1.35, xp: 32, gold: 45, height: 12, radius: 6,
+    attackRange: 26, attackCooldown: 1.35, xp: 32, gold: 90, height: 12, radius: 6,
     leash: 360, kind: 'quadruped',
   },
   gorilla: {
     id: 'gorilla', name: '고릴라', hp: 316, damage: 38, speed: 38, aggro: 170,
-    attackRange: 32, attackCooldown: 2.1, xp: 52, gold: 70, height: 20, radius: 8,
+    attackRange: 32, attackCooldown: 2.1, xp: 52, gold: 140, height: 20, radius: 8,
     leash: 320, kind: 'gorilla',
   },
   raider: {
     id: 'raider', name: '약탈자', hp: 270, damage: 36, speed: 44, aggro: 190,
-    attackRange: 30, attackCooldown: 1.5, xp: 48, gold: 65, height: 20, radius: 7,
+    attackRange: 30, attackCooldown: 1.5, xp: 48, gold: 130, height: 20, radius: 7,
     leash: 340, kind: 'raider',
   },
   golem: {
     id: 'golem', name: '고대 골렘', hp: 6400, damage: 108, speed: 28, aggro: 340,
-    attackRange: 82, attackCooldown: 2.1, xp: 2500, gold: 800, height: 48, radius: 18,
+    attackRange: 82, attackCooldown: 2.1, xp: 2500, gold: 1600, height: 48, radius: 18,
     leash: 660, kind: 'golem', boss: true, level: 20,
     enrageAt: 0.5, slamEvery: 3, slamRadius: 200, slamWindup: 1.5, slamCooldown: 9,
   },
@@ -701,33 +701,33 @@ export const MOB_TYPES = {
   /* ---------------------- 2번째 세계의 몹 — 훨씬 강하다 ---------------------- */
   goblin: {
     id: 'goblin', name: '고블린', hp: 1080, damage: 58, speed: 64, aggro: 210,
-    attackRange: 32, attackCooldown: 1.25, xp: 300, gold: 150, height: 17, radius: 6,
+    attackRange: 32, attackCooldown: 1.25, xp: 300, gold: 300, height: 17, radius: 6,
     leash: 360, kind: 'goblin',
   },
   skeleton: {
     id: 'skeleton', name: '스켈레톤', hp: 1440, damage: 74, speed: 52, aggro: 220,
-    attackRange: 42, attackCooldown: 1.6, xp: 450, gold: 230, height: 19, radius: 6,
+    attackRange: 42, attackCooldown: 1.6, xp: 450, gold: 460, height: 19, radius: 6,
     leash: 380, kind: 'skeleton',
   },
   samurai: {
     id: 'samurai', name: '사무라이', hp: 2300, damage: 98, speed: 56, aggro: 240,
-    attackRange: 46, attackCooldown: 1.45, xp: 700, gold: 330, height: 21, radius: 7,
+    attackRange: 46, attackCooldown: 1.45, xp: 700, gold: 660, height: 21, radius: 7,
     leash: 420, kind: 'samurai',
   },
   iron_golem: {
     id: 'iron_golem', name: '아이언 골렘', hp: 3700, damage: 120, speed: 36, aggro: 280,
-    attackRange: 70, attackCooldown: 2.0, xp: 1200, gold: 620, height: 46, radius: 16,
+    attackRange: 70, attackCooldown: 2.0, xp: 1200, gold: 1240, height: 46, radius: 16,
     leash: 600, kind: 'iron_golem',
   },
   // 심해의 거대 오징어 — 8개의 촉수를 휘두르는 2세계 강자
   giant_squid: {
     id: 'giant_squid', name: '거대 오징어', hp: 3100, damage: 112, speed: 40, aggro: 265,
-    attackRange: 62, attackCooldown: 1.9, xp: 980, gold: 520, height: 52, radius: 14,
+    attackRange: 62, attackCooldown: 1.9, xp: 980, gold: 1040, height: 52, radius: 14,
     leash: 520, kind: 'giant_squid',
   },
   dark_mage: {
     id: 'dark_mage', name: '흑마법사', hp: 13600, damage: 156, speed: 32, aggro: 380,
-    attackRange: 170, attackCooldown: 2.3, xp: 6500, gold: 2600, height: 40, radius: 12,
+    attackRange: 170, attackCooldown: 2.3, xp: 6500, gold: 5200, height: 40, radius: 12,
     leash: 640, kind: 'dark_mage', boss: true, level: 60,
     enemyProjectile: 'dark_orb',
     enrageAt: 0.55, slamEvery: 3, slamRadius: 230, slamWindup: 1.4, slamCooldown: 8,
@@ -737,39 +737,39 @@ export const MOB_TYPES = {
   /* ---------------------- 3번째 세계의 몹 — 두 번째 세계보다 훨씬 강하다 ---------------------- */
   dragon: {
     id: 'dragon', name: '용', hp: 5200, damage: 190, speed: 46, aggro: 300,
-    attackRange: 62, attackCooldown: 1.9, xp: 2600, gold: 1800, height: 44, radius: 16,
+    attackRange: 62, attackCooldown: 1.9, xp: 2600, gold: 3600, height: 44, radius: 16,
     leash: 520, kind: 'dragon',
   },
   wyvern: {
     id: 'wyvern', name: '와이번', hp: 4200, damage: 160, speed: 74, aggro: 290,
-    attackRange: 54, attackCooldown: 1.5, xp: 2100, gold: 1500, height: 32, radius: 12,
+    attackRange: 54, attackCooldown: 1.5, xp: 2100, gold: 3000, height: 32, radius: 12,
     leash: 480, kind: 'wyvern',
   },
   spinosaurus: {
     id: 'spinosaurus', name: '스피노사우루스', hp: 6000, damage: 210, speed: 46, aggro: 300,
-    attackRange: 68, attackCooldown: 2.0, xp: 3000, gold: 2000, height: 42, radius: 15,
+    attackRange: 68, attackCooldown: 2.0, xp: 3000, gold: 4000, height: 42, radius: 15,
     leash: 540, kind: 'spinosaurus',
   },
   tyrannosaurus: {
     id: 'tyrannosaurus', name: '티라노사우루스', hp: 5400, damage: 230, speed: 62, aggro: 310,
-    attackRange: 58, attackCooldown: 1.7, xp: 2900, gold: 2000, height: 44, radius: 15,
+    attackRange: 58, attackCooldown: 1.7, xp: 2900, gold: 4000, height: 44, radius: 15,
     leash: 540, kind: 'tyrannosaurus',
   },
   fallen_hero: {
     id: 'fallen_hero', name: '타락한 영웅', hp: 7600, damage: 260, speed: 60, aggro: 320,
-    attackRange: 58, attackCooldown: 1.4, xp: 4200, gold: 2800, height: 24, radius: 8,
+    attackRange: 58, attackCooldown: 1.4, xp: 4200, gold: 5600, height: 24, radius: 8,
     leash: 560, kind: 'fallen_hero', level: 78,
   },
   // 고대유적의 고대 뱀 — 머리 세 개가 따로 흔들리는 신전의 수호자
   ancient_serpent: {
     id: 'ancient_serpent', name: '고대 뱀', hp: 6800, damage: 240, speed: 54, aggro: 310,
-    attackRange: 66, attackCooldown: 1.55, xp: 3600, gold: 2500, height: 48, radius: 14,
+    attackRange: 66, attackCooldown: 1.55, xp: 3600, gold: 5000, height: 48, radius: 14,
     leash: 560, kind: 'ancient_serpent', heads: 3,
   },
   // 최종 보스 — 거대 강하닭 (한 마리만 · 사용자 요청: "강하닭은 크게만들어야되")
   strong_chicken: {
     id: 'strong_chicken', name: '강하닭', hp: 46000, damage: 360, speed: 42, aggro: 420,
-    attackRange: 120, attackCooldown: 2.2, xp: 20000, gold: 12000, height: 58, radius: 22,
+    attackRange: 120, attackCooldown: 2.2, xp: 20000, gold: 24000, height: 58, radius: 22,
     leash: 720, kind: 'strong_chicken', boss: true, level: 99,
     enrageAt: 0.5, slamEvery: 3, slamRadius: 260, slamWindup: 1.5, slamCooldown: 9,
     slamLabel: '거대 발톱 내려찍기!',
@@ -1502,7 +1502,7 @@ export const SPECIAL_QUESTS = {
         title: '정글의 수호자',
         desc: '정글 사원을 지키던 고릴라가 흥포해졌다. 고릴라 15마리와 고대 골렘 1마리를 처치하라.',
         goals: [{ mob: 'gorilla', target: 15 }, { mob: 'golem', target: 1 }],
-        rewardGold: 2500,
+        rewardGold: 5000,
         rewardXp: 900,
         line: '숲이 자네를 기다린다네.',
       },
@@ -1511,7 +1511,7 @@ export const SPECIAL_QUESTS = {
         title: '무덤가의 망령',
         desc: '해가 진 뒤 무덤 지대가 들끓는다. 슬라임 20마리 · 좀비 15마리 · 하이에나 10마리를 정리하라.',
         goals: [{ mob: 'slime', target: 20 }, { mob: 'zombie', target: 15 }, { mob: 'hyena', target: 10 }],
-        rewardGold: 1800,
+        rewardGold: 3600,
         rewardXp: 600,
         line: '무덤 지대를 깨끗하게 해 주게.',
       },
@@ -1535,7 +1535,7 @@ export const SPECIAL_QUESTS = {
         title: '심해의 괴수',
         desc: '심해의 거대 오정어와 암흑지역의 흑마법사를 함께 처치하라. 거대 오정어 10마리 · 흑마법사 1마리.',
         goals: [{ mob: 'giant_squid', target: 10 }, { mob: 'dark_mage', target: 1 }],
-        rewardGold: 22000,
+        rewardGold: 44000,
         rewardXp: 4500,
         line: '심연의 빛을 되찾아 주게.',
       },
@@ -1544,7 +1544,7 @@ export const SPECIAL_QUESTS = {
         title: '고블린 왕의 심장',
         desc: '고블린 숲과 불길한 동굴을 정리하라. 고블린 25마리 · 스켈레톤 15마리 · 아이언 골렘 8마리.',
         goals: [{ mob: 'goblin', target: 25 }, { mob: 'skeleton', target: 15 }, { mob: 'iron_golem', target: 8 }],
-        rewardGold: 15000,
+        rewardGold: 30000,
         rewardXp: 3000,
         line: '고블린의 북소리가 멈추지 않는다면 이 세계는 끝없이 흔들릴 것이네.',
       },
@@ -1568,7 +1568,7 @@ export const SPECIAL_QUESTS = {
         title: '고대 신전과 목장',
         desc: '고대유적의 고대 뱀과 점령당한 목장의 주인 강하닭을 처치하라. 고대 뱀 10마리 · 강하닭 1마리.',
         goals: [{ mob: 'ancient_serpent', target: 10 }, { mob: 'strong_chicken', target: 1 }],
-        rewardGold: 180000,
+        rewardGold: 360000,
         rewardXp: 30000,
         line: '목장의 깃발을 다시 우리 것으로 되돌려 주게.',
       },
@@ -1577,7 +1577,7 @@ export const SPECIAL_QUESTS = {
         title: '세계의 끝',
         desc: '세 번째 세계를 덮은 재앙을 끝장내라. 용 10마리 · 와이번 12마리 · 타락한 영웅 6마리.',
         goals: [{ mob: 'dragon', target: 10 }, { mob: 'wyvern', target: 12 }, { mob: 'fallen_hero', target: 6 }],
-        rewardGold: 120000,
+        rewardGold: 240000,
         rewardXp: 20000,
         line: '세계의 끝을 본다는 것은… 모든 것을 잃는 것과 같지.',
       },
