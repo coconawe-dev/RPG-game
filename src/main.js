@@ -16,6 +16,10 @@ import { castSkill } from './skills.js';
 import { Shop } from './shop.js';
 import { QuestLog } from './quests.js';
 import {
+  SpecialQuestLog, SpecialQuestDialog, specialDef,
+  acceptSpecialQuest, claimSpecialQuest, feedSpecialKill,
+} from './specialquests.js';
+import {
   Net, normalizeRoomCode, isValidRoomCode, playerListForHud, MAX_PLAYERS,
 } from './net.js';
 import { terrainHeight, clamp, damp, lerp, biomeWeights, regionAt, worldAt, normWorld } from './utils.js';
@@ -61,6 +65,9 @@ class Game {
     this.nearShop = false;
     // 세계별 순차 퀘스트 (1세계 · 2세계 각자 따로 센다)
     this.quests = new QuestLog();
+    // 세계별 특별 퀘스트 (1·2·3세계 NPC 에게 말을 걸어 받는다)
+    this.specialQuests = new SpecialQuestLog();
+    this.nearSpecial = null;        // 지금 말을 걸 수 있는 특별 퀘스트 NPC
     this.victoryTimer = -1;
     this.deathTimer = -1;
     this.pointerLockBroken = false;
@@ -148,6 +155,7 @@ class Game {
     this.hud = new HUD(this);
     this.sfx = new Sfx();
     this.shop = new Shop(this);
+    this.specialDialog = new SpecialQuestDialog(this);
     this.net = new Net(this);
 
     this.bindInput();
@@ -396,6 +404,11 @@ class Game {
         if (k === 'escape' || k === 'f') this.closeShop();
         return;
       }
+      // 특별 퀘스트 창이 열려 있는 동안도 마찬가지
+      if (this.state === 'special') {
+        if (k === 'escape' || k === 'f') this.closeSpecialDialog();
+        return;
+      }
       if (k === 'w' || k === 'arrowup') { this.input.forward = true; }
       if (k === 's' || k === 'arrowdown') { this.input.back = true; }
       if (k === 'a' || k === 'arrowleft') { this.input.left = true; }
@@ -414,7 +427,8 @@ class Game {
       if (k === 'j') { if (this.state === 'playing' && this.player) this.player.attack(); }
       if (k === 'f') {
         if (this.state === 'playing' && this.player) {
-          if (this.nearPortal && this.portals) this.portals.enterNearest();
+          if (this.nearSpecial) this.openSpecialDialog();
+          else if (this.nearPortal && this.portals) this.portals.enterNearest();
           else if (this.nearShop) this.openShop();
           else this.player.attack();
         }
@@ -806,6 +820,17 @@ class Game {
       prompt.addEventListener('touchstart', openShop, { passive: false });
     }
 
+    // 특별 퀘스트 안내도 버튼 — 누르면 NPC 와 대화한다
+    const specialPrompt = document.getElementById('special-prompt');
+    if (specialPrompt) {
+      const talk = (e) => {
+        if (e.cancelable) e.preventDefault();
+        if (this.state === 'playing' && this.player) this.openSpecialDialog();
+      };
+      specialPrompt.addEventListener('click', talk);
+      specialPrompt.addEventListener('touchstart', talk, { passive: false });
+    }
+
     // 포털 안내도 버튼 — 누르면 바로 다른 세계로 넘어간다
     const portalPrompt = document.getElementById('portal-prompt');
     if (portalPrompt) {
@@ -1169,6 +1194,9 @@ class Game {
     this.gold = START_GOLD;
     // 새로 시작하면 퀘스트도 처음부터 (1세계 · 2세계 모두)
     this.quests = new QuestLog();
+    // 특별 퀘스트도 처음부터
+    this.specialQuests = new SpecialQuestLog();
+    this.nearSpecial = null;
     this.nearShop = false;
     this.camYaw = yaw;
     this.camPitch = 0.22;
@@ -1182,6 +1210,7 @@ class Game {
     this.deathTimer = -1;
     this.hud.onStart(this.player);
     if (this.hud.refreshQuest) this.hud.refreshQuest(true);
+    if (this.hud.refreshSpecial) this.hud.refreshSpecial(true);
     // 멀티플레이 연결을 이 시점에 붙인다 (호스트: 몹 스냅샷 송신 시작, 게스트: 몹 미러 준비)
     if (this.net && this.net.role && !this.net.active) {
       // 초대받은 사람의 시작 자리는 1세계 태초마을에 고정한다 (호스트가 세계를 옮겨도 그대로)
@@ -1394,6 +1423,88 @@ class Game {
     this.hud.refreshPotions();
   }
 
+  /* ---------------------- 특별 퀘스트 NPC · 창 ---------------------- */
+  // 지금 말을 걸 수 있는 특별 퀘스트 NPC (그 NPC 가 서 있는 세계여야 한다)
+  activeSpecialNpc() {
+    const p = this.player;
+    if (!p || !p.alive) return null;
+    const w = normWorld(this.worldId);
+    const def = specialDef(w);
+    const npc = def && def.npc;
+    if (!npc || !npc.pos) return null;
+    const d = Math.hypot(p.position.x - npc.pos.x, p.position.z - npc.pos.z);
+    return d <= (npc.radius || 66) ? npc : null;
+  }
+
+  isNearSpecial() { return !!this.activeSpecialNpc(); }
+
+  updateSpecialProximity() {
+    const npc = (this.state === 'playing') ? this.activeSpecialNpc() : null;
+    const near = !!npc;
+    const changed = (this.nearSpecial ? this.nearSpecial.id : '') !== (npc ? npc.id : '');
+    this.nearSpecial = npc;
+    if (!changed) return;
+    const el = document.getElementById('special-prompt');
+    if (el) {
+      el.classList.toggle('on', near);
+      if (near) {
+        const txt = el.querySelector('.sp-text');
+        if (txt) txt.textContent = '말 걸기 · 특별 퀘스트 · ' + npc.name;
+      }
+    }
+  }
+
+  // NPC 에게 말을 건다 — 그 세계의 특별 퀘스트 목록이 열린다
+  openSpecialDialog() {
+    if (this.state !== 'playing' || !this.player) return false;
+    const npc = this.activeSpecialNpc();
+    if (!npc) return false;
+    this.state = 'special';
+    this.input.forward = false;
+    this.input.back = false;
+    this.input.left = false;
+    this.input.right = false;
+    this.input.sprint = false;
+    this.input.jump = false;
+    this.input.block = false;
+    if (document.exitPointerLock) document.exitPointerLock();
+    const w = normWorld(this.worldId);
+    if (this.specialDialog) this.specialDialog.open(w);
+    if (this.sfx && this.sfx.shop) this.sfx.tone({ freq: 620, to: 880, dur: 0.16, type: 'triangle', vol: 0.14 });
+    if (this.hud) this.hud.setCrosshair(false);
+    this.nearSpecial = null;
+    const el = document.getElementById('special-prompt');
+    if (el) el.classList.remove('on');
+    return true;
+  }
+
+  closeSpecialDialog() {
+    if (this.specialDialog) this.specialDialog.close();
+    if (this.state !== 'special') return;
+    this.state = 'playing';
+    this.nearSpecial = null;
+    this.updateSpecialProximity();
+    if (!this.isTouch && !this.pointerLockBroken && this.renderer && this.renderer.domElement.requestPointerLock) {
+      const req = this.renderer.domElement.requestPointerLock();
+      if (req && req.catch) req.catch(() => { this.pointerLockBroken = true; });
+    }
+    if (this.hud) {
+      this.hud.setCrosshair(true);
+      this.hud.refreshBars();
+      this.hud.refreshSpecial(true);
+    }
+  }
+
+  // 의뢰 받기 (NPC 창에서 버튼을 누를 때)
+  acceptSpecialQuest(questId) {
+    return acceptSpecialQuest(this, this.worldId, questId);
+  }
+
+  // 보상 받기 — 문을 연 그 NPC 앞에서만 (창은 NPC 앞에서만 열린다)
+  claimSpecialQuest(questId) {
+    return claimSpecialQuest(this, this.worldId, questId);
+  }
+
   addGold(amount, pos) {
     const n = Math.max(0, Math.round(amount));
     if (!n) return;
@@ -1404,11 +1515,20 @@ class Game {
   }
 
   /* ------------------------------ 퀘스트 ------------------------------ */
+  // 특별 퀘스트 진행 — 목표를 채우면 배너로 알리고 HUD 를 갱신한다
+  // (보상은 NPC 에게 돌아와 "보상 받기"를 눌러 받는다)
+  _recordSpecialKill(worldId, mobType) {
+    return feedSpecialKill(this, worldId, mobType);
+  }
+
   // 몹을 하나 잡았을 때 — 혼자 하기 · 호스트 · 친구(보상 받을 때) 모두 이 한 곳으로 모인다
   recordKill(mobType, worldId) {
+    const w = normWorld(worldId);
+    // 특별 퀘스트도 같은 처치를 센다 (멀티플레이 처치 포함)
+    this._recordSpecialKill(w, mobType);
     const q = this.quests;
     if (!q || !mobType) return null;
-    const res = q.recordKill(normWorld(worldId), mobType);
+    const res = q.recordKill(w, mobType);
     if (!res) return null;
     if (this.hud && this.hud.refreshQuest) this.hud.refreshQuest(true);
     if (!res.completed) return res;
@@ -1431,8 +1551,7 @@ class Game {
 
   usePotion(id) {
     const p = this.player;
-    if (!p) return { ok: false, msg: '' };
-    const res = p.usePotion(id);
+    if (!p) return { ok: false, msg: '' };    const res = p.usePotion(id);
     this.hud.refreshPotions();
     this.hud.refreshBars();
     if (!res.ok && res.msg) this.hud.banner(res.msg, 1200);
@@ -1454,7 +1573,8 @@ class Game {
     this.hud.refreshBars();
     this.hud.banner(armor.name + ' 장착! 최대 HP +' + armor.hp, 1800);
     if (this.effects && this.player) {
-      this.effects.ring(this.player.position, armor.tier === 3 ? 0xffd24a : armor.tier === 2 ? 0xcfe4ff : 0xc9935a, 70, { duration: 0.8 });
+      const ringColor = armor.tier >= 10 ? 0xd8ffe8 : (armor.tier >= 6 ? 0xb98cff : (armor.tier >= 3 ? 0xffd24a : 0xc9935a));
+      this.effects.ring(this.player.position, ringColor, 70, { duration: 0.8 });
       this.effects.burst(new THREE.Vector3(this.player.position.x, this.player.position.y + 10, this.player.position.z), 0xffe1a3, 18, { power: 20, size: 0.6 });
     }
     // 장착한 갑옷이 함께 하는 친구에게도 바로 보이도록
@@ -1517,8 +1637,8 @@ class Game {
       return;
     }
 
-    // 상점 창이 열려 있는 동안은 이동 · 전투를 잠시 멈춘다
-    if (this.state === 'shop') {
+    // 상점 · 특별 퀘스트 창이 열려 있는 동안은 이동 · 전투를 잠시 멈춘다
+    if (this.state === 'shop' || this.state === 'special') {
       this.placeCamera(false, dt);
       this.updateEnvironment(dt);
       this.hud.update(dt);
@@ -1570,6 +1690,7 @@ class Game {
     this.updateEnvironment(dt);
     this.hud.update(dt);
     this.updateShopProximity();
+    this.updateSpecialProximity();
     updateVillage(this.world, dt, this.elapsed);
     updateOldVillage(this.world, dt, this.elapsed);
     updateWorld2(this.world, dt, this.elapsed, p.position);
@@ -1725,6 +1846,9 @@ class Game {
       gold: this.gold,
       nearShop: !!this.nearShop,
       shopOpen: this.state === 'shop',
+      nearSpecial: this.nearSpecial ? this.nearSpecial.id : false,
+      specialOpen: this.state === 'special',
+      special: this.specialQuests ? this.specialQuests.status(this.worldId) : null,
       player: this.player ? {
         classId: this.player.classId, hp: Math.round(this.player.hp), level: this.player.level,
         x: Math.round(this.player.position.x), z: Math.round(this.player.position.z),

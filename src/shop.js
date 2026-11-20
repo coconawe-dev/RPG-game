@@ -36,7 +36,7 @@ export function buyItem(game, itemId) {
 
   const weapon = findWeapon(player.classId, itemId);
   if (weapon) {
-    // 표시는 Tier 2 ~ 5, 내부 인덱스는 1 ~ 4
+    // 표시는 Tier 2 ~ 16, 내부 인덱스는 1 ~ 15
     const idx = weapon.tier - 1;
     if (player.weaponTier >= idx) {
       return { ok: false, msg: '이미 보유한 무기입니다' };
@@ -91,7 +91,11 @@ export function buyItem(game, itemId) {
 /* -------------------------------- 모달 UI -------------------------------- */
 const $ = (id) => document.getElementById(id);
 
-const ARMOR_ICONS = { 1: '🦺', 2: '🛡', 3: '👑', 4: '💠', 5: '🔥', 6: '🐲', 7: '🌟' };
+const ARMOR_ICONS = {
+  1: '🦺', 2: '⛓', 3: '🛡', 4: '💫', 5: '👑',
+  6: '💠', 7: '🌑', 8: '⭐', 9: '🔥',
+  10: '🐲', 11: '🐉', 12: '🏛', 13: '🌟',
+};
 
 export class Shop {
   constructor(game) {

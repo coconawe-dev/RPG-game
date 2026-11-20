@@ -243,15 +243,22 @@ const PALETTE = {
 
 // 상점 갑옷 티어별 재질감: 가죽 → 강철 → 빛나는 황금
 const ARMOR_STYLE = {
+  // 1세계 갑옷 — 가죽 → 사슬 → 강철 판금 → 미스릴 사슬 → 황금 수호
   1: { plate: 0x7a5230, trim: 0x4b3320, rune: 0x2a1a0e, glow: 0, rough: 0.86, metal: 0.06 },
-  2: { plate: 0xa9b2ba, trim: 0x6d7883, rune: 0xa8d8ff, glow: 0.35, rough: 0.3, metal: 0.9 },
-  3: { plate: 0xd9a93a, trim: 0xf2d784, rune: 0xffe9a0, glow: 1.8, rough: 0.24, metal: 0.95 },
-  // 2세계 갑옷 — 별빛 미스릴(보랏빛 룬) · 차원의 불멸(금빛 불꽃 룬)
-  4: { plate: 0x8f7fd0, trim: 0xd8ccff, rune: 0xa87cff, glow: 2.1, rough: 0.24, metal: 0.96 },
-  5: { plate: 0x2e2846, trim: 0xffd98a, rune: 0xff9a3c, glow: 2.9, rough: 0.18, metal: 0.98 },
-  // 3세계 갑옷 — 용비늘(에메랄드 룬) · 창세의 성갑(백금빛 룬)
-  6: { plate: 0x2f6b4e, trim: 0x9ff0c0, rune: 0x4fffa8, glow: 3.2, rough: 0.2, metal: 0.97 },
-  7: { plate: 0xf2ecd8, trim: 0xfff2b0, rune: 0xfff6c8, glow: 3.8, rough: 0.1, metal: 1.0 },
+  2: { plate: 0x8a8f96, trim: 0x5f6770, rune: 0xbfe4ff, glow: 0.12, rough: 0.55, metal: 0.55 },
+  3: { plate: 0xa9b2ba, trim: 0x6d7883, rune: 0xa8d8ff, glow: 0.35, rough: 0.3, metal: 0.9 },
+  4: { plate: 0xc8d6e6, trim: 0xa8b8cc, rune: 0x9fe8ff, glow: 0.9, rough: 0.26, metal: 0.94 },
+  5: { plate: 0xd9a93a, trim: 0xf2d784, rune: 0xffe9a0, glow: 1.8, rough: 0.24, metal: 0.95 },
+  // 2세계 갑옷 — 별빛 미스릴 → 흑요석 → 별빛 성갑 → 차원의 불멸
+  6: { plate: 0x8f7fd0, trim: 0xd8ccff, rune: 0xa87cff, glow: 2.1, rough: 0.24, metal: 0.96 },
+  7: { plate: 0x3a3350, trim: 0x9a8fd0, rune: 0xb98cff, glow: 2.4, rough: 0.2, metal: 0.97 },
+  8: { plate: 0x5b5f92, trim: 0xcfe0ff, rune: 0x8fd8ff, glow: 2.6, rough: 0.18, metal: 0.98 },
+  9: { plate: 0x2e2846, trim: 0xffd98a, rune: 0xff9a3c, glow: 2.9, rough: 0.18, metal: 0.98 },
+  // 3세계 갑옷 — 용비늘 → 용왕의 비늘 → 고대 성갑 → 창세의 성갑
+  10: { plate: 0x2f6b4e, trim: 0x9ff0c0, rune: 0x4fffa8, glow: 3.2, rough: 0.2, metal: 0.97 },
+  11: { plate: 0x245342, trim: 0xb8ffd8, rune: 0x6fffc0, glow: 3.4, rough: 0.17, metal: 0.98 },
+  12: { plate: 0x6a5a2e, trim: 0xf0e0a0, rune: 0xffe28a, glow: 3.6, rough: 0.14, metal: 0.99 },
+  13: { plate: 0xf2ecd8, trim: 0xfff2b0, rune: 0xfff6c8, glow: 3.8, rough: 0.1, metal: 1.0 },
 };
 
 /* 키프레임 보간: frames = [{t:0, p:{...}}, ...] */
@@ -502,7 +509,7 @@ export class Player {
     this.weaponTier = 0;
     this.weaponBonus = 0;
     this.weaponName = this.cls.weaponName.split(' ')[0];
-    // 갑옷: 0 = 맨몸(기본 모험가 복장), 1 ~ 3 = 1세계 상점 갑옷, 4 ~ 5 = 2세계 상점 갑옷
+    // 갑옷: 0 = 맨몸(기본 모험가 복장) · 1 ~ 5 = 1세계 상점 갑옷 · 6 ~ 9 = 2세계 상점 갑옷 · 10 ~ 13 = 3세계 상점 갑옷
     this.armorTier = 0;
     this.armorDefense = 0;
     this.armorBonusHp = 0;
@@ -707,8 +714,8 @@ export class Player {
   }
 
   /* --------------------------- 무기 교체 --------------------------- */
-  // tier 0 = 기본 장비, 1 = 1세계 Tier 2, 2 = 1세계 Tier 3,
-  // 3 = 2세계 Tier 4, 4 = 2세계 Tier 5 — 손의 무기 메시를 새로 만들어 갈아끼운다
+  // tier 0 = 기본 장비, 1 ~ 5 = 1세계 상점(Tier 2 ~ 6), 6 ~ 10 = 2세계 상점(Tier 7 ~ 11),
+  // 11 ~ 15 = 3세계 상점(Tier 12 ~ 16) — 손의 무기 메시를 새로 만들어 갈아끼운다
   equipWeaponTier(tier, initial) {
     const t = clamp(Math.round(tier || 0), 0, MAX_WEAPON_TIER);
     const old = this.weapons;
@@ -827,7 +834,8 @@ export class Player {
     };
     const slim = tier === 1 ? 0.94 : 1;
     const hi = tier >= 3;          // 룬 · 발광 장식을 두르는 상위 갑옷
-    const mythic = tier >= 4;      // 2세계 갑옷은 견갑 · 룬이 한 단계 더 크다
+    const mythic = tier >= 6;      // 2세계 이상 갑옷은 견갑 · 룬이 한 단계 더 크다
+    const legendary = tier >= 10;  // 3세계 갑옷은 어깨에 빛나는 뿔이 더 달린다
     // 흉갑 · 목 가리개 · 허리대
     add(chest, new THREE.BoxGeometry(8.2 * slim, 5.9 * slim, 4.6 * slim), plate, 0, 3.5, 0);
     add(chest, new THREE.BoxGeometry(5.9 * slim, 1.2, 4.65 * slim), trim, 0, 6.6, 0);
@@ -863,6 +871,12 @@ export class Player {
       if (mythic) {
         const spike = add(chest, new THREE.ConeGeometry(0.85, 2.6, 5), trim, s * 5.9, 8.0, -0.4);
         spike.rotation.z = -s * 0.35;
+      }
+      if (legendary) {
+        // 3세계 갑옷: 어깨 위로 빛나는 뿔이 솟는다
+        const horn = add(chest, new THREE.ConeGeometry(0.62, 3.4, 6), glow, s * 5.2, 9.2, 0.5);
+        horn.rotation.z = -s * 0.5;
+        horn.rotation.x = -0.25;
       }
     }
 

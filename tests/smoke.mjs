@@ -6,11 +6,15 @@ import { Player } from '/workspace/RPG-game/src/player.js';
 import { Effects } from '/workspace/RPG-game/src/effects.js';
 import { Combat } from '/workspace/RPG-game/src/combat.js';
 import { castSkill } from '/workspace/RPG-game/src/skills.js';
-import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, BIOME_ORDER_W3, ALL_BIOME_ORDER, BOSS_POS, BOSS2_POS, BOSS3_POS, MOB_TYPES, SHOP, SHOP2, SHOP3, SHOPS, shopById, bossPosFor, compassOrderFor, biomeOrderFor, bossSkillById, bossSkillByCode, bossSkillCode, START_GOLD, WORLD2, WORLD3, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS, WORLD2_PORTAL_POS, WORLD3_ARRIVAL, WORLD3_RETURN_POS, MAX_ARMOR_TIER, MAX_WEAPON_TIER, shopForBiome, shopWeaponsFor, allArmors, allPotions, homeBiomeFor, homeSpawnFor, CLASSES, ULT_LEVEL, EVOLUTION_LEVEL, ULT_COOLDOWN, skillDefFor } from '/workspace/RPG-game/src/config.js';
+import { CLASS_ORDER, BIOMES, BIOME_ORDER, BIOME_ORDER_W2, BIOME_ORDER_W3, ALL_BIOME_ORDER, BOSS_POS, BOSS2_POS, BOSS3_POS, MOB_TYPES, SHOP, SHOP2, SHOP3, SHOPS, shopById, bossPosFor, compassOrderFor, biomeOrderFor, bossSkillById, bossSkillByCode, bossSkillCode, START_GOLD, WORLD2, WORLD3, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS, WORLD2_PORTAL_POS, WORLD3_ARRIVAL, WORLD3_RETURN_POS, MAX_ARMOR_TIER, MAX_WEAPON_TIER, shopForBiome, shopWeaponsFor, allArmors, allPotions, homeBiomeFor, homeSpawnFor, CLASSES, ULT_LEVEL, EVOLUTION_LEVEL, ULT_COOLDOWN, skillDefFor, SPECIAL_QUESTS, GUEST_SPAWN, guestSpawnPoint, allWeapons } from '/workspace/RPG-game/src/config.js';
 import { terrainHeight, regionAt, clampToWorld, worldAt, normWorld, isInsideWorld, WORLD } from '/workspace/RPG-game/src/utils.js';
 import { Portals, handleBossDefeated, travelPlayer } from '/workspace/RPG-game/src/portals.js';
 import { buyItem } from '/workspace/RPG-game/src/shop.js';
 import { QuestLog, QUEST_CHAINS, QuestChain, questGoalText, mobName } from '/workspace/RPG-game/src/quests.js';
+import {
+  SpecialQuestLog, SPECIAL_STATE, specialDef, specialQuestGoalText, specialProgressText,
+  acceptSpecialQuest, claimSpecialQuest, feedSpecialKill,
+} from '/workspace/RPG-game/src/specialquests.js';
 import {
   Net, encodeMsg, decodeMsg, packPlayer, unpackPlayer, packMob, unpackMob, MOB_CODES,
   makeRoomCode, normalizeRoomCode, isValidRoomCode, nearestDistance, ANIM_NAMES,
@@ -400,9 +404,9 @@ for (const classId of CLASS_ORDER) {
   game.gold = goldStart;
   const baseDmg = p.damage;
   const tiers = SHOP.weapons[p.classId];
-  check(tiers && tiers.length === 2, 'shop must offer 2 weapon tiers for every class');
+  check(tiers && tiers.length === 5, 'world 1 shop must offer 5 weapon tiers for every class, got ' + (tiers && tiers.length));
   const t2 = tiers[0];
-  const t3 = tiers[1];
+  const t3 = tiers[tiers.length - 1];
 
   let res = buyItem(game, t2.id);
   check(res.ok, 'tier2 weapon purchase failed: ' + res.msg);
@@ -422,7 +426,7 @@ for (const classId of CLASS_ORDER) {
   check(game.gold === 500 - t3.price, 'tier3 gold not deducted: ' + game.gold);
   check(Math.abs(p.damage - (baseDmg + t3.damage)) < 1e-6, 'tier3 bonus must replace tier2 bonus: ' + p.damage);
   const mesh2 = p.weapons.right || p.weapons.left;
-  check(mesh2 && mesh2.userData.tier === 2, '3D weapon look not upgraded at tier3');
+  check(mesh2 && mesh2.userData.tier === 5, '3D weapon look not upgraded to the world 1 top tier');
 
   // 포션 구매 · 사용
   const hpPotion = SHOP.potions[0];
@@ -471,9 +475,9 @@ for (const classId of CLASS_ORDER) {
   const baseMaxHp = p2.maxHp;
 
   const leather = SHOP.armors[0];
-  const steel = SHOP.armors[1];
-  const goldArmor = SHOP.armors[2];
-  check(SHOP.armors.length === 3, 'shop must offer 3 armor tiers');
+  const steel = SHOP.armors[2];
+  const goldArmor = SHOP.armors[4];
+  check(SHOP.armors.length === 5, 'world 1 shop must offer 5 armor tiers, got ' + SHOP.armors.length);
   check(leather.name === '가죽 갑옷' && leather.price === 180 && leather.hp === 45 && Math.abs(leather.defense - 0.2) < 1e-9, 'leather armor terms wrong');
   check(steel.name === '강철 판금 갑옷' && steel.price === 400 && steel.hp === 110 && Math.abs(steel.defense - 0.35) < 1e-9, 'steel armor terms wrong');
   check(goldArmor.name === '황금 수호 갑옷' && goldArmor.price === 760 && goldArmor.hp === 200 && Math.abs(goldArmor.defense - 0.5) < 1e-9, 'gold armor terms wrong');
@@ -510,7 +514,7 @@ for (const classId of CLASS_ORDER) {
   game.gold = 400;
   ares = buyItem(game, steel.id);
   check(ares.ok, 'steel armor purchase failed: ' + ares.msg);
-  check(p2.armorTier === 2 && Math.abs(p2.armorDefense - 0.35) < 1e-9, 'steel armor not equipped');
+  check(p2.armorTier === 3 && Math.abs(p2.armorDefense - 0.35) < 1e-9, 'steel armor not equipped');
   check(p2.maxHp === baseMaxHp + steel.hp, 'steel max HP bonus must replace leather bonus: ' + p2.maxHp);
   p2.hp = p2.maxHp;
   p2.invuln = 0;
@@ -521,7 +525,7 @@ for (const classId of CLASS_ORDER) {
   game.gold = 900;
   ares = buyItem(game, goldArmor.id);
   check(ares.ok, 'gold armor purchase failed: ' + ares.msg);
-  check(p2.armorTier === 3 && Math.abs(p2.armorDefense - 0.5) < 1e-9, 'gold armor not equipped');
+  check(p2.armorTier === 5 && Math.abs(p2.armorDefense - 0.5) < 1e-9, 'gold armor not equipped');
   check(p2.maxHp === baseMaxHp + goldArmor.hp, 'gold max HP bonus wrong: ' + p2.maxHp);
   p2.hp = p2.maxHp;
   p2.invuln = 0;
@@ -533,39 +537,39 @@ for (const classId of CLASS_ORDER) {
 /* ================== 2세계 태초마을 상점: 더 세고 더 비싼 장비 ================== */
 {
   // 상점 목록 분리: 1세계 마을은 1세계 물건만, 2세계 마을은 2세계 물건만 판다
-  check(allArmors().length === 7, 'seven armor tiers expected across the three shops, got ' + allArmors().length);
-  check(MAX_ARMOR_TIER === 7, 'max armor tier must be 7, got ' + MAX_ARMOR_TIER);
-  check(MAX_WEAPON_TIER === 6, 'max weapon tier must be 6, got ' + MAX_WEAPON_TIER);
-  check(SHOP.armors.length === 3 && SHOP2.armors.length === 2, 'each shop keeps its own armor list');
+  check(allArmors().length === 13, 'thirteen armor tiers expected across the three shops, got ' + allArmors().length);
+  check(MAX_ARMOR_TIER === 13, 'max armor tier must be 13, got ' + MAX_ARMOR_TIER);
+  check(MAX_WEAPON_TIER === 15, 'max weapon tier must be 15, got ' + MAX_WEAPON_TIER);
+  check(SHOP.armors.length === 5 && SHOP2.armors.length === 4 && SHOP3.armors.length === 4, 'each shop keeps its own armor list');
   check(SHOP.potions.length === 3 && SHOP2.potions.length === 2 + 1, 'each shop keeps its own potion list');
   for (const cls of CLASS_ORDER) {
     const w1 = shopWeaponsFor(cls, 'shop_w1');
     const w2 = shopWeaponsFor(cls, 'shop_w2');
-    check(w1.length === 2 && w2.length === 2, cls + ' must have 2 weapons in each shop');
-    check(w1[0].tier === 2 && w1[1].tier === 3, cls + ' world 1 weapon tiers must stay 2/3');
-    check(w2[0].tier === 4 && w2[1].tier === 5, cls + ' world 2 weapon tiers must be 4/5');
+    check(w1.length === 5 && w2.length === 5, cls + ' must have 5 weapons in each shop');
+    check(w1[0].tier === 2 && w1[4].tier === 6, cls + ' world 1 weapon tiers must span 2~6');
+    check(w2[0].tier === 7 && w2[4].tier === 11, cls + ' world 2 weapon tiers must span 7~11');
     // 더 비싸고 더 강하다
-    check(w2[0].price > w1[1].price * 2, cls + ' tier4 must cost far more than world 1 tier3: ' + w2[0].price + ' vs ' + w1[1].price);
-    check(w2[1].price > w2[0].price * 1.8, cls + ' tier5 must cost far more than tier4');
-    check(w2[0].damage > w1[1].damage, cls + ' tier4 damage must beat world 1 tier3');
-    check(w2[1].damage > w2[0].damage, cls + ' tier5 damage must beat tier4');
-    check(w2[0].crit > 0 && w2[1].crit >= w2[0].crit, cls + ' world 2 weapons need crit bonuses');
+    check(w2[0].price > w1[4].price * 2, cls + ' the first world 2 weapon must cost far more than the world 1 top weapon: ' + w2[0].price + ' vs ' + w1[4].price);
+    check(w2[4].price > w2[0].price * 1.8, cls + ' the world 2 top weapon must cost far more than its first');
+    check(w2[0].damage > w1[4].damage, cls + ' world 2 weapons must beat the world 1 top weapon');
+    check(w2[4].damage > w2[0].damage, cls + ' world 2 damage must climb across the shop');
+    check(w2[0].crit > 0 && w2[4].crit >= w2[0].crit, cls + ' world 2 weapons need crit bonuses');
     // 2세계 장비는 전부 10,000G 이상 (사용자 요청: "2번째세계 상점 최소 10000이상으로 바꿔줘")
-    check(w2[0].price >= 10000 && w2[0].price <= 11000, cls + ' tier4 price must be 10,000~11,000G, got ' + w2[0].price);
-    check(w2[1].price >= 21000 && w2[1].price <= 23000, cls + ' tier5 price must be 21,000~23,000G, got ' + w2[1].price);
-    check(w2[0].damage >= 30 && w2[1].damage >= 58, cls + ' world 2 weapon damage too low: ' + w2[0].damage + '/' + w2[1].damage);
+    check(w2[0].price >= 10000 && w2[0].price <= 11000, cls + ' first world 2 weapon price must be 10,000~11,000G, got ' + w2[0].price);
+    check(w2[4].price >= 21000 && w2[4].price <= 23000, cls + ' world 2 top weapon price must be 21,000~23,000G, got ' + w2[4].price);
+    check(w2[0].damage >= 30 && w2[4].damage >= 58, cls + ' world 2 weapon damage too low: ' + w2[0].damage + '/' + w2[4].damage);
   }
   const warriorT4 = shopWeaponsFor('warrior', 'shop_w2')[0];
-  const warriorT5 = shopWeaponsFor('warrior', 'shop_w2')[1];
+  const warriorT5 = shopWeaponsFor('warrior', 'shop_w2')[4];
   check(warriorT4.damage >= 42 && warriorT4.damage <= 52, 'warrior tier4 damage should be 42~52, got ' + warriorT4.damage);
   check(warriorT5.damage >= 75 && warriorT5.damage <= 90, 'warrior tier5 damage should be 75~90, got ' + warriorT5.damage);
 
   // 2세계 갑옷 수치
-  const mithril = allArmors().find((a) => a.tier === 4);
-  const eternal = allArmors().find((a) => a.tier === 5);
+  const mithril = allArmors().find((a) => a.tier === 6);
+  const eternal = allArmors().find((a) => a.tier === 9);
   check(mithril && mithril.price === 12000 && mithril.hp === 340 && Math.abs(mithril.defense - 0.62) < 1e-9, 'mithril armor terms wrong');
   check(eternal && eternal.price === 25000 && eternal.hp === 550 && Math.abs(eternal.defense - 0.72) < 1e-9, 'eternal armor terms wrong');
-  check(mithril.price > SHOP.armors[2].price && mithril.hp > SHOP.armors[2].hp && mithril.defense > SHOP.armors[2].defense, 'world 2 armor must beat the golden armor');
+  check(mithril.price > SHOP.armors[4].price && mithril.hp > SHOP.armors[4].hp && mithril.defense > SHOP.armors[4].defense, 'world 2 armor must beat the golden armor');
 
   // 무기 구매: 2세계 무기는 내부 등급 3 · 4 로 장착된다
   const hero = new Player(game, 'warrior');
@@ -583,18 +587,18 @@ for (const classId of CLASS_ORDER) {
   r = buyItem(game, warriorT4.id);
   check(r.ok, 'tier4 weapon purchase failed: ' + r.msg);
   check(game.gold === 11000 - warriorT4.price, 'tier4 gold not deducted: ' + game.gold);
-  check(hero.weaponTier === 3, 'tier4 weapon must equip internal tier 3, got ' + hero.weaponTier);
+  check(hero.weaponTier === 6, 'the first world 2 weapon must equip internal tier 6, got ' + hero.weaponTier);
   check(Math.abs(hero.damage - (baseDmg + warriorT4.damage)) < 1e-6, 'tier4 damage bonus not applied: ' + hero.damage);
   check(Math.abs(hero.critChance - (hero.cls.critChance + warriorT4.crit)) < 1e-9, 'tier4 crit bonus not applied');
   const mesh4 = hero.weapons.right || hero.weapons.left;
-  check(mesh4 && mesh4.userData.tier === 3, '3D weapon look must upgrade to the world 2 tier 4 model');
+  check(mesh4 && mesh4.userData.tier === 6, '3D weapon look must upgrade to the first world 2 model');
   game.gold = 23000;
   r = buyItem(game, warriorT5.id);
   check(r.ok, 'tier5 weapon purchase failed: ' + r.msg);
-  check(hero.weaponTier === 4, 'tier5 weapon must equip internal tier 4, got ' + hero.weaponTier);
+  check(hero.weaponTier === 10, 'the world 2 top weapon must equip internal tier 10, got ' + hero.weaponTier);
   check(Math.abs(hero.damage - (baseDmg + warriorT5.damage)) < 1e-6, 'tier5 bonus must replace tier4: ' + hero.damage);
   const mesh5 = hero.weapons.right || hero.weapons.left;
-  check(mesh5 && mesh5.userData.tier === 4, '3D weapon look must upgrade to the mythic model');
+  check(mesh5 && mesh5.userData.tier === 10, '3D weapon look must upgrade to the world 2 top model');
   hero.equipWeaponTier(99);
   check(hero.weaponTier === MAX_WEAPON_TIER, 'weapon tier must clamp at ' + MAX_WEAPON_TIER + ', got ' + hero.weaponTier);
 
@@ -610,9 +614,9 @@ for (const classId of CLASS_ORDER) {
   game.gold = 12500;
   ares = buyItem(game, mithril.id);
   check(ares.ok, 'mithril armor purchase failed: ' + ares.msg);
-  check(p3.armorTier === 4 && Math.abs(p3.armorDefense - 0.62) < 1e-9, 'mithril armor not equipped');
+  check(p3.armorTier === 6 && Math.abs(p3.armorDefense - 0.62) < 1e-9, 'mithril armor not equipped');
   check(p3.maxHp === baseMaxHp3 + mithril.hp, 'mithril max HP bonus wrong: ' + p3.maxHp);
-  check(!!p3.armorChest && !!p3.armorBracerL, '3D armor pieces missing at tier 4');
+  check(!!p3.armorChest && !!p3.armorBracerL, '3D armor pieces missing at tier 6');
   p3.hp = p3.maxHp;
   p3.invuln = 0;
   const taken4 = p3.takeDamage(100, null);
@@ -620,7 +624,7 @@ for (const classId of CLASS_ORDER) {
   game.gold = 26000;
   ares = buyItem(game, eternal.id);
   check(ares.ok, 'eternal armor purchase failed: ' + ares.msg);
-  check(p3.armorTier === 5 && Math.abs(p3.armorDefense - 0.72) < 1e-9, 'eternal armor not equipped');
+  check(p3.armorTier === 9 && Math.abs(p3.armorDefense - 0.72) < 1e-9, 'eternal armor not equipped');
   check(p3.maxHp === baseMaxHp3 + eternal.hp, 'eternal max HP bonus wrong: ' + p3.maxHp);
   p3.hp = p3.maxHp;
   p3.invuln = 0;
@@ -1591,57 +1595,163 @@ for (const classId of CLASS_ORDER) {
 }
 
 /* =====================================================================
-   상점 가격 2배 (1세계 · 2세계 모든 물건)
+   상점 가격 정책 — 1세계 2배 가격 유지 · 단계별 상승 · 2세계 10,000G · 3세계 100,000G
+   (무기를 5단계로 늘리면서 가장 약한 무기와 가장 센 무기는 그대로 두었다)
    ===================================================================== */
 {
-  // 2배 전 가격표 — 1세계 물건과 2세계 포션 (2세계 장비는 10,000G 이상 가격표를 따로 검사)
-  const OLD = {
-    'w-warrior-2': 80, 'w-warrior-3': 220, 'w-archer-2': 80, 'w-archer-3': 220,
-    'w-rogue-2': 80, 'w-rogue-3': 220, 'w-tanker-2': 80, 'w-tanker-3': 220,
-    'w-mage-2': 80, 'w-mage-3': 220,
-    'a-leather': 90, 'a-steel': 200, 'a-gold': 380,
-    'potion-hp': 30, 'potion-hp-big': 70, 'potion-atk': 90,
-    'potion-hp-supreme': 180, 'potion-full-restore': 320, 'potion-rage': 380,
-  };
-  // 2세계 무기·갑옷 가격표 (10,000G 이상 · 직업/등급 순서 유지)
-  const W2_PRICE = {
-    'w2-archer-4': 10000, 'w2-rogue-4': 10000, 'w2-warrior-4': 10500, 'w2-tanker-4': 10500, 'w2-mage-4': 10800,
-    'w2-rogue-5': 21000, 'w2-archer-5': 21500, 'w2-tanker-5': 21500, 'w2-warrior-5': 22000, 'w2-mage-5': 22500,
-    'a-mithril': 12000, 'a-eternal': 25000,
-  };
-  const seen = new Set();
-  const checkItem = (item, where) => {
-    const old = OLD[item.id];
-    check(old !== undefined, 'price table is missing ' + item.id);
-    if (old === undefined) return;
-    seen.add(item.id);
-    check(item.price === old * 2, where + ' ' + item.id + ' must cost ' + old * 2 + 'G (2×), got ' + item.price);
-  };
-  const w2Seen = new Set();
-  const checkW2Equip = (item) => {
-    const want = W2_PRICE[item.id];
-    check(want !== undefined, 'world 2 price table is missing ' + item.id);
-    if (want === undefined) return;
-    w2Seen.add(item.id);
-    check(item.price === want, 'shop_w2 ' + item.id + ' must cost ' + want + 'G, got ' + item.price);
-    check(item.price >= 10000, 'shop_w2 ' + item.id + ' must cost at least 10,000G, got ' + item.price);
+  // 1세계: 가장 약한 무기(80G→160G)와 가장 센 무기(220G→440G)는 그대로, 그 사이가 새로 들어갔다
+  const W1_FIRST = { warrior: [12, 160], archer: [10, 160], rogue: [8, 160], tanker: [10, 160], mage: [11, 160] };
+  const W1_TOP = { warrior: [26, 440], archer: [22, 440], rogue: [18, 440], tanker: [21, 440], mage: [24, 440] };
+  const W1_PRICE_STEPS = [160, 230, 300, 370, 440];
+  for (const cls of CLASS_ORDER) {
+    const list = shopWeaponsFor(cls, 'shop_w1');
+    check(list.length === 5, cls + ' world 1 shop must sell 5 weapons, got ' + list.length);
+    check(list[0].damage === W1_FIRST[cls][0] && list[0].price === W1_FIRST[cls][1],
+      cls + ' weakest world 1 weapon must stay the original one: ' + JSON.stringify(list[0]));
+    check(list[4].damage === W1_TOP[cls][0] && list[4].price === W1_TOP[cls][1],
+      cls + ' strongest world 1 weapon must stay the original top one: ' + JSON.stringify(list[4]));
+    for (let i = 0; i < 5; i++) {
+      check(list[i].price === W1_PRICE_STEPS[i], cls + ' world 1 weapon #' + i + ' price must be ' + W1_PRICE_STEPS[i] + ', got ' + list[i].price);
+      if (i > 0) {
+        check(list[i].damage > list[i - 1].damage, cls + ' world 1 damage must climb at step ' + i);
+        check((list[i].crit || 0) >= (list[i - 1].crit || 0), cls + ' world 1 crit must not fall at step ' + i);
+      }
+    }
+  }
+  // 1세계 갑옷: 가죽(180) → 황금(760), 그 사이 2벌
+  const W1_ARMOR = [['a-leather', 180], ['a-chain', 270], ['a-steel', 400], ['a-mithril-chain', 570], ['a-gold', 760]];
+  check(SHOP.armors.length === W1_ARMOR.length, 'world 1 armor count wrong');
+  W1_ARMOR.forEach((pair, i) => {
+    const a = SHOP.armors[i];
+    check(a && a.id === pair[0] && a.price === pair[1], 'world 1 armor #' + i + ' must be ' + pair[0] + ' / ' + pair[1] + 'G');
+    if (i > 0) {
+      check(a.hp > SHOP.armors[i - 1].hp && a.defense > SHOP.armors[i - 1].defense, 'world 1 armor must climb at ' + a.id);
+    }
+  });
+
+  // 포션 가격은 2배 정책 그대로
+  const POTION = { 'potion-hp': 60, 'potion-hp-big': 140, 'potion-atk': 180, 'potion-hp-supreme': 360, 'potion-full-restore': 640, 'potion-rage': 760 };
+  for (const shop of [SHOP, SHOP2]) {
+    for (const p of shop.potions) {
+      if (POTION[p.id] === undefined) continue;
+      check(p.price === POTION[p.id], p.id + ' must cost ' + POTION[p.id] + 'G, got ' + p.price);
+    }
+  }
+
+  // 2세계: 무기 5단계 · 갑옷 4벌 전부 10,000G 이상, 포션은 그대로 저렴하게
+  const W2_STEPS = {
+    warrior: [10500, 13000, 16000, 19000, 22000],
+    archer: [10000, 13000, 16000, 19000, 21500],
+    rogue: [10000, 13000, 16000, 19000, 21000],
+    tanker: [10500, 13000, 16000, 19000, 21500],
+    mage: [10800, 13000, 16000, 19000, 22500],
   };
   for (const cls of CLASS_ORDER) {
-    for (const w of shopWeaponsFor(cls, 'shop_w1')) checkItem(w, 'shop_w1');
-    for (const w of shopWeaponsFor(cls, 'shop_w2')) checkW2Equip(w);
+    const list = shopWeaponsFor(cls, 'shop_w2');
+    check(list.length === 5, cls + ' world 2 shop must sell 5 weapons');
+    list.forEach((w, i) => {
+      check(w.price === W2_STEPS[cls][i], cls + ' world 2 weapon #' + i + ' price must be ' + W2_STEPS[cls][i] + ', got ' + w.price);
+      check(w.price >= 10000, 'world 2 weapon ' + w.id + ' must be >= 10000G');
+      if (i > 0) check(w.damage > list[i - 1].damage, cls + ' world 2 damage must climb at step ' + i);
+    });
   }
-  for (const a of SHOP.armors) checkItem(a, 'shop_w1');
-  for (const a of SHOP2.armors) checkW2Equip(a);
-  for (const p of SHOP.potions) checkItem(p, 'shop_w1');
-  for (const p of SHOP2.potions) checkItem(p, 'shop_w2');
-  check(seen.size === Object.keys(OLD).length, 'some shop items were not checked: ' + seen.size + '/' + Object.keys(OLD).length);
-  check(w2Seen.size === Object.keys(W2_PRICE).length, 'some world 2 equipment was not checked: ' + w2Seen.size + '/' + Object.keys(W2_PRICE).length);
-  // 2세계 포션은 그대로 저렴하게 (사용자 요청: "포션말고")
+  check(SHOP2.armors.length === 4, 'world 2 must sell 4 armors');
+  const W2_ARMOR = [[12000, 340, 0.62], [16000, 415, 0.66], [20000, 490, 0.69], [25000, 550, 0.72]];
+  SHOP2.armors.forEach((a, i) => {
+    check(a.price === W2_ARMOR[i][0] && a.hp === W2_ARMOR[i][1] && Math.abs(a.defense - W2_ARMOR[i][2]) < 1e-9,
+      'world 2 armor #' + i + ' terms wrong: ' + JSON.stringify(a));
+    check(a.price >= 10000, 'world 2 armor ' + a.id + ' must be >= 10000G');
+  });
   for (const p of SHOP2.potions) check(p.price < 10000, 'shop_w2 potion ' + p.id + ' must stay under 10,000G, got ' + p.price);
-  // 2세계 상점 전체: 무기·갑옷은 10,000G 이상, 포션은 10,000G 미만
-  const w2Equip = CLASS_ORDER.flatMap((cls) => shopWeaponsFor(cls, 'shop_w2')).concat(SHOP2.armors);
-  check(w2Equip.length === 12, 'twelve world 2 equipment items expected, got ' + w2Equip.length);
-  for (const it of w2Equip) check(it.price >= 10000, 'world 2 equipment ' + it.id + ' must be >= 10000G');
+
+  // 3세계: 무기 5단계 · 갑옷 4벌 전부 100,000G 이상, 가격이 계속 올라간다
+  for (const cls of CLASS_ORDER) {
+    const list = shopWeaponsFor(cls, 'shop_w3');
+    check(list.length === 5, cls + ' world 3 shop must sell 5 weapons');
+    list.forEach((w, i) => {
+      check(w.price >= 100000, 'world 3 weapon ' + w.id + ' must be >= 100000G, got ' + w.price);
+      if (i > 0) {
+        check(w.price > list[i - 1].price, cls + ' world 3 price must climb at step ' + i);
+        check(w.damage > list[i - 1].damage, cls + ' world 3 damage must climb at step ' + i);
+      }
+    });
+  }
+  for (const a of SHOP3.armors) {
+    check(a.price >= 100000, 'world 3 armor ' + a.id + ' must be >= 100000G');
+    check(a.price % 5000 === 0, 'world 3 armor ' + a.id + ' price should be a round number');
+  }
+  // 3세계 갑옷도 체력 · 피해 감소가 계속 좋아진다
+  for (let i = 1; i < SHOP3.armors.length; i++) {
+    check(SHOP3.armors[i].hp > SHOP3.armors[i - 1].hp && SHOP3.armors[i].defense > SHOP3.armors[i - 1].defense,
+      'world 3 armor must climb at ' + SHOP3.armors[i].id);
+  }
+}
+
+/* =====================================================================
+   무기 · 갑옷 확장 — 가장 센 무기 강화 · 15단계 3D 구분 · 새 장비 장착
+   (사용자 요청: "그 두개중에 약한건 가장약하고 쌘건 가장쌔게, 그 사이에 무기들을 추가",
+                "그리고 가장쌘 무기를 조오금 더쌔게해줘", "무기와 갑옷을 더많게 해주고")
+   ===================================================================== */
+{
+  // 가장 센 무기(3세계 상점의 마지막)는 예전보다 확실히 세졌다 — 예전 값에서 +15~20%
+  const BOSS_BEFORE = { warrior: 260, archer: 236, rogue: 190, tanker: 228, mage: 268 };
+  const BOSS_BEFORE_CRIT = { warrior: 0.20, archer: 0.20, rogue: 0.22, tanker: 0.12, mage: 0.20 };
+  for (const cls of CLASS_ORDER) {
+    const top = shopWeaponsFor(cls, 'shop_w3')[4];
+    const before = BOSS_BEFORE[cls];
+    check(top.damage >= before * 1.15 && top.damage <= before * 1.25,
+      cls + ' top weapon must be 15~25% stronger than before: ' + top.damage + ' vs ' + before);
+    check(top.damage - before >= 30, cls + ' top weapon must gain at least 30 ATK, got +' + (top.damage - before));
+    check(top.crit >= BOSS_BEFORE_CRIT[cls], cls + ' top weapon crit must not drop: ' + top.crit);
+    // 그 직업의 가장 센 무기다 (같은 직업의 다른 모든 무기보다 강하다)
+    const ownWeapons = allWeapons(cls);
+    check(top.damage >= Math.max(...ownWeapons.map((w) => w.damage)), cls + ' top weapon must be the strongest weapon of its class');
+    check(top.tier === 16, cls + ' top weapon must be the last tier');
+  }
+
+  // 모든 세계에서 무기는 5단계 · 갑옷은 4~5벌, 단계마다 3D 모양이 다르다
+  const ALL_TIERS = new Set();
+  for (const cls of CLASS_ORDER) {
+    const list = allWeapons(cls);
+    check(list.length === 15, cls + ' must own 15 shop weapons in total, got ' + list.length);
+    const tiers = list.map((w) => w.tier);
+    check(tiers.join(',') === '2,3,4,5,6,7,8,9,10,11,12,13,14,15,16', cls + ' weapon tiers must run 2~16 in order: ' + tiers.join(','));
+    for (let i = 0; i < list.length; i++) {
+      if (i > 0) {
+        check(list[i].price > list[i - 1].price, cls + ' price must climb across all 15 weapons at ' + list[i].id);
+        check(list[i].damage > list[i - 1].damage, cls + ' damage must climb across all 15 weapons at ' + list[i].id);
+        check((list[i].crit || 0) >= (list[i - 1].crit || 0), cls + ' crit must never fall across the 15 weapons at ' + list[i].id);
+      }
+    }
+    const hero = new Player(game, cls);
+    for (const w of list) {
+      hero.equipWeaponTier(w.tier - 1);
+      ALL_TIERS.add(hero.weaponTier);
+      const mesh = hero.weapons.right || hero.weapons.left;
+      check(mesh && mesh.userData.tier === w.tier - 1, cls + ' weapon tier ' + w.tier + ' must build its own 3D model');
+      check(hero.weaponTier === w.tier - 1, cls + ' weapon tier ' + w.tier + ' must equip internal tier ' + (w.tier - 1));
+    }
+  }
+  check(ALL_TIERS.size === 15, 'fifteen distinct weapon tiers must be equippable, got ' + ALL_TIERS.size);
+
+  // 갑옷도 13단계 모두 장착되고 3D 조각이 붙는다 + 체력 · 피해 감소가 단계마다 좋아진다
+  const suit = new Player(game, 'warrior');
+  const baseHp = suit.maxHp;
+  let prevHp = 0;
+  let prevDef = 0;
+  for (const a of allArmors()) {
+    suit.equipArmorTier(a.tier);
+    check(suit.armorTier === a.tier, 'armor tier ' + a.tier + ' must equip');
+    check(suit.armorName === a.name, 'armor name must follow the tier: ' + suit.armorName);
+    check(!!suit.armorChest && !!suit.armorBracerL, '3D armor pieces missing at tier ' + a.tier);
+    check(Math.abs(suit.armorDefense - a.defense) < 1e-9, 'armor defense wrong at tier ' + a.tier);
+    check(suit.maxHp === baseHp + a.hp, 'armor max HP bonus wrong at tier ' + a.tier + ': ' + suit.maxHp);
+    check(a.hp > prevHp && a.defense > prevDef, 'armor must climb in HP and defense at tier ' + a.tier);
+    prevHp = a.hp;
+    prevDef = a.defense;
+  }
+  suit.equipArmorTier(0);
+  check(suit.maxHp === baseHp && suit.armorDefense === 0 && !suit.armorChest, 'taking armor off must restore the base body');
 }
 
 /* =====================================================================
@@ -2606,14 +2716,14 @@ for (const classId of CLASS_ORDER) {
 
   /* ---------------------- 4) 3세계 상점: 다 100,000G 이상 (포션 제외) ---------------------- */
   const w3Weapons = CLASS_ORDER.flatMap((cls) => shopWeaponsFor(cls, 'shop_w3'));
-  check(w3Weapons.length === 10, 'ten world 3 weapons expected, got ' + w3Weapons.length);
+  check(w3Weapons.length === 25, 'twenty-five world 3 weapons expected (5 per class), got ' + w3Weapons.length);
   for (const w of w3Weapons) {
     check(w.price >= 100000, 'world 3 weapon ' + w.id + ' must cost at least 100,000G, got ' + w.price);
   }
-  check(SHOP3.armors.length === 2, 'world 3 needs 2 armors');
+  check(SHOP3.armors.length === 4, 'world 3 needs 4 armors, got ' + SHOP3.armors.length);
   for (const a of SHOP3.armors) {
     check(a.price >= 100000, 'world 3 armor ' + a.id + ' must cost at least 100,000G, got ' + a.price);
-    check(a.tier === 6 || a.tier === 7, 'world 3 armor tiers must be 6/7, got ' + a.tier);
+    check(a.tier >= 10 && a.tier <= 13, 'world 3 armor tiers must be 10~13, got ' + a.tier);
   }
   check(SHOP3.potions.length === 3, 'world 3 needs 3 potions');
   for (const p of SHOP3.potions) {
@@ -2623,11 +2733,11 @@ for (const classId of CLASS_ORDER) {
   for (const cls of CLASS_ORDER) {
     const w2 = shopWeaponsFor(cls, 'shop_w2');
     const w3 = shopWeaponsFor(cls, 'shop_w3');
-    check(w3.length === 2 && w3[0].tier === 6 && w3[1].tier === 7, cls + ' world 3 weapon tiers must be 6/7');
-    check(w3[1].price > w3[0].price * 1.8, cls + ' tier 7 must cost far more than tier 6');
-    check(w3[0].damage > w2[1].damage && w3[1].damage > w3[0].damage, cls + ' world 3 weapons must beat world 2');
+    check(w3.length === 5 && w3[0].tier === 12 && w3[4].tier === 16, cls + ' world 3 weapon tiers must span 12~16');
+    check(w3[4].price > w3[0].price * 1.8, cls + ' the world 3 top weapon must cost far more than its first');
+    check(w3[0].damage > w2[4].damage && w3[4].damage > w3[0].damage, cls + ' world 3 weapons must beat world 2');
   }
-  check(allArmors().length === 7 && MAX_ARMOR_TIER === 7 && MAX_WEAPON_TIER === 6, 'tier limits must reach 6/7');
+  check(allArmors().length === 13 && MAX_ARMOR_TIER === 13 && MAX_WEAPON_TIER === 15, 'tier limits must reach 13/15');
 
   // Tier 6 · 7 무기 · 갑옷 장착 · 3D 모델 · 포션 사용
   const w3hero = new Player(w3game, 'warrior');
@@ -2638,7 +2748,7 @@ for (const classId of CLASS_ORDER) {
   w3hero.critChance = w3hero.cls.critChance;
   const baseDmg3 = w3hero.damage;
   const t6 = shopWeaponsFor('warrior', 'shop_w3')[0];
-  const t7 = shopWeaponsFor('warrior', 'shop_w3')[1];
+  const t7 = shopWeaponsFor('warrior', 'shop_w3')[4];
   w3game.gold = 99999;
   let r3 = buyItem(w3game, t6.id);
   check(!r3.ok, 'a tier 6 weapon must not be affordable with 99,999G');
@@ -2646,29 +2756,29 @@ for (const classId of CLASS_ORDER) {
   w3game.gold = 110000;
   r3 = buyItem(w3game, t6.id);
   check(r3.ok, 'tier 6 weapon purchase failed: ' + r3.msg);
-  check(w3hero.weaponTier === 5, 'tier 6 weapon must equip internal tier 5, got ' + w3hero.weaponTier);
+  check(w3hero.weaponTier === 11, 'the first world 3 weapon must equip internal tier 11, got ' + w3hero.weaponTier);
   check(Math.abs(w3hero.damage - (baseDmg3 + t6.damage)) < 1e-6, 'tier 6 damage bonus not applied');
   const mesh6 = w3hero.weapons.right || w3hero.weapons.left;
-  check(mesh6 && mesh6.userData.tier === 5, '3D weapon must upgrade to the tier 6 model');
-  w3game.gold = 230000;
+  check(mesh6 && mesh6.userData.tier === 11, '3D weapon must upgrade to the first world 3 model');
+  w3game.gold = 240000;
   r3 = buyItem(w3game, t7.id);
   check(r3.ok, 'tier 7 weapon purchase failed: ' + r3.msg);
-  check(w3hero.weaponTier === 6 && w3hero.weaponTier === MAX_WEAPON_TIER, 'tier 7 weapon must equip internal tier 6, got ' + w3hero.weaponTier);
+  check(w3hero.weaponTier === 15 && w3hero.weaponTier === MAX_WEAPON_TIER, 'the world 3 top weapon must equip internal tier 15, got ' + w3hero.weaponTier);
   check(Math.abs(w3hero.damage - (baseDmg3 + t7.damage)) < 1e-6, 'tier 7 bonus must replace tier 6');
   const mesh7 = w3hero.weapons.right || w3hero.weapons.left;
-  check(mesh7 && mesh7.userData.tier === 6, '3D weapon must upgrade to the tier 7 model');
+  check(mesh7 && mesh7.userData.tier === 15, '3D weapon must upgrade to the world 3 top model');
   w3hero.equipWeaponTier(99);
-  check(w3hero.weaponTier === 6, 'weapon tier must clamp at 6');
+  check(w3hero.weaponTier === MAX_WEAPON_TIER, 'weapon tier must clamp at ' + MAX_WEAPON_TIER);
 
   const baseMaxHp3 = w3hero.maxHp;
   const dragonArmor = SHOP3.armors[0];
-  const celestialArmor = SHOP3.armors[1];
+  const celestialArmor = SHOP3.armors[3];
   w3game.gold = 125000;
   let ar3 = buyItem(w3game, dragonArmor.id);
   check(ar3.ok, 'dragon armor purchase failed: ' + ar3.msg);
-  check(w3hero.armorTier === 6 && Math.abs(w3hero.armorDefense - 0.8) < 1e-9, 'dragon armor not equipped');
+  check(w3hero.armorTier === 10 && Math.abs(w3hero.armorDefense - 0.8) < 1e-9, 'dragon armor not equipped');
   check(w3hero.maxHp === baseMaxHp3 + dragonArmor.hp, 'dragon armor max HP wrong: ' + w3hero.maxHp);
-  check(!!w3hero.armorChest, '3D armor pieces missing at tier 6');
+  check(!!w3hero.armorChest, '3D armor pieces missing at tier 10');
   w3hero.hp = w3hero.maxHp;
   w3hero.invuln = 0;
   const taken6 = w3hero.takeDamage(100, null);
@@ -2676,7 +2786,7 @@ for (const classId of CLASS_ORDER) {
   w3game.gold = 260000;
   ar3 = buyItem(w3game, celestialArmor.id);
   check(ar3.ok, 'celestial armor purchase failed: ' + ar3.msg);
-  check(w3hero.armorTier === 7 && w3hero.armorTier === MAX_ARMOR_TIER, 'celestial armor not equipped at tier 7');
+  check(w3hero.armorTier === 13 && w3hero.armorTier === MAX_ARMOR_TIER, 'celestial armor not equipped at tier 13');
   check(Math.abs(w3hero.armorDefense - 0.86) < 1e-9, 'celestial armor reduction wrong');
   w3hero.hp = w3hero.maxHp;
   w3hero.invuln = 0;
@@ -2945,6 +3055,203 @@ for (const classId of CLASS_ORDER) {
   check(popMgr.mobs.some((m) => m.biomeId === 'deep_sea' && m.typeId !== 'giant_squid') === false, 'nothing else may live in the deep sea');
   check(popMgr.mobs.some((m) => m.biomeId === 'ancient_ruins' && m.typeId !== 'ancient_serpent') === false, 'nothing else may live in the ruins');
   popMgr.clearAll();
+}
+
+/* =====================================================================
+   특별 퀘스트 — 1·2·3세계 태초마을 NPC · 수락 · 처치 · 보상
+   (사용자 요청: "1,2,3세계에 각각 NPC를 소환해주고 그 NPC에게 말을 걸면
+                특별 퀘스트가 나오게 해줘")
+   ===================================================================== */
+{
+  // 1) 세 세계에 NPC 가 하나씩 있고, 그 자리는 각 세계 태초마을 안이다
+  const npcWorld = { 1: 'village', 2: 'village_w2', 3: 'village_w3' };
+  const villageBuilds = { 1: world.village, 2: world.world2.villageW2, 3: world.world3.villageW3 };
+  for (const w of [1, 2, 3]) {
+    const def = SPECIAL_QUESTS[w];
+    check(!!def, w + '세계 특별 퀘스트 정의가 없습니다');
+    const npc = def.npc;
+    check(!!npc && typeof npc.name === 'string' && npc.name.length > 1, w + '세계 특별 퀘스트 NPC 이름이 없습니다');
+    check(npc.role.indexOf('특별 퀘스트') >= 0, w + '세계 NPC 역할에 "특별 퀘스트"가 들어가야 합니다: ' + npc.role);
+    check(!!npc.line && !!npc.greeting, w + '세계 NPC 대사가 없습니다');
+    check(regionAt(npc.pos.x, npc.pos.z) === npcWorld[w], w + '세계 NPC 는 태초마을 안에 서야 합니다: ' + regionAt(npc.pos.x, npc.pos.z));
+    check(worldAt(npc.pos.x, npc.pos.z) === w, w + '세계 NPC 좌표가 다른 세계입니다');
+    // 상점 앞과 겹치지 않아 안내 문구가 서로를 가리지 않는다
+    const shop = BIOMES[npcWorld[w]].shop;
+    const gap = Math.hypot(npc.pos.x - shop.interact.x, npc.pos.z - shop.interact.z);
+    check(gap > shop.interact.radius + 20, w + '세계 NPC 가 상점 상호작용 범위와 겹칩니다: ' + Math.round(gap));
+    // 시작 지점에서 걸어갈 수 있는 곳 (마을 안 · 너무 멀지 않다)
+    const spawn = BIOMES[npcWorld[w]].spawn;
+    check(Math.hypot(npc.pos.x - spawn.x, npc.pos.z - spawn.z) < 400, w + '세계 NPC 가 시작 지점에서 너무 멉니다');
+    check(npc.radius >= 40, w + '세계 NPC 상호작용 반경이 너무 좁습니다: ' + npc.radius);
+
+    // 2) 3D NPC 가 실제로 만들어졌다 (표식 · 빛 고리 · 빛기둥 포함)
+    const built = villageBuilds[w].specialNpc;
+    check(!!built && !!built.group && !!built.npc, w + '세계 특별 퀘스트 NPC 3D 모델이 없습니다');
+    if (!built) continue;
+    check(Math.abs(built.group.position.x - npc.pos.x) < 1 && Math.abs(built.group.position.z - npc.pos.z) < 1,
+      w + '세계 NPC 3D 위치가 정의와 다릅니다');
+    check(!!built.marker && built.marker.position.y > 40, w + '세계 NPC 머리 위 표식(❗)이 없습니다');
+    check(!!built.ring && !!built.beam, w + '세계 NPC 바닥 고리/빛기둥이 없습니다');
+    let npcMeshes = 0;
+    built.group.traverse((o) => { if (o.isMesh) npcMeshes++; });
+    check(npcMeshes > 20, w + '세계 NPC 모델이 너무 단순합니다: ' + npcMeshes);
+    // 세계마다 다른 모델 (같은 모양을 돌려 쓰지 않는다)
+    check(!built.group.parent || built.group.parent === world.biomeGroups[npcWorld[w]], w + '세계 NPC 가 마을 그룹에 들어가지 않았습니다');
+
+    // 3) 세계마다 1~2개의 특별 퀘스트 · 목표 · 보상
+    const quests = def.quests || [];
+    check(quests.length >= 1 && quests.length <= 2, w + '세계 특별 퀘스트는 1~2개여야 합니다: ' + quests.length);
+    for (const q of quests) {
+      check(!!q.id && !!q.title && !!q.desc, w + '세계 특별 퀘스트에 id/이름/설명이 필요합니다');
+      check(Array.isArray(q.goals) && q.goals.length >= 1, q.id + ' 목표가 없습니다');
+      for (const g of q.goals) {
+        check(!!MOB_TYPES[g.mob], q.id + ' 목표 몹이 없습니다: ' + g.mob);
+        check(g.target >= 1, q.id + ' 목표 수치가 이상합니다');
+      }
+      check(q.rewardGold > 0 && q.rewardXp > 0, q.id + ' 보상(골드 · 경험치)이 없습니다');
+      check(specialQuestGoalText(q).length > 0, q.id + ' 목표 문구가 비었습니다');
+    }
+    // 세계별로 힘에 맞는 의뢰 (뒤 세계가 보상이 크다)
+  }
+  const goldByWorld = [1, 2, 3].map((w) => Math.max(...SPECIAL_QUESTS[w].quests.map((q) => q.rewardGold)));
+  check(goldByWorld[0] < goldByWorld[1] && goldByWorld[1] < goldByWorld[2], '특별 퀘스트 보상은 뒤 세계로 갈수록 커야 합니다: ' + goldByWorld.join(','));
+  check(specialDef(2).npc.name !== specialDef(1).npc.name && specialDef(3).npc.name !== specialDef(2).npc.name, '세계마다 다른 NPC 여야 합니다');
+  check(specialDef(9).world === 1, '모르는 세계 번호는 1세계로 돌려야 합니다');
+
+  // 4) 수락 → 처치 → 보상 흐름 (순수 로직)
+  const log = new SpecialQuestLog();
+  const q1 = SPECIAL_QUESTS[1].quests[0];
+  check(log.status(1).focus === null, '아무 의뢰도 받지 않았으면 추적할 것이 없어야 합니다');
+  check(log.entries(1).length === SPECIAL_QUESTS[1].quests.length, '세계 1 의뢰 수가 다릅니다');
+  check(log.entries(1).every((e) => e.state === SPECIAL_STATE.AVAILABLE), '처음에는 모두 받을 수 있는 상태여야 합니다');
+  // 받지 않은 의뢰의 처치는 세지 않는다
+  check(log.recordKill(1, q1.goals[0].mob).length === 0, '받지 않은 의뢰가 처치를 세면 안 됩니다');
+  let ar = log.accept(1, q1.id);
+  check(ar.ok && ar.quest.state === SPECIAL_STATE.ACTIVE, '의뢰를 받을 수 없습니다: ' + ar.msg);
+  check(!log.accept(1, q1.id).ok, '같은 의뢰를 두 번 받을 수 없습니다');
+  // 목표가 아닌 몹은 세지 않는다
+  const offMob = Object.keys(MOB_TYPES).find((m) => !q1.goals.some((g) => g.mob === m));
+  check(log.recordKill(1, offMob).length === 0, '목표가 아닌 몹이 특별 퀘스트를 채우면 안 됩니다');
+  // 다른 세계의 처치는 세지 않는다
+  check(log.recordKill(2, q1.goals[0].mob).length === 0, '다른 세계의 처치가 이 세계 의뢰를 채우면 안 됩니다');
+  // 목표를 채운다
+  let events = [];
+  const first = q1.goals[0];
+  for (let i = 0; i < first.target; i++) events = log.recordKill(1, first.mob);
+  let entryNow = log.entry(1, q1.id);
+  check(entryNow.goals[0].progress === first.target && entryNow.goals[0].done, '첫 목표가 채워지지 않았습니다');
+  if (q1.goals.length > 1) {
+    check(!entryNow.ready, '모든 목표를 채우기 전에는 보상 받기 상태가 아닙니다');
+    check(entryNow.state === SPECIAL_STATE.ACTIVE, '진행 중 상태여야 합니다');
+    const last = q1.goals[q1.goals.length - 1];
+    for (let i = 0; i < last.target; i++) events = log.recordKill(1, last.mob);
+  }
+  entryNow = log.entry(1, q1.id);
+  check(entryNow.ready && entryNow.state === SPECIAL_STATE.READY, '목표를 모두 채우면 보상 준비 상태여야 합니다');
+  check(events.length > 0 && events[events.length - 1].completed === true, '마지막 처치가 완료를 알려야 합니다');
+  check(log.status(1).flashReady === true && log.status(1).ready === 1, 'HUD 는 보상 준비를 표시해야 합니다');
+  check(log.status(1).hint.indexOf(SPECIAL_QUESTS[1].npc.name) >= 0, 'HUD 안내가 NPC 를 알려 줘야 합니다: ' + log.status(1).hint);
+  // 완료 뒤에는 더 세지 않는다
+  check(log.recordKill(1, first.mob).length === 0, '완료한 의뢰는 더 세지 않습니다');
+  // 보상
+  const claim = log.claim(1, q1.id);
+  check(claim.ok && claim.rewardGold === q1.rewardGold && claim.rewardXp === q1.rewardXp, '보상 수령이 실패했습니다: ' + claim.msg);
+  check(log.entry(1, q1.id).state === SPECIAL_STATE.CLAIMED, '보상을 받으면 완료 상태여야 합니다');
+  check(!log.claim(1, q1.id).ok, '보상을 두 번 받을 수 없습니다');
+  check(!log.claim(1, 'nope').ok, '없는 의뢰의 보상을 받을 수 없습니다');
+  check(log.claimedCount(1) === 1 && log.status(1).claimed === 1, '완료 수가 맞지 않습니다');
+
+  // 5) 게임 연결(pickles 쪽 연결점) — 처치가 골드 · 경험치 보상으로 이어진다
+  const hudCalls = { banner: [], flash: 0, refresh: 0 };
+  const stub = {
+    gold: 100,
+    specialQuests: new SpecialQuestLog(),
+    player: { xp: 0, level: 1, gainXp(n) { this.xp += n; } },
+    addGold(n) { this.gold += n; },
+    hud: {
+      banner(t) { hudCalls.banner.push(t); },
+      questFlash() { hudCalls.flash++; },
+      refreshSpecial() { hudCalls.refresh++; },
+    },
+    sfx: new Proxy({}, { get: () => () => {} }),
+  };
+  const q3 = SPECIAL_QUESTS[3].quests[0];
+  const acc = acceptSpecialQuest(stub, 3, q3.id);
+  check(acc.ok, '게임 쪽 의뢰 수락이 실패했습니다: ' + acc.msg);
+  check(hudCalls.banner.some((t) => t.indexOf('특별 퀘스트') >= 0), '의뢰 수락 배너가 없습니다');
+  for (const g of q3.goals) {
+    const total = g.target + 2;   // 목표보다 조금 더 잡아도 문제 없다
+    for (let i = 0; i < total; i++) feedSpecialKill(stub, 3, g.mob);
+  }
+  check(stub.specialQuests.entry(3, q3.id).ready, '게임 쪽 처치가 특별 퀘스트를 채워야 합니다');
+  check(hudCalls.banner.some((t) => t.indexOf('목표 달성') >= 0), '목표 달성 배너가 없습니다');
+  check(hudCalls.flash > 0, '목표 달성 반짝임이 없습니다');
+  const goldBefore = stub.gold;
+  const xpBefore = stub.player.xp;
+  const claimed = claimSpecialQuest(stub, 3, q3.id);
+  check(claimed.ok, '게임 쪽 보상 수령이 실패했습니다: ' + claimed.msg);
+  check(stub.gold === goldBefore + q3.rewardGold, '보상 골드가 지급되지 않았습니다: ' + stub.gold);
+  check(stub.player.xp === xpBefore + q3.rewardXp, '보상 경험치가 지급되지 않았습니다: ' + stub.player.xp);
+  check(hudCalls.banner.some((t) => t.indexOf('완료') >= 0), '보상 배너가 없습니다');
+  check(!claimSpecialQuest(stub, 3, q3.id).ok, '보상을 두 번 받을 수 없습니다');
+
+  // 6) 멀티플레이 처치도 같은 문으로 들어온다 (net.js → recordKill → 특별 퀘스트)
+  const mpStub = {
+    gold: 0,
+    specialQuests: new SpecialQuestLog(),
+    player: { xp: 0, gainXp(n) { this.xp += n; } },
+    addGold(n) { this.gold += n; },
+    hud: { banner() {}, questFlash() {}, refreshSpecial() {} },
+    sfx: new Proxy({}, { get: () => () => {} }),
+  };
+  const q2 = SPECIAL_QUESTS[2].quests[0];
+  mpStub.specialQuests.accept(2, q2.id);
+  // 친구가 잡은 몹도 호스트/나에게 같은 처치로 들어온다
+  feedSpecialKill(mpStub, 2, q2.goals[0].mob);
+  check(mpStub.specialQuests.entry(2, q2.id).goals[0].progress === 1, '멀티플레이 처치가 특별 퀘스트에 세어지지 않았습니다');
+  check(feedSpecialKill(mpStub, 1, q2.goals[0].mob).length === 0, '다른 세계 처치는 세지 않습니다');
+  // 새 게임을 시작하면 기록이 초기화된다
+  mpStub.specialQuests.reset();
+  check(mpStub.specialQuests.entries(2).every((e) => e.state === SPECIAL_STATE.AVAILABLE), 'reset 이 기록을 지우지 않았습니다');
+}
+
+/* =====================================================================
+   시작 자리 — 언제나 1세계 태초마을
+   (사용자 요청: "소환될때 3세계로 스폰되 1세계에서 스폰하게해줘")
+   ===================================================================== */
+{
+  check(worldAt(BIOMES.village.spawn.x, BIOMES.village.spawn.z) === 1, '기본 시작 자리가 1세계가 아닙니다');
+  check(GUEST_SPAWN.x === BIOMES.village.spawn.x && GUEST_SPAWN.z === BIOMES.village.spawn.z, '초대받은 사람의 시작 자리는 1세계 태초마을이어야 합니다');
+  for (let i = 1; i <= 4; i++) {
+    const sp = guestSpawnPoint(i);
+    check(worldAt(sp.x, sp.z) === 1, '초대 ' + i + '번째 사람의 자리가 1세계가 아닙니다: ' + JSON.stringify(sp));
+    check(regionAt(sp.x, sp.z) === 'village', '초대 ' + i + '번째 사람은 태초마을에서 시작해야 합니다');
+    check(Math.hypot(sp.x - GUEST_SPAWN.x, sp.z - GUEST_SPAWN.z) < 40, '초대 자리가 태초마을 광장에서 너무 멉니다');
+  }
+  // 호스트가 3세계로 이동해 있어도 초대 자리는 1세계 그대로 (예전에는 3세계로 소환됐다)
+  const hostNet = new Net({ player: null, worldId: 1 });
+  hostNet.role = 'host';
+  hostNet.spawn = { x: 0, z: WORLD3.originZ + 1880 };
+  const sp3 = hostNet._spawnPoint(1);
+  check(worldAt(sp3.x, sp3.z) === 1, '호스트가 3세계에 있어도 초대 자리는 1세계여야 합니다: ' + JSON.stringify(sp3));
+  const travelNet = new Net({ player: null, worldId: 1 });
+  travelNet.role = 'host';
+  travelNet.active = true;
+  travelNet.spawn = { x: GUEST_SPAWN.x, z: GUEST_SPAWN.z };
+  const travGame = {
+    player: { position: new THREE.Vector3(GUEST_SPAWN.x, 0, GUEST_SPAWN.z), hp: 100, maxHp: 100, xp: 0, facing: 0, root: { rotation: { y: 0 } }, spawnAt(x, z) { this.position.set(x, 0, z); } },
+    worldId: 1, net: travelNet,
+    setWorld(w) { this.worldId = w; },
+    hud: { banner() {}, refreshBars() {} }, effects: null, sfx: null,
+  };
+  travelPlayer(travGame, { x: 0, z: WORLD3.originZ + 1880, world: 3 });
+  check(travelNet.spawn.x === GUEST_SPAWN.x && travelNet.spawn.z === GUEST_SPAWN.z, '포털 이동이 초대 자리를 3세계로 옮겼습니다: ' + JSON.stringify(travelNet.spawn));
+  const after = travelNet._spawnPoint(2);
+  check(worldAt(after.x, after.z) === 1 && regionAt(after.x, after.z) === 'village', '이동 뒤에도 초대 자리는 1세계 태초마을이어야 합니다');
+  // 1세계에서 죽으면 1세계 태초마을에서 다시 일어난다
+  check(homeBiomeFor(1) === BIOMES.village, '1세계 부활 자리가 태초마을이 아닙니다');
+  check(regionAt(homeSpawnFor(1).x, homeSpawnFor(1).z) === 'village', '1세계 부활 지점이 태초마을 밖입니다');
+  check(worldAt(homeSpawnFor(1).x, homeSpawnFor(1).z) === 1, '1세계 부활 지점이 다른 세계입니다');
 }
 
 console.log('feature report:', JSON.stringify(FEATURE_REPORT));

@@ -81,6 +81,18 @@
           <div class="quest-reward" id="quest-reward">보상 150 G</div>
         </div>
       </section>
+
+      <section class="panel quest-panel special-panel" id="special-panel" aria-live="polite">
+        <div class="quest-head">
+          <span class="quest-title" id="special-title">⭐ 특별 퀘스트</span>
+          <span class="special-npc" id="special-npc">루나</span>
+        </div>
+        <div class="special-body">
+          <div class="special-name" id="special-name">NPC 에게 말을 걸어 의뢰를 받으세요</div>
+          <div class="special-bar"><i class="special-fill" id="special-fill"></i></div>
+          <div class="special-hint" id="special-goals">NPC 앞에서 F</div>
+        </div>
+      </section>
       </div>
 
       <section class="panel room-panel hidden" id="room-panel">
@@ -141,7 +153,7 @@
           <li><kbd>Q</kbd> <span id="ctrl-q">스킬 1</span></li>
           <li><kbd>E</kbd> <span id="ctrl-e">스킬 2</span></li>
           <li><kbd>X</kbd> <span id="ctrl-ult">필살기 (Lv.15 해금 · 75초)</span></li>
-          <li><kbd>F</kbd> <span>상점 열기 (상점 앞)</span></li>
+          <li><kbd>F</kbd> <span>상점 열기 · 특별 퀘스트 NPC 대화</span></li>
           <li><kbd>M</kbd> <span>지도 열기 / 접기</span></li>
           <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> <span>1세계 포션 사용</span></li>
           <li><kbd>4</kbd><kbd>5</kbd><kbd>6</kbd> <span>2세계 포션 사용</span></li>
@@ -164,6 +176,12 @@
     <button class="shop-prompt portal-prompt" id="portal-prompt" type="button">
       <span class="sp-ico">🌀</span>
       <span class="sp-text">포털 타기</span>
+      <b class="sp-key">[F]</b>
+    </button>
+
+    <button class="shop-prompt special-prompt" id="special-prompt" type="button">
+      <span class="sp-ico">❗</span>
+      <span class="sp-text">말 걸기 · 특별 퀘스트</span>
       <b class="sp-key">[F]</b>
     </button>
 
@@ -277,6 +295,26 @@
         <button class="btn primary" id="shop-close" type="button">닫기 (Esc)</button>
       </footer>
       <div class="shop-toast" id="shop-toast"></div>
+    </div>
+  </div>
+
+  <!-- 특별 퀘스트 창 (세계마다 다른 NPC 가 연다) -->
+  <div class="special-overlay hidden" id="special-overlay">
+    <div class="special-modal" role="dialog" aria-modal="true" aria-labelledby="special-modal-title">
+      <header class="special-head">
+        <div class="special-head-main">
+          <p class="special-eyebrow" id="special-eyebrow">1세계 태초마을 · 특별 퀘스트</p>
+          <h2 id="special-modal-title">모험가 길드장 루나</h2>
+          <p class="special-line" id="special-line">"..."</p>
+        </div>
+        <span class="special-mark">❗</span>
+      </header>
+      <div class="special-list" id="special-list"></div>
+      <footer class="special-foot">
+        <span class="special-note">목표를 채우면 이 NPC 에게 돌아와 보상을 받으세요 · 처치는 함께 하는 친구 것도 세어집니다</span>
+        <button class="btn primary" id="special-close" type="button">닫기 (Esc)</button>
+      </footer>
+      <div class="special-toast" id="special-toast"></div>
     </div>
   </div>
 

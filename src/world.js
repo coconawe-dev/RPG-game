@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import {
   BIOMES, BIOME_ORDER, BIOME_ORDER_W2, BIOME_ORDER_W3, ALL_BIOME_ORDER, compassOrderFor,
+  SPECIAL_QUESTS,
 } from './config.js';
 import {
   WORLD, WORLD2, WORLD3, terrainHeight, valueNoise, fbm, mulberry32, clamp, smoothstep, makeInstanced, lerp,
@@ -1677,7 +1678,13 @@ function buildVillage(scene) {
     signSub: 'WEAPONS · ARMOR · POTIONS',
     style: 'market',
   });
-  return { shop, fountain };
+  // 특별 퀘스트 NPC — 모험가 길드장 루나 (광장 동쪽)
+  const specialNpc = buildSpecialNpc(
+    scene,
+    Object.assign({}, SPECIAL_QUESTS[1].npc, { face: { x: cx, z: cz } }),
+    1
+  );
+  return { shop, fountain, specialNpc };
 }
 
 /* =====================================================================
@@ -1817,7 +1824,14 @@ function buildVillageW2(scene) {
     style: 'forge',
   });
 
-  return { shop, fountain, lampHalos, gateZ, motes };
+  // 특별 퀘스트 NPC — 심연의 현자 카이 (광장 동쪽)
+  const specialNpc = buildSpecialNpc(
+    scene,
+    Object.assign({}, SPECIAL_QUESTS[2].npc, { face: { x: cx, z: cz } }),
+    2
+  );
+
+  return { shop, fountain, lampHalos, gateZ, motes, specialNpc };
 }
 
 function buildBoundary(scene) {
@@ -2683,6 +2697,7 @@ export function updateWorld2(world, dt, t, pos) {
       }
     }
     animateShop(v.shop, dt, t);
+    animateSpecialNpc(v.specialNpc, dt, t);
     if (v.fountain && v.fountain.water) {
       v.fountain.water.material.opacity = 0.82 + Math.sin(t * 1.8) * 0.06;
       if (v.fountain.top) v.fountain.top.rotation.y += dt * 0.5;
@@ -2826,7 +2841,14 @@ function buildVillageW3(scene) {
     style: 'caravan',
   });
 
-  return { shop, fountain, lampHalos, gateZ, motes };
+  // 특별 퀘스트 NPC — 고대 탐험가 아리아 (광장 동쪽)
+  const specialNpc = buildSpecialNpc(
+    scene,
+    Object.assign({}, SPECIAL_QUESTS[3].npc, { face: { x: cx, z: cz } }),
+    3
+  );
+
+  return { shop, fountain, lampHalos, gateZ, motes, specialNpc };
 }
 
 /* ------------------------------ 선사시대 숲 ------------------------------ */
@@ -3518,6 +3540,7 @@ export function updateWorld3(world, dt, t) {
       }
     }
     animateShop(v.shop, dt, t);
+    animateSpecialNpc(v.specialNpc, dt, t);
     if (v.fountain && v.fountain.water) {
       v.fountain.water.material.opacity = 0.82 + Math.sin(t * 1.8) * 0.06;
       if (v.fountain.top) v.fountain.top.rotation.y += dt * 0.5;
@@ -3747,10 +3770,210 @@ function animateShop(shop, dt, t) {
   }
 }
 
+/* =====================================================================
+   세계별 특별 퀘스트 NPC — 1·2·3세계 태초마을 광장에 한 명씩
+   · 세계마다 다른 옷 · 모자 · 소품으로 한눈에 구분된다
+   · 머리 위의 ❗ 표식 · 바닥의 빛 고리 · 이름 팻말 · 빛기둥으로 바로 눈에 띈다
+   ===================================================================== */
+function buildSpecialNpc(scene, def, worldId) {
+  const d = def || SPECIAL_QUESTS[1].npc;
+  const world = worldId || 1;
+  const pal = d.palette || {};
+  const g = new THREE.Group();
+  const npc = new THREE.Group();
+
+  const mat = (c, o) => propMat(c, o || { roughness: 0.9 });
+  const skin = mat(pal.skin || 0xefc9a4, { roughness: 0.82 });
+  const coat = mat(pal.coat || 0x3f6fa8, { roughness: 0.88 });
+  const coatDark = mat(new THREE.Color(pal.coat || 0x3f6fa8).multiplyScalar(0.62).getHex(), { roughness: 0.9 });
+  const trim = new THREE.MeshStandardMaterial({
+    color: pal.trim || 0xffd24a, metalness: 0.85, roughness: 0.28,
+    emissive: pal.trim || 0xffd24a, emissiveIntensity: 0.28,
+  });
+  const prop = mat(pal.prop || 0xf4e6c8, { roughness: 0.7 });
+  const hair = mat(pal.hair || 0x7a4a24, { roughness: 0.9 });
+  const dark = mat(0x2b2b30, { roughness: 0.8 });
+  const eyeA = new THREE.MeshBasicMaterial({ color: 0x2b2b30 });
+  const glowMat = new THREE.MeshStandardMaterial({
+    color: pal.glow || 0x8fd8ff, emissive: pal.glow || 0x8fd8ff, emissiveIntensity: 2.2,
+    roughness: 0.25, transparent: true, opacity: 0.94,
+  });
+  const mk = (geo, m, x, y, z, rot, scl) => {
+    const o = new THREE.Mesh(geo, m);
+    o.position.set(x || 0, y || 0, z || 0);
+    if (rot) o.rotation.set(rot[0] || 0, rot[1] || 0, rot[2] || 0);
+    if (scl) o.scale.set(scl[0], scl[1], scl[2]);
+    o.castShadow = true;
+    npc.add(o);
+    return o;
+  };
+
+  // 발 · 다리 · 외투 · 품 · 팔 · 어깨
+  mk(new THREE.BoxGeometry(4.8, 3.2, 5.4), dark, -1.8, 1.6, 0.3);
+  mk(new THREE.BoxGeometry(4.8, 3.2, 5.4), dark, 1.8, 1.6, 0.3);
+  mk(new THREE.BoxGeometry(4.6, 10, 4.8), coatDark, -1.8, 6, 0);
+  mk(new THREE.BoxGeometry(4.6, 10, 4.8), coatDark, 1.8, 6, 0);
+  mk(new THREE.BoxGeometry(11.6, 7.4, 7.2), coat, 0, 12, 0);
+  mk(new THREE.BoxGeometry(11, 10, 6.4), coat, 0, 20, 0);
+  mk(new THREE.BoxGeometry(11.4, 1.6, 6.6), trim, 0, 15.2, 0);
+  mk(new THREE.BoxGeometry(7.4, 2.2, 6.8), prop, 0, 25, 0);
+  mk(new THREE.BoxGeometry(3.6, 9, 3.8), coat, -7.2, 19.5, 0);
+  mk(new THREE.BoxGeometry(3.6, 9, 3.8), coat, 7.2, 19.5, 0);
+  mk(new THREE.SphereGeometry(1.9, 8, 6), skin, 7.2, 14.6, 0.4);
+  mk(new THREE.SphereGeometry(1.9, 8, 6), skin, -7.2, 14.6, 0.4);
+  mk(new THREE.SphereGeometry(2.9, 10, 8), trim, -7.4, 23.6, 0, null, [1, 0.8, 1]);
+  mk(new THREE.SphereGeometry(2.9, 10, 8), trim, 7.4, 23.6, 0, null, [1, 0.8, 1]);
+
+  // 머리 · 눈
+  mk(new THREE.BoxGeometry(6.8, 6.8, 6.6), skin, 0, 30.5, 0);
+  mk(new THREE.BoxGeometry(0.8, 1.0, 0.3), eyeA, -1.4, 31, 3.4);
+  mk(new THREE.BoxGeometry(0.8, 1.0, 0.3), eyeA, 1.4, 31, 3.4);
+
+  if (world === 1) {
+    // 1세계 · 모험가 길드장 루나 — 깃털 모자 · 망토 · 두루마리 · 길드 흉장
+    mk(new THREE.BoxGeometry(10.6, 13, 1.6), coatDark, 0, 19, -3.9);
+    mk(new THREE.CylinderGeometry(5.9, 5.9, 1.0, 16), hair, 0, 34.6, 0);
+    mk(new THREE.CylinderGeometry(3.6, 4.1, 4.2, 12), hair, 0, 37.4, 0);
+    mk(new THREE.BoxGeometry(0.9, 6.2, 0.5), trim, 4.4, 38.4, 0, [0, 0, -0.3]);
+    const scroll = mk(new THREE.CylinderGeometry(0.95, 0.95, 6.6, 8), prop, 7.6, 16.6, 2.8, [0, 0, Math.PI / 2]);
+    scroll.castShadow = true;
+    mk(new THREE.CylinderGeometry(1.1, 1.1, 0.9, 8), trim, 4.4, 16.6, 2.8, [0, 0, Math.PI / 2]);
+    mk(new THREE.CylinderGeometry(1.1, 1.1, 0.9, 8), trim, 10.8, 16.6, 2.8, [0, 0, Math.PI / 2]);
+    mk(new THREE.OctahedronGeometry(1.3, 0), trim, 0, 21.6, 3.5);
+    // 길드 깃발
+    mk(new THREE.CylinderGeometry(0.5, 0.5, 22, 6), dark, -8.6, 11, -1.2);
+    mk(new THREE.BoxGeometry(7, 5, 0.4), trim, -5.6, 19.5, -1.2);
+  } else if (world === 2) {
+    // 2세계 · 심연의 현자 카이 — 후드 · 긴 수염 · 떠 있는 마력 구체 · 룬 고리
+    const hood = mk(new THREE.SphereGeometry(4.8, 12, 10), coatDark, 0, 32.4, -0.8, null, [1.06, 1.02, 1.06]);
+    hood.castShadow = true;
+    mk(new THREE.ConeGeometry(2.2, 5.4, 8), coatDark, 0, 37.4, -1.8);
+    mk(new THREE.BoxGeometry(7.2, 1.4, 6.9), coat, 0, 33.4, 0.2);
+    mk(new THREE.BoxGeometry(4.4, 7.6, 1.7), hair, 0, 26.2, 3.2);
+    mk(new THREE.BoxGeometry(5.6, 1.2, 1.9), hair, 0, 23.4, 3.1);
+    mk(new THREE.BoxGeometry(1.4, 3.2, 0.4), glowMat, -1.6, 30.6, 3.5);
+    mk(new THREE.BoxGeometry(1.4, 3.2, 0.4), glowMat, 1.6, 30.6, 3.5);
+    // 떠 있는 마력 구체 + 룬 고리
+    mk(new THREE.SphereGeometry(2.2, 14, 10), glowMat, 0, 21.5, 7.2);
+    const orbHalo = glowHalo(pal.glow || 0x8fd8ff, 12, 0.2);
+    orbHalo.position.set(0, 21.5, 7.2);
+    npc.add(orbHalo);
+    const runeRing = mk(new THREE.TorusGeometry(3.6, 0.18, 6, 20), glowMat, 0, 21.5, 7.2, [Math.PI / 2, 0, 0]);
+    runeRing.castShadow = false;
+    // 지팡이
+    mk(new THREE.CylinderGeometry(0.55, 0.62, 21, 7), mat(0x241c34, { roughness: 0.8 }), 7.8, 14.4, 0.6);
+    mk(new THREE.TorusGeometry(1.5, 0.22, 6, 14), trim, 7.8, 25.4, 0.6, [Math.PI / 2, 0, 0]);
+    mk(new THREE.OctahedronGeometry(1.5, 0), glowMat, 7.8, 27.2, 0.6);
+  } else {
+    // 3세계 · 고대 탐험가 아리아 — 탐험모 · 고글 · 배낭 · 지도 두루마리 · 등불
+    mk(new THREE.BoxGeometry(6.2, 6.4, 2.8), mat(0x5c4020, { roughness: 0.92 }), 0, 17.5, -4.2);
+    mk(new THREE.BoxGeometry(1.6, 15, 0.8), trim, 0, 20, 3.5, [0, 0, 0.35]);
+    mk(new THREE.CylinderGeometry(6.4, 6.4, 1.1, 16), hair, 0, 34.4, 0);
+    mk(new THREE.CylinderGeometry(4.0, 4.5, 3.8, 12), hair, 0, 37, 0);
+    mk(new THREE.CylinderGeometry(6.6, 6.6, 0.5, 16), trim, 0, 35.1, 0);
+    // 고글
+    mk(new THREE.TorusGeometry(1.5, 0.28, 6, 14), trim, -1.7, 31.6, 3.5, [0, 0, 0]);
+    mk(new THREE.TorusGeometry(1.5, 0.28, 6, 14), trim, 1.7, 31.6, 3.5, [0, 0, 0]);
+    // 지도 두루마리 · 등불
+    mk(new THREE.CylinderGeometry(0.95, 0.95, 7, 8), prop, 7.8, 16.8, 2.8, [0, 0, Math.PI / 2]);
+    mk(new THREE.CylinderGeometry(1.2, 1.2, 0.8, 8), trim, 4.6, 16.8, 2.8, [0, 0, Math.PI / 2]);
+    mk(new THREE.SphereGeometry(1.9, 12, 10), glowMat, -8.6, 14.2, 2.4);
+    const lampHalo = glowHalo(pal.glow || 0x8ef0c0, 10, 0.18);
+    lampHalo.position.set(-8.6, 14.2, 2.4);
+    npc.add(lampHalo);
+    mk(new THREE.TorusGeometry(1.5, 0.2, 5, 12), trim, -8.6, 16.6, 2.4, [Math.PI / 2, 0, 0]);
+  }
+
+  g.add(npc);
+
+  // ----------------------------------------------------------------
+  // 눈에 띄는 표식: 머리 위 ❗ · 바닥의 빛 고리 · 빛기둥 · 이름 팻말
+  const markColor = pal.trim || 0xffd24a;
+  const marker = new THREE.Group();
+  const markMat = new THREE.MeshStandardMaterial({
+    color: markColor, emissive: 0xffb020, emissiveIntensity: 2.4, roughness: 0.3, metalness: 0.45,
+  });
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(2.8, 10, 2.8), markMat);
+  bar.castShadow = true;
+  marker.add(bar);
+  const dot = new THREE.Mesh(new THREE.BoxGeometry(2.8, 3.0, 2.8), markMat);
+  dot.position.y = -8.4;
+  dot.castShadow = true;
+  marker.add(dot);
+  marker.position.set(0, 60, 0);
+  g.add(marker);
+
+  const ringGeo = new THREE.RingGeometry(40, 46, 44);
+  ringGeo.rotateX(-Math.PI / 2);
+  const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+    color: pal.glow || 0xffd24a, transparent: true, opacity: 0.2, depthWrite: false,
+  }));
+  ring.position.y = 2.2;
+  g.add(ring);
+
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 3.8, 160, 10, 1, true), new THREE.MeshBasicMaterial({
+    color: pal.glow || 0xffd88a, transparent: true, opacity: 0.11,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+  }));
+  beam.position.y = 96;
+  g.add(beam);
+
+  const halo = glowHalo(pal.glow || 0xffcf8a, 30, 0.13, 0.7);
+  halo.position.set(0, 40, 0);
+  g.add(halo);
+
+  // 이름 팻말 (앞뒤 양면)
+  const labelMat = signMaterial(d.name, '특별 퀘스트', 0x241c34);
+  const labelFront = new THREE.Mesh(new THREE.PlaneGeometry(58, 18), labelMat);
+  labelFront.position.set(0, 48, 0.4);
+  g.add(labelFront);
+  const labelBack = new THREE.Mesh(new THREE.PlaneGeometry(58, 18), labelMat);
+  labelBack.position.set(0, 48, -0.4);
+  labelBack.rotation.y = Math.PI;
+  g.add(labelBack);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(60, 20, 0.5), trim);
+  frame.position.set(0, 48, 0);
+  g.add(frame);
+
+  // 자리 · 방향 (광장 중심 쪽을 바라본다)
+  const pos = d.pos || { x: -1912, z: 34 };
+  const center = d.face || null;
+  g.position.set(pos.x, terrainHeight(pos.x, pos.z), pos.z);
+  const toX = center ? center.x - pos.x : 0;
+  const toZ = center ? center.z - pos.z : 1;
+  npc.rotation.y = Math.atan2(toX, toZ);
+
+  scene.add(g);
+  return {
+    group: g, npc, marker, ring, beam, halo,
+    npcBaseY: 0, markerBaseY: 60, world, def: d,
+  };
+}
+
+// 특별 퀘스트 NPC 의 생동감 — ❗ 가 떠오르고 빛 고리가 숨 쉰다
+function animateSpecialNpc(n, dt, t) {
+  if (!n) return;
+  if (n.npc) {
+    n.npc.position.y = (n.npcBaseY || 0) + Math.sin(t * 1.5) * 0.5;
+    n.npc.rotation.y += Math.sin(t * 0.6) * 0.0006;
+  }
+  if (n.marker) {
+    n.marker.rotation.y += dt * 1.4;
+    n.marker.position.y = (n.markerBaseY || 60) + Math.sin(t * 2.0) * 3.6;
+  }
+  if (n.ring) {
+    n.ring.material.opacity = 0.14 + 0.12 * (0.5 + 0.5 * Math.sin(t * 2.3));
+    n.ring.rotation.z += dt * 0.05;
+  }
+  if (n.beam) n.beam.material.opacity = 0.08 + 0.05 * (0.5 + 0.5 * Math.sin(t * 1.7));
+  if (n.halo) n.halo.material.opacity = 0.1 + 0.05 * (0.5 + 0.5 * Math.sin(t * 2.1));
+}
+
 export function updateVillage(world, dt, t) {
   const v = world && world.village;
   if (!v) return;
   animateShop(v.shop, dt, t);
+  animateSpecialNpc(v.specialNpc, dt, t);
   const f = v.fountain;
   if (f && f.water) {
     f.water.material.opacity = 0.82 + Math.sin(t * 1.8) * 0.06;

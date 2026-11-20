@@ -1154,6 +1154,10 @@ export function isEvolvedAt(level) { return Math.max(1, Math.round(level || 1)) 
 export const PLAYER_SIZE = { width: 10, height: 20, radius: 4.6 };
 
 /* ------------------------- 태초마을 무기 · 포션 상점 ------------------------- */
+// 무기: 화면 표시 Tier 2 ~ 6 (내부 등급 1 ~ 5) — 5단계로 촘촘히 올라간다
+//   · 가장 약한 무기(강철 대검 · 160G)와 가장 센 무기(황금 기사검 · 440G)는 그대로 두고
+//     그 사이에 3개를 새로 넣었다 (사용자 요청: "그 두개중에 약한건 가장약하고 쌘건 가장쌔게,
+//     그 사이에 무기들을 추가해줘")
 export const SHOP = {
   id: 'shop_w1',
   kind: 'world1',
@@ -1161,41 +1165,65 @@ export const SHOP = {
   eyebrow: '1번째 세계 태초마을 · 상점',
   title: '무기 · 갑옷 · 포션 상점',
   keeper: { name: '도로시', role: '상점 주인', line: '필요한 게 있으면 얼마든지 골라 봐.' },
-  // 직업별 상위 무기 (Tier 2 · 3) — 사면 바로 장착됩니다
+  // 직업별 무기 (표시 Tier 2 ~ 6) — 사면 바로 장착됩니다
   weapons: {
     warrior: [
       { id: 'w-warrior-2', tier: 2, name: '강철 대검', price: 160, damage: 12, desc: '든든한 강철 대검. 공격력 +12' },
-      { id: 'w-warrior-3', tier: 3, name: '황금 기사검', price: 440, damage: 26, crit: 0.05, desc: '빛나는 황금 기사검. 공격력 +26 · 치명타 +5%' },
+      { id: 'w-warrior-3', tier: 3, name: '정예 강철 대검', price: 230, damage: 16, crit: 0.015, desc: '강철을 거듭 벼린 대검. 공격력 +16 · 치명타 +1.5%' },
+      { id: 'w-warrior-4', tier: 4, name: '은장식 대검', price: 300, damage: 19, crit: 0.025, desc: '은장식을 두른 대검. 공격력 +19 · 치명타 +2.5%' },
+      { id: 'w-warrior-5', tier: 5, name: '백금 기사검', price: 370, damage: 22, crit: 0.04, desc: '백금으로 벼린 기사검. 공격력 +22 · 치명타 +4%' },
+      { id: 'w-warrior-6', tier: 6, name: '황금 기사검', price: 440, damage: 26, crit: 0.05, desc: '빛나는 황금 기사검. 공격력 +26 · 치명타 +5%' },
     ],
     archer: [
       { id: 'w-archer-2', tier: 2, name: '강철 장궁', price: 160, damage: 10, desc: '튼튼한 강철 장궁. 공격력 +10' },
-      { id: 'w-archer-3', tier: 3, name: '바람의 명궁', price: 440, damage: 22, crit: 0.05, desc: '바람을 가르는 명궁. 공격력 +22 · 치명타 +5%' },
+      { id: 'w-archer-3', tier: 3, name: '정예 강철 장궁', price: 230, damage: 13, crit: 0.015, desc: '강철을 겹쳐 만든 장궁. 공격력 +13 · 치명타 +1.5%' },
+      { id: 'w-archer-4', tier: 4, name: '은테 장궁', price: 300, damage: 16, crit: 0.025, desc: '은테를 두른 장궁. 공격력 +16 · 치명타 +2.5%' },
+      { id: 'w-archer-5', tier: 5, name: '백금 장궁', price: 370, damage: 19, crit: 0.04, desc: '백금으로 다듬은 장궁. 공격력 +19 · 치명타 +4%' },
+      { id: 'w-archer-6', tier: 6, name: '바람의 명궁', price: 440, damage: 22, crit: 0.05, desc: '바람을 가르는 명궁. 공격력 +22 · 치명타 +5%' },
     ],
     rogue: [
       { id: 'w-rogue-2', tier: 2, name: '미스릴 쌍단검', price: 160, damage: 8, desc: '가벼운 미스릴 쌍단검. 공격력 +8' },
-      { id: 'w-rogue-3', tier: 3, name: '그림자 쌍검', price: 440, damage: 18, crit: 0.06, desc: '그림자를 베는 쌍검. 공격력 +18 · 치명타 +6%' },
+      { id: 'w-rogue-3', tier: 3, name: '예리한 미스릴 쌍단검', price: 230, damage: 10, crit: 0.02, desc: '날을 세운 미스릴 쌍단검. 공격력 +10 · 치명타 +2%' },
+      { id: 'w-rogue-4', tier: 4, name: '그림자 쌍단검', price: 300, damage: 13, crit: 0.035, desc: '그림자에 물든 쌍단검. 공격력 +13 · 치명타 +3.5%' },
+      { id: 'w-rogue-5', tier: 5, name: '밤날개 쌍단검', price: 370, damage: 15, crit: 0.05, desc: '밤날개처럼 가벼운 쌍단검. 공격력 +15 · 치명타 +5%' },
+      { id: 'w-rogue-6', tier: 6, name: '그림자 쌍검', price: 440, damage: 18, crit: 0.06, desc: '그림자를 베는 쌍검. 공격력 +18 · 치명타 +6%' },
     ],
     tanker: [
       { id: 'w-tanker-2', tier: 2, name: '강철 방패', price: 160, damage: 10, desc: '두꺼운 강철 방패. 공격력 +10' },
-      { id: 'w-tanker-3', tier: 3, name: '수호자의 성벽', price: 440, damage: 21, crit: 0.04, desc: '빛나는 수호자의 방패. 공격력 +21 · 치명타 +4%' },
+      { id: 'w-tanker-3', tier: 3, name: '정예 강철 방패', price: 230, damage: 13, crit: 0.012, desc: '테를 덧댄 강철 방패. 공격력 +13 · 치명타 +1.2%' },
+      { id: 'w-tanker-4', tier: 4, name: '은장식 방패', price: 300, damage: 15, crit: 0.02, desc: '은장식을 두른 방패. 공격력 +15 · 치명타 +2%' },
+      { id: 'w-tanker-5', tier: 5, name: '백금 수호방패', price: 370, damage: 18, crit: 0.03, desc: '백금으로 두른 수호방패. 공격력 +18 · 치명타 +3%' },
+      { id: 'w-tanker-6', tier: 6, name: '수호자의 성벽', price: 440, damage: 21, crit: 0.04, desc: '빛나는 수호자의 방패. 공격력 +21 · 치명타 +4%' },
     ],
     mage: [
       { id: 'w-mage-2', tier: 2, name: '수정 지팡이', price: 160, damage: 11, desc: '맑은 수정이 박힌 지팡이. 공격력 +11' },
-      { id: 'w-mage-3', tier: 3, name: '대현자의 홀', price: 440, damage: 24, crit: 0.05, desc: '대현자의 홀. 공격력 +24 · 치명타 +5%' },
+      { id: 'w-mage-3', tier: 3, name: '정예 수정 지팡이', price: 230, damage: 14, crit: 0.015, desc: '수정을 크게 박은 지팡이. 공격력 +14 · 치명타 +1.5%' },
+      { id: 'w-mage-4', tier: 4, name: '은빛 지팡이', price: 300, damage: 17, crit: 0.025, desc: '은빛이 감도는 지팡이. 공격력 +17 · 치명타 +2.5%' },
+      { id: 'w-mage-5', tier: 5, name: '백금 지팡이', price: 370, damage: 20, crit: 0.04, desc: '백금으로 두른 지팡이. 공격력 +20 · 치명타 +4%' },
+      { id: 'w-mage-6', tier: 6, name: '대현자의 홀', price: 440, damage: 24, crit: 0.05, desc: '대현자의 홀. 공격력 +24 · 치명타 +5%' },
     ],
   },
-  // 갑옷 (Tier 1 · 2 · 3) — 사면 바로 장착되고 최대 HP · 피해 감소가 붙는다
+  // 갑옷 (Tier 1 ~ 5) — 사면 바로 장착되고 최대 HP · 피해 감소가 붙는다
+  //   · 가장 약한 가죽 갑옷과 가장 센 황금 수호 갑옷 사이에 2벌을 더 넣었다
   armors: [
     {
       id: 'a-leather', tier: 1, name: '가죽 갑옷', price: 180, hp: 45, defense: 0.2,
       desc: '질긴 가죽으로 두른 모험가의 갑옷. 최대 HP +45 · 받는 피해 20% 감소',
     },
     {
-      id: 'a-steel', tier: 2, name: '강철 판금 갑옷', price: 400, hp: 110, defense: 0.35,
+      id: 'a-chain', tier: 2, name: '사슬 갑옷', price: 270, hp: 75, defense: 0.26,
+      desc: '촘촘한 사슬을 엮은 갑옷. 최대 HP +75 · 받는 피해 26% 감소',
+    },
+    {
+      id: 'a-steel', tier: 3, name: '강철 판금 갑옷', price: 400, hp: 110, defense: 0.35,
       desc: '두꺼운 강철 판금. 최대 HP +110 · 받는 피해 35% 감소',
     },
     {
-      id: 'a-gold', tier: 3, name: '황금 수호 갑옷', price: 760, hp: 200, defense: 0.5,
+      id: 'a-mithril-chain', tier: 4, name: '미스릴 사슬 갑옷', price: 570, hp: 155, defense: 0.43,
+      desc: '미스릴 고리로 엮은 사슬 갑옷. 최대 HP +155 · 받는 피해 43% 감소',
+    },
+    {
+      id: 'a-gold', tier: 5, name: '황금 수호 갑옷', price: 760, hp: 200, defense: 0.5,
       desc: '빛나는 황금 갑옷. 최대 HP +200 · 받는 피해 50% 감소',
     },
   ],
@@ -1210,8 +1238,8 @@ export const SHOP = {
 
 /* ------------------------------------------------------------------
    2세계 태초마을 상점 — 1번째 세계보다 훨씬 강하고 훨씬 비싸다
-   · 무기: 화면 표시 Tier 4 · 5 (내부 등급 3 · 4)
-   · 갑옷: Tier 4 · 5
+   · 무기: 화면 표시 Tier 7 ~ 11 (내부 등급 6 ~ 10) — 5단계, 전부 10,000G 이상
+   · 갑옷: Tier 6 ~ 9 — 전부 10,000G 이상
    · 포션: 초월 체력 포션 · 완전 회복의 성수 · 광폭의 영약
 ------------------------------------------------------------------ */
 export const SHOP2 = {
@@ -1223,37 +1251,60 @@ export const SHOP2 = {
     name: '그렌', role: '2세계 대장장이',
     line: '2세계에서는 이 정도 장비라야 살아남아. 값은 세지만 그만한 값은 하지.',
   },
-  // 직업별 상위 무기 (표시 Tier 4 · 5) — 사면 바로 장착됩니다
+  // 직업별 무기 (표시 Tier 7 ~ 11) — 사면 바로 장착됩니다
   weapons: {
     warrior: [
-      { id: 'w2-warrior-4', tier: 4, name: '흑요석 대검', price: 10500, damage: 46, crit: 0.08, desc: '2세계 흑요석을 벼린 대검. 공격력 +46 · 치명타 +8%' },
-      { id: 'w2-warrior-5', tier: 5, name: '불멸의 심판검', price: 22000, damage: 84, crit: 0.12, desc: '차원을 가르는 심판의 검. 공격력 +84 · 치명타 +12%' },
+      { id: 'w2-warrior-7', tier: 7, name: '흑요석 대검', price: 10500, damage: 48, crit: 0.08, desc: '2세계 흑요석을 벼린 대검. 공격력 +48 · 치명타 +8%' },
+      { id: 'w2-warrior-8', tier: 8, name: '정예 흑요석 대검', price: 13000, damage: 59, crit: 0.09, desc: '흑요석을 거듭 벼린 대검. 공격력 +59 · 치명타 +9%' },
+      { id: 'w2-warrior-9', tier: 9, name: '별철 대검', price: 16000, damage: 68, crit: 0.10, desc: '별에서 떨어진 쇠로 벼린 대검. 공격력 +68 · 치명타 +10%' },
+      { id: 'w2-warrior-10', tier: 10, name: '성운 대검', price: 19000, damage: 79, crit: 0.11, desc: '성운의 빛이 도는 대검. 공격력 +79 · 치명타 +11%' },
+      { id: 'w2-warrior-11', tier: 11, name: '불멸의 심판검', price: 22000, damage: 88, crit: 0.12, desc: '차원을 가르는 심판의 검. 공격력 +88 · 치명타 +12%' },
     ],
     archer: [
-      { id: 'w2-archer-4', tier: 4, name: '심연의 장궁', price: 10000, damage: 42, crit: 0.08, desc: '심연의 바람을 쏘는 장궁. 공격력 +42 · 치명타 +8%' },
-      { id: 'w2-archer-5', tier: 5, name: '유성의 명궁', price: 21500, damage: 76, crit: 0.12, desc: '유성을 떨어뜨리는 명궁. 공격력 +76 · 치명타 +12%' },
+      { id: 'w2-archer-7', tier: 7, name: '심연의 장궁', price: 10000, damage: 44, crit: 0.08, desc: '심연의 바람을 쏘는 장궁. 공격력 +44 · 치명타 +8%' },
+      { id: 'w2-archer-8', tier: 8, name: '정예 심연 장궁', price: 13000, damage: 54, crit: 0.09, desc: '심연의 힘을 더한 장궁. 공격력 +54 · 치명타 +9%' },
+      { id: 'w2-archer-9', tier: 9, name: '별빛 장궁', price: 16000, damage: 63, crit: 0.10, desc: '별빛을 걸어 쏘는 장궁. 공격력 +63 · 치명타 +10%' },
+      { id: 'w2-archer-10', tier: 10, name: '성운 장궁', price: 19000, damage: 71, crit: 0.11, desc: '성운을 당겨 쏘는 장궁. 공격력 +71 · 치명타 +11%' },
+      { id: 'w2-archer-11', tier: 11, name: '유성의 명궁', price: 21500, damage: 80, crit: 0.12, desc: '유성을 떨어뜨리는 명궁. 공격력 +80 · 치명타 +12%' },
     ],
     rogue: [
-      { id: 'w2-rogue-4', tier: 4, name: '심연 쌍단검', price: 10000, damage: 34, crit: 0.09, desc: '어둠을 베는 심연 쌍단검. 공격력 +34 · 치명타 +9%' },
-      { id: 'w2-rogue-5', tier: 5, name: '차원 쌍검', price: 21000, damage: 60, crit: 0.14, desc: '차원을 오가는 쌍검. 공격력 +60 · 치명타 +14%' },
+      { id: 'w2-rogue-7', tier: 7, name: '심연 쌍단검', price: 10000, damage: 36, crit: 0.09, desc: '어둠을 베는 심연 쌍단검. 공격력 +36 · 치명타 +9%' },
+      { id: 'w2-rogue-8', tier: 8, name: '정예 심연 쌍단검', price: 13000, damage: 43, crit: 0.10, desc: '심연에 물든 정예 쌍단검. 공격력 +43 · 치명타 +10%' },
+      { id: 'w2-rogue-9', tier: 9, name: '별빛 쌍단검', price: 16000, damage: 50, crit: 0.12, desc: '별빛을 가른 쌍단검. 공격력 +50 · 치명타 +12%' },
+      { id: 'w2-rogue-10', tier: 10, name: '성운 쌍단검', price: 19000, damage: 57, crit: 0.13, desc: '성운을 흐르게 한 쌍단검. 공격력 +57 · 치명타 +13%' },
+      { id: 'w2-rogue-11', tier: 11, name: '차원 쌍검', price: 21000, damage: 63, crit: 0.14, desc: '차원을 오가는 쌍검. 공격력 +63 · 치명타 +14%' },
     ],
     tanker: [
-      { id: 'w2-tanker-4', tier: 4, name: '심연 수호방패', price: 10500, damage: 42, crit: 0.06, desc: '2세계를 막아서는 수호방패. 공격력 +42 · 치명타 +6%' },
-      { id: 'w2-tanker-5', tier: 5, name: '불멸의 성벽', price: 21500, damage: 74, crit: 0.08, desc: '무너지지 않는 불멸의 성벽. 공격력 +74 · 치명타 +8%' },
+      { id: 'w2-tanker-7', tier: 7, name: '심연 수호방패', price: 10500, damage: 44, crit: 0.06, desc: '2세계를 막아서는 수호방패. 공격력 +44 · 치명타 +6%' },
+      { id: 'w2-tanker-8', tier: 8, name: '정예 심연 수호방패', price: 13000, damage: 52, crit: 0.065, desc: '테를 덧댄 심연 수호방패. 공격력 +52 · 치명타 +6.5%' },
+      { id: 'w2-tanker-9', tier: 9, name: '별빛 수호방패', price: 16000, damage: 61, crit: 0.07, desc: '별빛이 흐르는 수호방패. 공격력 +61 · 치명타 +7%' },
+      { id: 'w2-tanker-10', tier: 10, name: '성운 수호방패', price: 19000, damage: 69, crit: 0.075, desc: '성운으로 두른 수호방패. 공격력 +69 · 치명타 +7.5%' },
+      { id: 'w2-tanker-11', tier: 11, name: '불멸의 성벽', price: 21500, damage: 78, crit: 0.08, desc: '무너지지 않는 불멸의 성벽. 공격력 +78 · 치명타 +8%' },
     ],
     mage: [
-      { id: 'w2-mage-4', tier: 4, name: '성운 지팡이', price: 10800, damage: 48, crit: 0.08, desc: '성운을 담은 지팡이. 공격력 +48 · 치명타 +8%' },
-      { id: 'w2-mage-5', tier: 5, name: '태초의 홀', price: 22500, damage: 86, crit: 0.12, desc: '태초의 빛이 깃든 홀. 공격력 +86 · 치명타 +12%' },
+      { id: 'w2-mage-7', tier: 7, name: '성운 지팡이', price: 10800, damage: 50, crit: 0.08, desc: '성운을 담은 지팡이. 공격력 +50 · 치명타 +8%' },
+      { id: 'w2-mage-8', tier: 8, name: '정예 성운 지팡이', price: 13000, damage: 61, crit: 0.09, desc: '성운을 크게 담은 지팡이. 공격력 +61 · 치명타 +9%' },
+      { id: 'w2-mage-9', tier: 9, name: '별빛 지팡이', price: 16000, damage: 70, crit: 0.10, desc: '별빛을 머금은 지팡이. 공격력 +70 · 치명타 +10%' },
+      { id: 'w2-mage-10', tier: 10, name: '심연의 지팡이', price: 19000, damage: 80, crit: 0.11, desc: '심연을 부르는 지팡이. 공격력 +80 · 치명타 +11%' },
+      { id: 'w2-mage-11', tier: 11, name: '태초의 홀', price: 22500, damage: 90, crit: 0.12, desc: '태초의 빛이 깃든 홀. 공격력 +90 · 치명타 +12%' },
     ],
   },
-  // 2세계 갑옷 (Tier 4 · 5) — 1번째 세계 갑옷보다 훨씬 비싸고 튼튼하다
+  // 2세계 갑옷 (Tier 6 ~ 9) — 1세계 갑옷보다 훨씬 비싸고 튼튼하다
   armors: [
     {
-      id: 'a-mithril', tier: 4, name: '미스릴 성기사 갑옷', price: 12000, hp: 340, defense: 0.62,
+      id: 'a-mithril', tier: 6, name: '미스릴 성기사 갑옷', price: 12000, hp: 340, defense: 0.62,
       desc: '별빛 미스릴로 벼린 성기사 갑옷. 최대 HP +340 · 받는 피해 62% 감소',
     },
     {
-      id: 'a-eternal', tier: 5, name: '차원의 불멸 갑옷', price: 25000, hp: 550, defense: 0.72,
+      id: 'a-obsidian', tier: 7, name: '흑요석 수호 갑옷', price: 16000, hp: 415, defense: 0.66,
+      desc: '2세계 흑요석을 두른 수호 갑옷. 최대 HP +415 · 받는 피해 66% 감소',
+    },
+    {
+      id: 'a-starlight', tier: 8, name: '별빛 성갑', price: 20000, hp: 490, defense: 0.69,
+      desc: '별빛을 엮어 두른 성갑. 최대 HP +490 · 받는 피해 69% 감소',
+    },
+    {
+      id: 'a-eternal', tier: 9, name: '차원의 불멸 갑옷', price: 25000, hp: 550, defense: 0.72,
       desc: '차원의 장막을 두른 불멸의 갑옷. 최대 HP +550 · 받는 피해 72% 감소',
     },
   ],
@@ -1278,9 +1329,11 @@ export const SHOP2 = {
 /* ------------------------------------------------------------------
    3세계 태초마을 상점 — 세 번째 세계의 대상단
    사용자 요청: "상점에는 무기와방어구와포션을 팔아 상점에는 다100000이상이야(포션빼고)"
-   · 무기: 화면 표시 Tier 6 · 7 (내부 등급 5 · 6) — 전부 100,000G 이상
-   · 갑옷: Tier 6 · 7 — 전부 100,000G 이상
+   · 무기: 화면 표시 Tier 12 ~ 16 (내부 등급 11 ~ 15) — 전부 100,000G 이상
+   · 갑옷: Tier 10 ~ 13 — 전부 100,000G 이상
    · 포션: 전설 체력 포션 · 불굴의 성수 · 초월의 영약 — 100,000G 미만
+   · 가장 센 무기(천공의 심판검 등)는 사용자 요청대로 더 세게 올렸다 (예전 260 → 322 · +24%)
+   · 2·3세계 무기는 사용자 요청("2세계랑 3세계 무기를 좀더 쌔게 (조오오오금)")대로 한 번 더 5% 올렸다
 ------------------------------------------------------------------ */
 export const SHOP3 = {
   id: 'shop_w3',
@@ -1291,37 +1344,60 @@ export const SHOP3 = {
     name: '발렌', role: '3세계 대상단장',
     line: '여기 오는 물건은 다 한 번은 왕국을 벌었던 물건이야. 값은 셈값으로 세게 나왔어.',
   },
-  // 직업별 상위 무기 (표시 Tier 6 · 7) — 사면 바로 장착됩니다
+  // 직업별 무기 (표시 Tier 12 ~ 16) — 사면 바로 장착됩니다
   weapons: {
     warrior: [
-      { id: 'w3-warrior-6', tier: 6, name: '용사냥꾼의 대검', price: 104000, damage: 150, crit: 0.15, desc: '용의 비늘을 베도록 벼린 대검. 공격력 +150 · 치명타 +15%' },
-      { id: 'w3-warrior-7', tier: 7, name: '천공의 심판검', price: 215000, damage: 260, crit: 0.20, desc: '하늘을 가르는 심판의 검. 공격력 +260 · 치명타 +20%' },
+      { id: 'w3-warrior-12', tier: 12, name: '용사냥꾼의 대검', price: 104000, damage: 158, crit: 0.15, desc: '용의 비늘을 베도록 벼린 대검. 공격력 +158 · 치명타 +15%' },
+      { id: 'w3-warrior-13', tier: 13, name: '정예 용사냥꾼 대검', price: 130000, damage: 191, crit: 0.16, desc: '용비늘을 거듭 벼린 대검. 공격력 +191 · 치명타 +16%' },
+      { id: 'w3-warrior-14', tier: 14, name: '고대룡 대검', price: 160000, damage: 220, crit: 0.18, desc: '고대룡의 뼈를 벼린 대검. 공격력 +220 · 치명타 +18%' },
+      { id: 'w3-warrior-15', tier: 15, name: '새벽 대검', price: 185000, damage: 248, crit: 0.19, desc: '새벽빛으로 벼린 대검. 공격력 +248 · 치명타 +19%' },
+      { id: 'w3-warrior-16', tier: 16, name: '천공의 심판검', price: 232000, damage: 322, crit: 0.22, desc: '하늘을 가르는 심판의 검. 공격력 +322 · 치명타 +22%' },
     ],
     archer: [
-      { id: 'w3-archer-6', tier: 6, name: '천공의 장궁', price: 101000, damage: 136, crit: 0.15, desc: '구름 위를 암다니는 장궁. 공격력 +136 · 치명타 +15%' },
-      { id: 'w3-archer-7', tier: 7, name: '새벽의 명궁', price: 212000, damage: 236, crit: 0.20, desc: '새벽빛을 꿰뚫는 명궁. 공격력 +236 · 치명타 +20%' },
+      { id: 'w3-archer-12', tier: 12, name: '천공의 장궁', price: 101000, damage: 143, crit: 0.15, desc: '구름 위를 암다니는 장궁. 공격력 +143 · 치명타 +15%' },
+      { id: 'w3-archer-13', tier: 13, name: '정예 천공 장궁', price: 130000, damage: 172, crit: 0.16, desc: '천공의 힘을 더한 장궁. 공격력 +172 · 치명타 +16%' },
+      { id: 'w3-archer-14', tier: 14, name: '고대룡 장궁', price: 160000, damage: 200, crit: 0.18, desc: '고대룡의 힘줄을 걸어 만든 장궁. 공격력 +200 · 치명타 +18%' },
+      { id: 'w3-archer-15', tier: 15, name: '새벽 장궁', price: 185000, damage: 225, crit: 0.19, desc: '새벽빛을 쏘는 장궁. 공격력 +225 · 치명타 +19%' },
+      { id: 'w3-archer-16', tier: 16, name: '새벽의 명궁', price: 229000, damage: 292, crit: 0.22, desc: '새벽빛을 꿰뚫는 명궁. 공격력 +292 · 치명타 +22%' },
     ],
     rogue: [
-      { id: 'w3-rogue-6', tier: 6, name: '용살 쌍단검', price: 100000, damage: 110, crit: 0.17, desc: '비늘 밑을 파고드는 쌍단검. 공격력 +110 · 치명타 +17%' },
-      { id: 'w3-rogue-7', tier: 7, name: '심연의 쌍검', price: 210000, damage: 190, crit: 0.22, desc: '빛을 삼키는 심연의 쌍검. 공격력 +190 · 치명타 +22%' },
+      { id: 'w3-rogue-12', tier: 12, name: '용살 쌍단검', price: 100000, damage: 116, crit: 0.17, desc: '비늘 밑을 파고드는 쌍단검. 공격력 +116 · 치명타 +17%' },
+      { id: 'w3-rogue-13', tier: 13, name: '정예 용살 쌍단검', price: 130000, damage: 139, crit: 0.18, desc: '용을 잡는 정예 쌍단검. 공격력 +139 · 치명타 +18%' },
+      { id: 'w3-rogue-14', tier: 14, name: '고대룡 쌍단검', price: 160000, damage: 162, crit: 0.20, desc: '고대룡의 이빨로 벼린 쌍단검. 공격력 +162 · 치명타 +20%' },
+      { id: 'w3-rogue-15', tier: 15, name: '새벽 쌍단검', price: 185000, damage: 181, crit: 0.21, desc: '새벽을 가르는 쌍단검. 공격력 +181 · 치명타 +21%' },
+      { id: 'w3-rogue-16', tier: 16, name: '심연의 쌍검', price: 227000, damage: 235, crit: 0.24, desc: '빛을 삼키는 심연의 쌍검. 공격력 +235 · 치명타 +24%' },
     ],
     tanker: [
-      { id: 'w3-tanker-6', tier: 6, name: '성곽 수호방패', price: 103000, damage: 132, crit: 0.10, desc: '성을 통째로 막아설 방패. 공격력 +132 · 치명타 +10%' },
-      { id: 'w3-tanker-7', tier: 7, name: '새벽의 성채', price: 214000, damage: 228, crit: 0.12, desc: '부수지 못하는 새벽의 성채. 공격력 +228 · 치명타 +12%' },
+      { id: 'w3-tanker-12', tier: 12, name: '성곽 수호방패', price: 103000, damage: 139, crit: 0.10, desc: '성을 통째로 막아설 방패. 공격력 +139 · 치명타 +10%' },
+      { id: 'w3-tanker-13', tier: 13, name: '정예 성곽 수호방패', price: 130000, damage: 166, crit: 0.105, desc: '테를 덧댄 성곽 수호방패. 공격력 +166 · 치명타 +10.5%' },
+      { id: 'w3-tanker-14', tier: 14, name: '고대룡 수호방패', price: 160000, damage: 191, crit: 0.11, desc: '고대룡의 비늘을 두른 방패. 공격력 +191 · 치명타 +11%' },
+      { id: 'w3-tanker-15', tier: 15, name: '새벽 수호방패', price: 185000, damage: 214, crit: 0.115, desc: '새벽빛으로 두른 수호방패. 공격력 +214 · 치명타 +11.5%' },
+      { id: 'w3-tanker-16', tier: 16, name: '새벽의 성채', price: 231000, damage: 281, crit: 0.14, desc: '부수지 못하는 새벽의 성채. 공격력 +281 · 치명타 +14%' },
     ],
     mage: [
-      { id: 'w3-mage-6', tier: 6, name: '별을 담은 홀', price: 106000, damage: 154, crit: 0.15, desc: '별빛을 담아 두는 홀. 공격력 +154 · 치명타 +15%' },
-      { id: 'w3-mage-7', tier: 7, name: '창세의 지팡이', price: 218000, damage: 268, crit: 0.20, desc: '창세의 불꽃이 깃든 지팡이. 공격력 +268 · 치명타 +20%' },
+      { id: 'w3-mage-12', tier: 12, name: '별을 담은 홀', price: 106000, damage: 162, crit: 0.15, desc: '별빛을 담아 두는 홀. 공격력 +162 · 치명타 +15%' },
+      { id: 'w3-mage-13', tier: 13, name: '정예 별빛 홀', price: 130000, damage: 195, crit: 0.16, desc: '별빛을 크게 담은 홀. 공격력 +195 · 치명타 +16%' },
+      { id: 'w3-mage-14', tier: 14, name: '고대룡 홀', price: 160000, damage: 227, crit: 0.18, desc: '고대룡의 심장을 담은 홀. 공격력 +227 · 치명타 +18%' },
+      { id: 'w3-mage-15', tier: 15, name: '새벽 홀', price: 185000, damage: 256, crit: 0.19, desc: '새벽빛을 담은 홀. 공격력 +256 · 치명타 +19%' },
+      { id: 'w3-mage-16', tier: 16, name: '창세의 지팡이', price: 235000, damage: 332, crit: 0.22, desc: '창세의 불꽃이 깃든 지팡이. 공격력 +332 · 치명타 +22%' },
     ],
   },
-  // 3세계 갑옷 (Tier 6 · 7) — 앞의 두 상점 갑옷을 모두 넘고 값도 가장 비싸다
+  // 3세계 갑옷 (Tier 10 ~ 13) — 앞의 두 상점 갑옷을 모두 넘고 값도 가장 비싸다
   armors: [
     {
-      id: 'a-dragon', tier: 6, name: '용비늘 판금 갑옷', price: 120000, hp: 900, defense: 0.80,
+      id: 'a-dragon', tier: 10, name: '용비늘 판금 갑옷', price: 120000, hp: 900, defense: 0.80,
       desc: '용의 비늘을 이어 붙인 판금. 최대 HP +900 · 받는 피해 80% 감소',
     },
     {
-      id: 'a-celestial', tier: 7, name: '창세의 성갑', price: 250000, hp: 1400, defense: 0.86,
+      id: 'a-dragonlord', tier: 11, name: '용왕의 비늘 갑옷', price: 175000, hp: 1080, defense: 0.83,
+      desc: '용왕의 비늘로 두른 갑옷. 최대 HP +1080 · 받는 피해 83% 감소',
+    },
+    {
+      id: 'a-ancient', tier: 12, name: '고대 성갑', price: 220000, hp: 1250, defense: 0.845,
+      desc: '고대 왕국의 성갑. 최대 HP +1250 · 받는 피해 84.5% 감소',
+    },
+    {
+      id: 'a-celestial', tier: 13, name: '창세의 성갑', price: 250000, hp: 1400, defense: 0.86,
       desc: '세계의 빛으로 두른 성갑. 최대 HP +1400 · 받는 피해 86% 감소',
     },
   ],
@@ -1394,9 +1470,130 @@ export function armorByTier(tier) {
   return allArmors().find((a) => a.tier === tier) || null;
 }
 
-// 내부 등급(0 ~ 6)의 최댓값 · 갑옷 등급(0 ~ 7)의 최댓값
-export const MAX_WEAPON_TIER = 6;
-export const MAX_ARMOR_TIER = 7;
+// 무기 내부 등급(0 = 기본 장비, 1 ~ 15 = 상점) · 갑옷 등급(0 = 맨몸, 1 ~ 13 = 상점)
+export const MAX_WEAPON_TIER = 15;
+export const MAX_ARMOR_TIER = 13;
+
+/* ==================================================================
+   세계별 특별 퀘스트 NPC — 1·2·3세계 태초마을 광장에 각각 한 명씩 선다
+   사용자 요청: "1,2,3세계에 각각 NPC를 소환해주고 그 NPC에게 말을 걸면
+                특별 퀘스트가 나오게 해줘"
+   · 순차 퀘스트(src/quests.js)와는 별개로 NPC 에게 말을 걸어 수락하고,
+     목표를 채우면 그 NPC 에게 돌아와 보상(골드 + 경험치)을 받는다.
+   · 처치는 main.js 의 recordKill 한 곳으로 모이므로 혼자 하기 · 호스트 ·
+     친구(멀티플레이) 처치가 모두 똑같이 세어진다.
+================================================================== */
+export const SPECIAL_QUESTS = {
+  1: {
+    world: 1,
+    npc: {
+      id: 'npc_special_w1',
+      name: '모험가 길드장 루나',
+      role: '특별 퀘스트 · 모험가 길드',
+      line: '정글 사원 너머의 소문을 들었나? 길드가 의뢰서를 쥐고 있다네.',
+      pos: { x: -1912, z: 34 },        // 태초마을 광장 동쪽 (상점 · 분수와 겹치지 않는 자리)
+      radius: 66,                      // 말을 걸 수 있는 거리
+      greeting: '내가 준 의뢰는 쉽지 않다네. 준비되면 다시 오게.',
+      palette: { coat: 0x3f6fa8, trim: 0xffd24a, glow: 0x8fd8ff, skin: 0xefc9a4, hair: 0x7a4a24, prop: 0xf4e6c8 },
+    },
+    quests: [
+      {
+        id: 'sp_w1_jungle',
+        title: '정글의 수호자',
+        desc: '정글 사원을 지키던 고릴라가 흥포해졌다. 고릴라 15마리와 고대 골렘 1마리를 처치하라.',
+        goals: [{ mob: 'gorilla', target: 15 }, { mob: 'golem', target: 1 }],
+        rewardGold: 2500,
+        rewardXp: 900,
+        line: '숲이 자네를 기다린다네.',
+      },
+      {
+        id: 'sp_w1_graveyard',
+        title: '무덤가의 망령',
+        desc: '해가 진 뒤 무덤 지대가 들끓는다. 슬라임 20마리 · 좀비 15마리 · 하이에나 10마리를 정리하라.',
+        goals: [{ mob: 'slime', target: 20 }, { mob: 'zombie', target: 15 }, { mob: 'hyena', target: 10 }],
+        rewardGold: 1800,
+        rewardXp: 600,
+        line: '무덤 지대를 깨끗하게 해 주게.',
+      },
+    ],
+  },
+  2: {
+    world: 2,
+    npc: {
+      id: 'npc_special_w2',
+      name: '심연의 현자 카이',
+      role: '특별 퀘스트 · 심연의 현자',
+      line: '심해 밑에서 무엇이 깨어났는지 아는가? 내가 그 의뢰를 들고 있네.',
+      pos: { x: 88, z: WORLD2.originZ + 2000 },   // 2세계 태초마을 광장 동쪽
+      radius: 66,
+      greeting: '심연은 서두르는 자를 삼킨다네.',
+      palette: { coat: 0x4a3a6e, trim: 0x9a6cff, glow: 0x8fd8ff, skin: 0xdcc4a8, hair: 0xe8e0f0, prop: 0xb98cff },
+    },
+    quests: [
+      {
+        id: 'sp_w2_squid',
+        title: '심해의 괴수',
+        desc: '심해의 거대 오정어와 암흑지역의 흑마법사를 함께 처치하라. 거대 오정어 10마리 · 흑마법사 1마리.',
+        goals: [{ mob: 'giant_squid', target: 10 }, { mob: 'dark_mage', target: 1 }],
+        rewardGold: 22000,
+        rewardXp: 4500,
+        line: '심연의 빛을 되찾아 주게.',
+      },
+      {
+        id: 'sp_w2_goblin',
+        title: '고블린 왕의 심장',
+        desc: '고블린 숲과 불길한 동굴을 정리하라. 고블린 25마리 · 스켈레톤 15마리 · 아이언 골렘 8마리.',
+        goals: [{ mob: 'goblin', target: 25 }, { mob: 'skeleton', target: 15 }, { mob: 'iron_golem', target: 8 }],
+        rewardGold: 15000,
+        rewardXp: 3000,
+        line: '고블린의 북소리가 멈추지 않는다면 이 세계는 끝없이 흔들릴 것이네.',
+      },
+    ],
+  },
+  3: {
+    world: 3,
+    npc: {
+      id: 'npc_special_w3',
+      name: '고대 탐험가 아리아',
+      role: '특별 퀘스트 · 고대 탐험가',
+      line: '고대 신전과 점령당한 목장 — 내가 평생 추적한 흔적이 거기 있지.',
+      pos: { x: 88, z: WORLD3.originZ + 2000 },   // 3세계 태초마을 광장 동쪽
+      radius: 66,
+      greeting: '지도는 내가 그려 두었네. 발은 자네가 옴기게나.',
+      palette: { coat: 0x2f6b4e, trim: 0xfff2b0, glow: 0x8ef0c0, skin: 0xe8c9a8, hair: 0x3b2a1c, prop: 0xa8ffd0 },
+    },
+    quests: [
+      {
+        id: 'sp_w3_temple',
+        title: '고대 신전과 목장',
+        desc: '고대유적의 고대 뱀과 점령당한 목장의 주인 강하닭을 처치하라. 고대 뱀 10마리 · 강하닭 1마리.',
+        goals: [{ mob: 'ancient_serpent', target: 10 }, { mob: 'strong_chicken', target: 1 }],
+        rewardGold: 180000,
+        rewardXp: 30000,
+        line: '목장의 깃발을 다시 우리 것으로 되돌려 주게.',
+      },
+      {
+        id: 'sp_w3_finale',
+        title: '세계의 끝',
+        desc: '세 번째 세계를 덮은 재앙을 끝장내라. 용 10마리 · 와이번 12마리 · 타락한 영웅 6마리.',
+        goals: [{ mob: 'dragon', target: 10 }, { mob: 'wyvern', target: 12 }, { mob: 'fallen_hero', target: 6 }],
+        rewardGold: 120000,
+        rewardXp: 20000,
+        line: '세계의 끝을 본다는 것은… 모든 것을 잃는 것과 같지.',
+      },
+    ],
+  },
+};
+
+// 세계 번호 -> 그 세계의 특별 퀘스트 정의 (모르는 값은 1세계)
+export function specialDefFor(worldId) {
+  return SPECIAL_QUESTS[worldId] || SPECIAL_QUESTS[1];
+}
+
+// 그 세계의 NPC 를 한 명 (없으면 1세계)
+export function specialNpcFor(worldId) {
+  return specialDefFor(worldId).npc;
+}
 
 /* ------------------------------------------------------------------
    친구 초대(함께 하기)로 들어온 사람이 서는 자리 — 언제나 1세계 태초마을.

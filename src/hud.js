@@ -74,6 +74,12 @@ export class HUD {
       questText: $('quest-text'),
       questReward: $('quest-reward'),
       questToggle: $('quest-toggle'),
+      specialPanel: $('special-panel'),
+      specialTitle: $('special-title'),
+      specialNpc: $('special-npc'),
+      specialName: $('special-name'),
+      specialFill: $('special-fill'),
+      specialGoals: $('special-goals'),
     };
 
     this.minimapCtx = this.dom.minimap.getContext('2d');
@@ -182,6 +188,33 @@ export class HUD {
     void el.offsetWidth;
     el.classList.add('flash');
     this.refreshQuest(true);
+  }
+
+  /* ------------------------- 특별 퀘스트 추적기 ------------------------- */
+  // 순차 퀘스트 아래에 한 줄로 따로 보여 준다 (⭐ 특별 퀘스트 · 목표 진행 · 보상 준비)
+  refreshSpecial(force) {
+    const log = this.game && this.game.specialQuests;
+    const d = this.dom;
+    if (!log || !d.specialPanel) return;
+    const st = log.status(normWorld(this.game.worldId));
+    const sig = [st.world, st.ready, st.claimed, st.focus ? st.focus.id : '', st.hint].join('|');
+    if (!force && sig === this._specialSig) return;
+    this._specialSig = sig;
+    const ready = st.flashReady;
+    if (d.specialTitle) {
+      d.specialTitle.textContent = ready
+        ? '⭐ 특별 퀘스트 · 보상 준비!'
+        : '⭐ 특별 퀘스트 ' + st.claimed + '/' + st.total;
+    }
+    if (d.specialNpc) d.specialNpc.textContent = st.npcShort;
+    if (d.specialName) d.specialName.textContent = st.focus ? st.focus.title : 'NPC 에게 말을 걸어 의뢰를 받으세요';
+    if (d.specialGoals) d.specialGoals.textContent = st.hint;
+    if (d.specialFill) {
+      const pct = st.focus && st.focus.ready ? 100 : (st.focus ? st.focus.fraction * 100 : 0);
+      d.specialFill.style.width = pct.toFixed(1) + '%';
+    }
+    d.specialPanel.classList.toggle('ready', !!ready);
+    d.specialPanel.classList.toggle('done', !!st.done);
   }
 
   /* --------------------------- 지도 접기 / 펴기 --------------------------- */
@@ -499,6 +532,7 @@ export class HUD {
     this.lastRegion = null;
     this.buildCompass();
     this.refreshQuest(true);
+    this.refreshSpecial(true);
     return id;
   }
 
@@ -747,6 +781,7 @@ export class HUD {
 
     // 퀘스트 추적기 (값이 바뀔 때만 다시 그린다)
     this.refreshQuest();
+    this.refreshSpecial();
   }
 
   setTarget(mob) {
