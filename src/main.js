@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import {
   BIOMES, BIOME_ORDER, ALL_BIOME_ORDER, CLASSES, PLAYER_SIZE, START_GOLD, WORLD2, WORLD3, WORLD2_ARRIVAL,
-  SHOP, shopForBiome, homeBiomeFor, ULT_LEVEL,
+  SHOP, shopForBiome, homeBiomeFor, ULT_LEVEL, GUEST_SPAWN,
 } from './config.js';
 import { buildWorld, updateSun, updateVillage, updateOldVillage, updateWorld2, updateWorld3, updateBiomeCulling, applyWorldQuality } from './world.js';
 import { Portals, handleBossDefeated, travelPlayer } from './portals.js';
@@ -1142,8 +1142,16 @@ class Game {
     } else {
       spawn = BIOMES[biomeId].center;
     }
-    // 함께 하기: 초대받은 사람은 호스트가 알려 준 자리에서 시작한다
-    if (o.spawn) spawn = { x: o.spawn.x, z: o.spawn.z };
+    // 함께 하기: 초대받은 사람은 언제나 1세계 태초마을에서 시작한다
+    // (호스트가 2·3세계에 있어도 그 세계로 소환하지 않는다 — 사용자 요청)
+    if (o.spawn) {
+      spawn = { x: o.spawn.x, z: o.spawn.z };
+      if (!isFinite(spawn.x) || !isFinite(spawn.z) || worldAt(spawn.x, spawn.z) !== 1) {
+        spawn = { x: BIOMES.village.spawn.x, z: BIOMES.village.spawn.z };
+      }
+      biomeId = 'village';
+      startWorld = 1;
+    }
     this.player.spawnAt(spawn.x, spawn.z);
     if (biomeId === 'village' && !this.debugSpawn) this.player.facing = Math.PI;
     if ((biomeId === 'village_w2' || biomeId === 'village_w3') && !this.debugSpawn) this.player.facing = 0;
@@ -1176,7 +1184,8 @@ class Game {
     if (this.hud.refreshQuest) this.hud.refreshQuest(true);
     // 멀티플레이 연결을 이 시점에 붙인다 (호스트: 몹 스냅샷 송신 시작, 게스트: 몹 미러 준비)
     if (this.net && this.net.role && !this.net.active) {
-      if (this.net.isHost) this.net.spawn = { x: spawn.x, z: spawn.z };
+      // 초대받은 사람의 시작 자리는 1세계 태초마을에 고정한다 (호스트가 세계를 옮겨도 그대로)
+      if (this.net.isHost) this.net.spawn = { x: GUEST_SPAWN.x, z: GUEST_SPAWN.z };
       this.net.attach();
     }
     this.hud.hideEnd();

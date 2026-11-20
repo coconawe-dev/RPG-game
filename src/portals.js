@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import {
   BIOMES, WORLD2, WORLD3, WORLD2_ARRIVAL, WORLD1_PORTAL_POS, WORLD2_RETURN_POS,
-  WORLD2_PORTAL_POS, WORLD3_ARRIVAL, WORLD3_RETURN_POS,
+  WORLD2_PORTAL_POS, WORLD3_ARRIVAL, WORLD3_RETURN_POS, GUEST_SPAWN,
 } from './config.js';
 import { terrainHeight, clamp, worldAt, normWorld } from './utils.js';
 
@@ -414,7 +414,8 @@ export function travelPlayer(game, target) {
   }
   if (game.sfx) game.sfx.gate();
   if (game.net && game.net.active) {
-    if (game.net.isHost) game.net.spawn = { x: target.x, z: target.z };
+    // 초대받은 사람의 시작 자리는 1세계 태초마을 그대로 둔다 (호스트가 따라 옮기지 않는다)
+    if (game.net.isHost) game.net.spawn = { x: GUEST_SPAWN.x, z: GUEST_SPAWN.z };
     if (game.net.isGuest) game.net._sendLocalState();
   }
   return true;

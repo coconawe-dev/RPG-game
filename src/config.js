@@ -1398,5 +1398,23 @@ export function armorByTier(tier) {
 export const MAX_WEAPON_TIER = 6;
 export const MAX_ARMOR_TIER = 7;
 
+/* ------------------------------------------------------------------
+   친구 초대(함께 하기)로 들어온 사람이 서는 자리 — 언제나 1세계 태초마을.
+   사용자 요청: "소환될때 3세계로 스폰되 1세계에서 스폰하게 해줘"
+   호스트가 2·3세계로 이동해 있어도 초대받은 사람은 1세계 태초마을에서 시작한다.
+------------------------------------------------------------------ */
+export const GUEST_SPAWN = { x: BIOMES.village.spawn.x, z: BIOMES.village.spawn.z };
+
+// 초대받은 사람의 시작 자리 (index 번째 사람은 26 거리만큼 둥글게 흩어진다)
+export function guestSpawnPoint(index) {
+  const base = GUEST_SPAWN;
+  const a = (Math.max(1, Math.round(index || 1))) * 1.1;
+  return {
+    x: base.x + Math.cos(a) * 26,
+    z: base.z + Math.sin(a) * 26,
+    yaw: Math.PI,
+  };
+}
+
 export const BOSS_POS = { x: 0, z: -165 };
 export const TEMPLE_GATE = { x: 0, z: 0 };

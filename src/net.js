@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { Player } from './player.js';
 import { Mob } from './mobs.js';
-import { MOB_TYPES, CLASSES, MAX_WEAPON_TIER, MAX_ARMOR_TIER } from './config.js';
+import { MOB_TYPES, CLASSES, MAX_WEAPON_TIER, MAX_ARMOR_TIER, GUEST_SPAWN, guestSpawnPoint } from './config.js';
 import { bossSkillCode, bossSkillByCode } from './config.js';
 import { clamp, damp, dampAngle, rand, terrainHeight, normWorld } from './utils.js';
 
@@ -688,12 +688,10 @@ export class Net {
     this.publish('g', encodeMsg('welcome', payload));
   }
 
+  // 초대받은 사람의 시작 자리 — 언제나 1세계 태초마을이다.
+  // (호스트가 2·3세계에 있어도 그 세계로 소환하지 않는다 — 사용자 요청)
   _spawnPoint(index) {
-    const base = this.spawn || { x: -2000, z: 95 };
-    const a = (index || 1) * 1.1;
-    const x = base.x + Math.cos(a) * 26;
-    const z = base.z + Math.sin(a) * 26;
-    return { x, z, yaw: Math.PI };
+    return guestSpawnPoint(index);
   }
 
   _makeRig(pid, classId, weaponTier, spawn, armorTier) {
