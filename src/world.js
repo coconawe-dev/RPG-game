@@ -3893,11 +3893,11 @@ function buildSpecialNpc(scene, def, worldId) {
   const markMat = new THREE.MeshStandardMaterial({
     color: markColor, emissive: 0xffb020, emissiveIntensity: 2.4, roughness: 0.3, metalness: 0.45,
   });
-  const bar = new THREE.Mesh(new THREE.BoxGeometry(2.8, 10, 2.8), markMat);
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(3.4, 12, 3.4), markMat);
   bar.castShadow = true;
   marker.add(bar);
-  const dot = new THREE.Mesh(new THREE.BoxGeometry(2.8, 3.0, 2.8), markMat);
-  dot.position.y = -8.4;
+  const dot = new THREE.Mesh(new THREE.BoxGeometry(3.4, 3.6, 3.4), markMat);
+  dot.position.y = -10.2;
   dot.castShadow = true;
   marker.add(dot);
   marker.position.set(0, 60, 0);
@@ -3922,17 +3922,31 @@ function buildSpecialNpc(scene, def, worldId) {
   halo.position.set(0, 40, 0);
   g.add(halo);
 
-  // 이름 팻말 (앞뒤 양면)
-  const labelMat = signMaterial(d.name, '특별 퀘스트', 0x241c34);
-  const labelFront = new THREE.Mesh(new THREE.PlaneGeometry(58, 18), labelMat);
-  labelFront.position.set(0, 48, 0.4);
-  g.add(labelFront);
-  const labelBack = new THREE.Mesh(new THREE.PlaneGeometry(58, 18), labelMat);
-  labelBack.position.set(0, 48, -0.4);
-  labelBack.rotation.y = Math.PI;
-  g.add(labelBack);
+  // 이름 팻말 — 어느 방향에서 보든 정면으로 읽히도록 카메라를 향하는 스프라이트
+  // (캔버스 텍스처를 못 만드는 테스트 환경에서는 앞뒤 두 장의 판으로 대신한다)
+  const labelTex = signTexture(d.name, '특별 퀘스트');
+  let label;
+  if (labelTex) {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: labelTex, transparent: true, depthWrite: false,
+    }));
+    sprite.scale.set(58, 18, 1);
+    sprite.position.set(0, 48, 0);
+    g.add(sprite);
+    label = sprite;
+  } else {
+    const labelMat = signMaterial(d.name, '특별 퀘스트', 0x241c34);
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(58, 18), labelMat);
+    front.position.set(0, 48, 0.4);
+    g.add(front);
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(58, 18), labelMat);
+    back.position.set(0, 48, -0.4);
+    back.rotation.y = Math.PI;
+    g.add(back);
+    label = front;
+  }
   const frame = new THREE.Mesh(new THREE.BoxGeometry(60, 20, 0.5), trim);
-  frame.position.set(0, 48, 0);
+  frame.position.set(0, 47.6, -0.3);
   g.add(frame);
 
   // 자리 · 방향 (광장 중심 쪽을 바라본다)
@@ -3945,7 +3959,7 @@ function buildSpecialNpc(scene, def, worldId) {
 
   scene.add(g);
   return {
-    group: g, npc, marker, ring, beam, halo,
+    group: g, npc, marker, ring, beam, halo, label,
     npcBaseY: 0, markerBaseY: 60, world, def: d,
   };
 }
