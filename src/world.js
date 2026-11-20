@@ -3770,6 +3770,20 @@ function animateShop(shop, dt, t) {
   }
 }
 
+// 특별 퀘스트 NPC 전용 빛무리 — 어느 각도에서 봐도 둥글게 보이는 구 껍질
+function glowShell(color, size, opacity) {
+  const m = new THREE.Mesh(
+    new THREE.SphereGeometry(size, 14, 10),
+    new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: opacity === undefined ? 0.14 : opacity,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    })
+  );
+  m.castShadow = false;
+  m.receiveShadow = false;
+  return m;
+}
+
 /* =====================================================================
    세계별 특별 퀘스트 NPC — 1·2·3세계 태초마을 광장에 한 명씩
    · 세계마다 다른 옷 · 모자 · 소품으로 한눈에 구분된다
@@ -3855,7 +3869,7 @@ function buildSpecialNpc(scene, def, worldId) {
     mk(new THREE.BoxGeometry(1.4, 3.2, 0.4), glowMat, 1.6, 30.6, 3.5);
     // 떠 있는 마력 구체 + 룬 고리
     mk(new THREE.SphereGeometry(2.2, 14, 10), glowMat, 0, 21.5, 7.2);
-    const orbHalo = glowHalo(pal.glow || 0x8fd8ff, 12, 0.2);
+    const orbHalo = glowShell(pal.glow || 0x8fd8ff, 4.2, 0.16);
     orbHalo.position.set(0, 21.5, 7.2);
     npc.add(orbHalo);
     const runeRing = mk(new THREE.TorusGeometry(3.6, 0.18, 6, 20), glowMat, 0, 21.5, 7.2, [Math.PI / 2, 0, 0]);
@@ -3878,7 +3892,7 @@ function buildSpecialNpc(scene, def, worldId) {
     mk(new THREE.CylinderGeometry(0.95, 0.95, 7, 8), prop, 7.8, 16.8, 2.8, [0, 0, Math.PI / 2]);
     mk(new THREE.CylinderGeometry(1.2, 1.2, 0.8, 8), trim, 4.6, 16.8, 2.8, [0, 0, Math.PI / 2]);
     mk(new THREE.SphereGeometry(1.9, 12, 10), glowMat, -8.6, 14.2, 2.4);
-    const lampHalo = glowHalo(pal.glow || 0x8ef0c0, 10, 0.18);
+    const lampHalo = glowShell(pal.glow || 0x8ef0c0, 3.4, 0.18);
     lampHalo.position.set(-8.6, 14.2, 2.4);
     npc.add(lampHalo);
     mk(new THREE.TorusGeometry(1.5, 0.2, 5, 12), trim, -8.6, 16.6, 2.4, [Math.PI / 2, 0, 0]);
@@ -3918,8 +3932,8 @@ function buildSpecialNpc(scene, def, worldId) {
   beam.position.y = 96;
   g.add(beam);
 
-  const halo = glowHalo(pal.glow || 0xffcf8a, 30, 0.13, 0.7);
-  halo.position.set(0, 40, 0);
+  const halo = glowShell(pal.glow || 0xffcf8a, 18, 0.12);
+  halo.position.set(0, 38, 0);
   g.add(halo);
 
   // 이름 팻말 — 어느 방향에서 보든 정면으로 읽히도록 카메라를 향하는 스프라이트
